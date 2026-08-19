@@ -7,6 +7,7 @@ import { UpdateJobCardStatusDto } from './dto/update-job-card-status.dto';
 import { ListJobCardsQueryDto } from './dto/list-job-cards-query.dto';
 import { CreateJobCardLabourDto } from './dto/create-job-card-labour.dto';
 import { CreateJobCardNoteDto } from './dto/create-job-card-note.dto';
+import { CreateJobCardPartDto } from './dto/create-job-card-part.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Audit } from '../../common/interceptors/audit-log.interceptor';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -72,6 +73,20 @@ export class JobCardsController {
   @Audit('job-card.labour.remove', 'JobCardLabour')
   removeLabour(@Param('id') id: string, @Param('lineId') lineId: string) {
     return this.jobCardsService.removeLabour(id, lineId);
+  }
+
+  @Permissions('job-card:update')
+  @Post(':id/parts')
+  @Audit('job-card.part.add', 'JobCardPart')
+  addPart(@Param('id') id: string, @Body() dto: CreateJobCardPartDto) {
+    return this.jobCardsService.addPart(id, dto);
+  }
+
+  @Permissions('job-card:update')
+  @Delete(':id/parts/:lineId')
+  @Audit('job-card.part.remove', 'JobCardPart')
+  removePart(@Param('id') id: string, @Param('lineId') lineId: string) {
+    return this.jobCardsService.removePart(id, lineId);
   }
 
   @Permissions('job-card:update')

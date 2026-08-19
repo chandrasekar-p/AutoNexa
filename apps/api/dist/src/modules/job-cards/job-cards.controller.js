@@ -22,6 +22,7 @@ const update_job_card_status_dto_1 = require("./dto/update-job-card-status.dto")
 const list_job_cards_query_dto_1 = require("./dto/list-job-cards-query.dto");
 const create_job_card_labour_dto_1 = require("./dto/create-job-card-labour.dto");
 const create_job_card_note_dto_1 = require("./dto/create-job-card-note.dto");
+const create_job_card_part_dto_1 = require("./dto/create-job-card-part.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
@@ -52,6 +53,12 @@ let JobCardsController = class JobCardsController {
     }
     removeLabour(id, lineId) {
         return this.jobCardsService.removeLabour(id, lineId);
+    }
+    addPart(id, dto) {
+        return this.jobCardsService.addPart(id, dto);
+    }
+    removePart(id, lineId) {
+        return this.jobCardsService.removePart(id, lineId);
     }
     addNote(id, dto, user) {
         return this.jobCardsService.addNote(id, dto, user.userId);
@@ -132,6 +139,26 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "removeLabour", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('job-card:update'),
+    (0, common_1.Post)(':id/parts'),
+    (0, audit_log_interceptor_1.Audit)('job-card.part.add', 'JobCardPart'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, create_job_card_part_dto_1.CreateJobCardPartDto]),
+    __metadata("design:returntype", void 0)
+], JobCardsController.prototype, "addPart", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('job-card:update'),
+    (0, common_1.Delete)(':id/parts/:lineId'),
+    (0, audit_log_interceptor_1.Audit)('job-card.part.remove', 'JobCardPart'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('lineId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], JobCardsController.prototype, "removePart", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('job-card:update'),
     (0, common_1.Post)(':id/notes'),

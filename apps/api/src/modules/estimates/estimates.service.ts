@@ -131,6 +131,10 @@ export class EstimatesService {
     return this.recalculate(estimateId);
   }
 
+  async send(id: string) {
+    return this.transition(id, EstimateStatus.DRAFT, EstimateStatus.SENT, {});
+  }
+
   async approve(id: string) {
     return this.transition(id, EstimateStatus.SENT, EstimateStatus.APPROVED, { approvedAt: new Date() });
   }

@@ -32,6 +32,17 @@ const TENANT_SCOPED_MODELS = new Set([
   'JobCardLabour',
   'JobCardStatusHistory',
   'JobCardNote',
+  'PartCategory',
+  'Part',
+  'InventoryTransaction',
+  'Supplier',
+  'PurchaseOrder',
+  'PurchaseOrderItem',
+  'GoodsReceipt',
+  'GoodsReceiptItem',
+  'PurchaseInvoice',
+  'SupplierPayment',
+  'JobCardPart',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows

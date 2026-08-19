@@ -16,15 +16,19 @@ const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const generate_sequence_number_1 = require("../../common/sequence/generate-sequence-number");
 const job_card_status_transitions_1 = require("./job-card-status-transitions");
+const resolve_converted_labour_line_1 = require("./resolve-converted-labour-line");
+const stock_guard_1 = require("./stock-guard");
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true };
 const JOB_CARD_INCLUDE = {
     vehicle: { select: VEHICLE_SUMMARY_SELECT },
     customer: { select: CUSTOMER_SUMMARY_SELECT },
     labourItems: true,
+    parts: true,
     statusHistory: { orderBy: { changedAt: 'desc' } },
     notes: { orderBy: { createdAt: 'desc' } },
 };
+const TERMINAL_JOB_CARD_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 let JobCardsService = class JobCardsService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -98,13 +102,12 @@ let JobCardsService = class JobCardsService {
                 const matched = await tx.labourItem.findFirst({
                     where: { description: line.description, isActive: true },
                 });
-                const rate = matched ? matched.labourRate : line.unitPrice;
-                const gstRate = matched ? matched.gstRate : line.gstRate;
+                const { labourItemId, rate, gstRate } = (0, resolve_converted_labour_line_1.resolveConvertedLabourLine)(line, matched);
                 const hours = line.quantity;
                 await tx.jobCardLabour.create({
                     data: {
                         jobCardId: created.id,
-                        labourItemId: matched?.id,
+                        labourItemId,
                         description: line.description,
                         hours,
                         rate,
@@ -226,6 +229,70 @@ let JobCardsService = class JobCardsService {
         await this.prisma.forTenant().jobCardLabour.delete({ where: { id: lineId } });
         return this.findOne(jobCardId);
     }
+    async addPart(jobCardId, dto) {
+        await this.assertExists(jobCardId);
+        const db = this.prisma.forTenant();
+        await db.$transaction(async (tx) => {
+            const part = await tx.part.findFirst({ where: { id: dto.partId, deletedAt: null, isActive: true } });
+            if (!part)
+                throw new common_1.NotFoundException('Part not found');
+            if (!(0, stock_guard_1.hasSufficientStock)(part.currentStock, dto.quantity)) {
+                throw new common_1.BadRequestException('Insufficient stock');
+            }
+            const updated = await tx.part.updateMany({
+                where: { id: part.id, currentStock: { gte: dto.quantity } },
+                data: { currentStock: { decrement: dto.quantity } },
+            });
+            if (updated.count === 0) {
+                throw new common_1.BadRequestException('Insufficient stock');
+            }
+            await tx.jobCardPart.create({
+                data: {
+                    jobCardId,
+                    partId: part.id,
+                    quantity: dto.quantity,
+                    unitPrice: part.sellingPrice,
+                    gstRate: part.gstRate,
+                    lineTotal: new client_1.Prisma.Decimal(dto.quantity).mul(part.sellingPrice).toDecimalPlaces(2),
+                },
+            });
+            await tx.inventoryTransaction.create({
+                data: {
+                    partId: part.id,
+                    type: client_1.InventoryTxnType.JOB_CARD_CONSUMPTION,
+                    quantity: -dto.quantity,
+                    refType: 'JobCard',
+                    refId: jobCardId,
+                },
+            });
+        });
+        return this.findOne(jobCardId);
+    }
+    async removePart(jobCardId, lineId) {
+        const jobCard = await this.assertExists(jobCardId);
+        if (TERMINAL_JOB_CARD_STATUSES.includes(jobCard.status)) {
+            throw new common_1.BadRequestException(`Cannot remove a part from a job card that is ${jobCard.status}`);
+        }
+        const line = await this.assertPartLineExists(jobCardId, lineId);
+        const db = this.prisma.forTenant();
+        await db.$transaction(async (tx) => {
+            await tx.jobCardPart.delete({ where: { id: lineId } });
+            await tx.part.update({
+                where: { id: line.partId },
+                data: { currentStock: { increment: line.quantity } },
+            });
+            await tx.inventoryTransaction.create({
+                data: {
+                    partId: line.partId,
+                    type: client_1.InventoryTxnType.RETURN,
+                    quantity: line.quantity,
+                    refType: 'JobCard',
+                    refId: jobCardId,
+                },
+            });
+        });
+        return this.findOne(jobCardId);
+    }
     async addNote(jobCardId, dto, authorId) {
         await this.assertExists(jobCardId);
         await this.prisma.forTenant().jobCardNote.create({
@@ -250,6 +317,12 @@ let JobCardsService = class JobCardsService {
         const line = await this.prisma.forTenant().jobCardLabour.findFirst({ where: { id: lineId, jobCardId } });
         if (!line)
             throw new common_1.NotFoundException('Job card labour line not found');
+        return line;
+    }
+    async assertPartLineExists(jobCardId, lineId) {
+        const line = await this.prisma.forTenant().jobCardPart.findFirst({ where: { id: lineId, jobCardId } });
+        if (!line)
+            throw new common_1.NotFoundException('Job card part line not found');
         return line;
     }
     async assertVehicleExists(vehicleId) {

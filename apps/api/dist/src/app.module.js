@@ -31,6 +31,11 @@ const estimates_module_1 = require("./modules/estimates/estimates.module");
 const labour_items_module_1 = require("./modules/labour-items/labour-items.module");
 const technicians_module_1 = require("./modules/technicians/technicians.module");
 const job_cards_module_1 = require("./modules/job-cards/job-cards.module");
+const parts_module_1 = require("./modules/parts/parts.module");
+const suppliers_module_1 = require("./modules/suppliers/suppliers.module");
+const purchase_orders_module_1 = require("./modules/purchase-orders/purchase-orders.module");
+const purchase_invoices_module_1 = require("./modules/purchase-invoices/purchase-invoices.module");
+const supplier_payments_module_1 = require("./modules/supplier-payments/supplier-payments.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -54,6 +59,11 @@ exports.AppModule = AppModule = __decorate([
             labour_items_module_1.LabourItemsModule,
             technicians_module_1.TechniciansModule,
             job_cards_module_1.JobCardsModule,
+            parts_module_1.PartsModule,
+            suppliers_module_1.SuppliersModule,
+            purchase_orders_module_1.PurchaseOrdersModule,
+            purchase_invoices_module_1.PurchaseInvoicesModule,
+            supplier_payments_module_1.SupplierPaymentsModule,
         ],
         providers: [{ provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard }],
     })

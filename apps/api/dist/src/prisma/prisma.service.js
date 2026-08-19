@@ -34,6 +34,17 @@ const TENANT_SCOPED_MODELS = new Set([
     'JobCardLabour',
     'JobCardStatusHistory',
     'JobCardNote',
+    'PartCategory',
+    'Part',
+    'InventoryTransaction',
+    'Supplier',
+    'PurchaseOrder',
+    'PurchaseOrderItem',
+    'GoodsReceipt',
+    'GoodsReceiptItem',
+    'PurchaseInvoice',
+    'SupplierPayment',
+    'JobCardPart',
 ]);
 const NULLABLE_TENANT_MODELS = new Set(['Role']);
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {

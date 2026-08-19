@@ -1,0 +1,36 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { PurchaseInvoiceStatus } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+
+export class ListPurchaseInvoicesQueryDto {
+  @ApiPropertyOptional({ description: "Free-text search across the supplier's invoice number" })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  purchaseOrderId?: string;
+
+  @ApiPropertyOptional({ enum: PurchaseInvoiceStatus })
+  @IsOptional()
+  @IsEnum(PurchaseInvoiceStatus)
+  status?: PurchaseInvoiceStatus;
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
+}

@@ -19,6 +19,11 @@ import { EstimatesModule } from './modules/estimates/estimates.module';
 import { LabourItemsModule } from './modules/labour-items/labour-items.module';
 import { TechniciansModule } from './modules/technicians/technicians.module';
 import { JobCardsModule } from './modules/job-cards/job-cards.module';
+import { PartsModule } from './modules/parts/parts.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
+import { PurchaseInvoicesModule } from './modules/purchase-invoices/purchase-invoices.module';
+import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
 
 @Module({
   imports: [
@@ -39,6 +44,11 @@ import { JobCardsModule } from './modules/job-cards/job-cards.module';
     LabourItemsModule,
     TechniciansModule,
     JobCardsModule,
+    PartsModule,
+    SuppliersModule,
+    PurchaseOrdersModule,
+    PurchaseInvoicesModule,
+    SupplierPaymentsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

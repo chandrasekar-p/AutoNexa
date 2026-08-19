@@ -74,6 +74,13 @@ export class EstimatesController {
   }
 
   @Permissions('estimate:update')
+  @Post(':id/send')
+  @Audit('estimate.send', 'Estimate')
+  send(@Param('id') id: string) {
+    return this.estimatesService.send(id);
+  }
+
+  @Permissions('estimate:update')
   @Post(':id/approve')
   @Audit('estimate.approve', 'Estimate')
   approve(@Param('id') id: string) {

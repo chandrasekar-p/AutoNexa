@@ -1,7 +1,7 @@
-# AutoNexa API — Phases 2–5: Auth/Tenancy/RBAC + CRM + Front-of-House + Operational Core
+# AutoNexa API — Phases 2–6: Auth/Tenancy/RBAC + CRM + Front-of-House + Operational Core + Inventory
 
-This is the backend built so far: everything every later phase (inventory,
-billing…) will build on top of.
+This is the backend built so far: everything Phase 7 (Billing/GST, payments,
+reports) will build on top of.
 
 ## What's in Phase 2 (foundation)
 
@@ -51,12 +51,8 @@ billing…) will build on top of.
   (`POST/PATCH/DELETE /estimates/:id/line-items[/:itemId]`); `subtotal`,
   `taxAmount`, and `total` are always recalculated server-side from the line
   items after every change (see `estimate-totals.ts` — a pure, unit-tested
-  function, never trusts a client-supplied total). `POST /estimates/:id/approve`
-  and `.../reject` only succeed from `SENT` status.
-  > **Known gap (pre-existing, not fixed in Phase 5):** there is no endpoint
-  > that moves an Estimate from `DRAFT` to `SENT`, so `approve`/`reject`/
-  > `convert-to-job-card` are only reachable today by editing the DB
-  > directly. Worth a small Phase 6-or-earlier fix (e.g. `POST /estimates/:id/send`).
+  function, never trusts a client-supplied total). `POST /estimates/:id/send`
+  (`DRAFT` → `SENT`) then `.../approve`/`.../reject` (only from `SENT`).
 
 ## What's in Phase 5 (operational core)
 
@@ -77,8 +73,8 @@ billing…) will build on top of.
     rolled-back create also rolls back the increment. Formatted as
     `{TenantSettings.jobCardPrefix}-{number padded to 4 digits}`, e.g.
     `JC-0001`. The increment+format logic lives in
-    `common/sequence/generate-sequence-number.ts` specifically so
-    Invoices/Estimates can reuse it once they need their own numbering.
+    `common/sequence/generate-sequence-number.ts`, reused as-is by Purchase
+    Orders in Phase 6 (`PO-0001`, …).
   - **Status pipeline**: `PATCH /job-cards/:id/status` validates against an
     explicit allowed-transitions map (`job-card-status-transitions.ts`, pure
     and unit-tested — no DB, no NestJS) — invalid transitions `400`. Every
@@ -91,18 +87,75 @@ billing…) will build on top of.
     card billed.
   - **Estimate conversion**: `POST /estimates/:id/convert-to-job-card` (only
     from `APPROVED`) creates the `JobCard`, converts each `LABOUR` estimate
-    line into a `JobCardLabour` row (best-effort catalogue match by exact
-    description; falls back to the estimate line's own rate if no match —
-    see the comment on `JobCardLabour.labourItemId`, which is nullable for
-    exactly this reason), skips `PART`/`CONSUMABLE` lines with a comment
-    (Phase 6, once `JobCardPart` exists), and only then flips the Estimate to
-    `CONVERTED`.
+    line into a `JobCardLabour` row, skips `PART`/`CONSUMABLE` lines with a
+    comment (they're picked up by Phase 6's `JobCardPart` instead, via a
+    *separate* `POST /job-cards/:id/parts` call — conversion doesn't
+    auto-add parts), and only then flips the Estimate to `CONVERTED`. The
+    rate/gstRate charged on the converted `JobCardLabour` line is **always**
+    the estimate line's own approved `unitPrice`/`gstRate` — a catalogue
+    `LabourItem` match by description only populates `labourItemId` for
+    categorization, it never overrides the approved price (see
+    `resolve-converted-labour-line.ts`, pure and unit-tested: approved-price
+    integrity, not live catalogue pricing).
+
+## What's in Phase 6 (parts, inventory, suppliers, purchases)
+
+- **Parts** (`parts`, `part-categories`) — full CRUD, soft delete.
+  `currentStock` always starts at 0 and only ever moves through
+  `InventoryTransaction`-backed operations (goods receipt, job card
+  add/remove) — there's no opening-balance/adjustment endpoint, so it stays
+  reconcilable against the ledger. `GET /parts?lowStock=true` filters to
+  `currentStock <= minStock` (feeds the Phase 1 dashboard's low-stock card);
+  since Prisma has no field-to-field `where` comparison, this one filter is
+  applied in memory after fetching the other filters' matches — cheap
+  because low-stock result sets are inherently small. `GET /parts/:id/stock-ledger`
+  returns that part's paginated `InventoryTransaction` history, newest first
+  — the audit trail for when `currentStock` looks wrong.
+- **Suppliers** (`suppliers`) — full CRUD, soft delete, standard.
+- **Purchase Orders** (`purchase-orders`) — `poNumber` generated the same
+  way as `jobCardNumber` (`PO-0001`, …). Items are fixed at creation (no
+  add/edit/remove-item endpoints — only `quantityReceived` moves, via
+  receiving). `POST /purchase-orders/:id/receive` accepts
+  `{purchaseOrderItemId, quantityReceived}[]` and, in one transaction:
+  books a `GoodsReceipt` + its line items, increments each `Part.currentStock`,
+  writes a `PURCHASE_IN` `InventoryTransaction` per line, updates
+  `quantityReceived`, and rolls the PO's status up to `PARTIALLY_RECEIVED`
+  or `RECEIVED` (`purchase-order-receiving.ts`, pure and unit-tested — both
+  the over-receiving rejection and the status rollup). Receiving is
+  incremental: a PO can be received across multiple partial deliveries.
+- **Purchase Invoices** (`purchase-invoices`) & **Supplier Payments**
+  (`supplier-payments`) — `PurchaseInvoice.subtotal/taxAmount/total` are
+  client-supplied (they record what the supplier's own invoice document
+  says — an external fact), unlike Estimate's server-computed totals, which
+  we control end-to-end. `status` (`UNPAID` → `PARTIALLY_PAID` → `PAID`) is
+  always recomputed from sum-of-payments vs total after every payment
+  (`purchase-invoice-status.ts`, pure and unit-tested), never set directly.
+  `SupplierPayment` has no update/delete — same append-only discipline as
+  `InventoryTransaction`/`JobCardStatusHistory`; corrections are new entries,
+  not edits.
+- **JobCardPart** (nested under `job-cards`, not its own module) —
+  `POST /job-cards/:id/parts` snapshots `unitPrice`/`gstRate` from `Part` at
+  add time (same discipline as `JobCardLabour.rate`).
+  > **Stock deducts when a part is ADDED to a job card, not deferred to
+  > invoicing.** This is a deliberate deviation from the Phase 1 doc's
+  > literal "Job Card Invoiced → Inventory Reduced" wording: Invoicing
+  > doesn't exist until Phase 7, and physically the part leaves the shelf
+  > when it's used, not when the paperwork is generated. Insufficient stock
+  > is rejected with `400` before anything is written; the actual
+  > concurrency-safe guard is a `WHERE currentStock >= quantity` UPDATE
+  > (not a plain read-then-check-then-decrement), since Postgres evaluates
+  > that WHERE clause atomically against the row's state at UPDATE time —
+  > the exact inventory race the Phase 1 architecture doc's risk table
+  > calls out. `DELETE /job-cards/:id/parts/:lineId` reverses it
+  > symmetrically (restores stock, logs a positive `RETURN` transaction),
+  > only while the job card isn't `DELIVERED`/`CANCELLED`.
 
 ## Modules
 
 `auth`, `tenants`, `branches`, `users`, `roles`, `permissions`, `customers`,
 `vehicles`, `appointments`, `inspections`, `estimates`, `labour-items`,
-`technicians`, `job-cards`
+`technicians`, `job-cards`, `parts`, `suppliers`, `purchase-orders`,
+`purchase-invoices`, `supplier-payments`
 
 ## Setup
 
@@ -112,7 +165,7 @@ cp .env.example .env
 # and change JWT_ACCESS_SECRET / JWT_REFRESH_SECRET / SUPER_ADMIN_PASSWORD
 
 npm install
-npx prisma migrate dev --name phase5_labour_technicians_job_cards
+npx prisma migrate dev --name phase6_parts_inventory_suppliers_purchases
 npm run prisma:seed
 npm run start:dev
 ```
@@ -131,26 +184,29 @@ curl -X POST http://localhost:4000/auth/login \
 curl http://localhost:4000/customers \
   -H "Authorization: Bearer <accessToken>"
 
-# The seed script also creates one demo customer (Arun Prakash) with one
-# vehicle (BMW X5, TN 37 AB 1234) so list/detail endpoints return real data
-# immediately.
-curl http://localhost:4000/vehicles \
+# Catalogue a part, then order 20 of it from a supplier.
+curl -X POST http://localhost:4000/parts \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"partNumber":"PN-BRK-001","sku":"SKU-BRK-001","name":"Front brake pad set","purchasePrice":800,"sellingPrice":1200,"minStock":5}'
+
+curl -X POST http://localhost:4000/purchase-orders \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"supplierId":"<supplierId>","items":[{"partId":"<partId>","quantityOrdered":20,"unitCost":800,"gstRate":18}]}'
+
+# Receive them (can be partial — try 12, then 8 later) — stock and the
+# PO's status (PARTIALLY_RECEIVED / RECEIVED) update automatically.
+curl -X POST http://localhost:4000/purchase-orders/<poId>/receive \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"items":[{"purchaseOrderItemId":"<itemId>","quantityReceived":12}]}'
+
+# Consume 2 on a job card — stock deducts immediately, not at invoicing.
+curl -X POST http://localhost:4000/job-cards/<jobCardId>/parts \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"partId":"<partId>","quantity":2}'
+
+# See what's running low.
+curl "http://localhost:4000/parts?lowStock=true" \
   -H "Authorization: Bearer <accessToken>"
-
-# Create a walk-in job card — jobCardNumber comes back server-generated
-# ("JC-0001", ...), status starts OPEN with its first status-history row.
-curl -X POST http://localhost:4000/job-cards \
-  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{
-        "vehicleId": "<vehicleId>",
-        "customerId": "<customerId>",
-        "complaint": "Noise from front wheel"
-      }'
-
-# Walk the status pipeline — invalid transitions (e.g. skipping stages) 400.
-curl -X PATCH http://localhost:4000/job-cards/<jobCardId>/status \
-  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{"status": "DIAGNOSIS"}'
 ```
 
 ## Notes on this codebase
@@ -168,7 +224,10 @@ curl -X PATCH http://localhost:4000/job-cards/<jobCardId>/status \
   `Customer`, `Vehicle`, and `VehicleDocument`; Phase 4 added `Appointment`,
   `Inspection`, `InspectionItem`, `InspectionPhoto`, `Estimate`, and
   `EstimateLineItem`; Phase 5 added `LabourItem`, `Technician`, `JobCard`,
-  `JobCardLabour`, `JobCardStatusHistory`, and `JobCardNote`.
+  `JobCardLabour`, `JobCardStatusHistory`, and `JobCardNote`; Phase 6 added
+  `PartCategory`, `Part`, `InventoryTransaction`, `Supplier`, `PurchaseOrder`,
+  `PurchaseOrderItem`, `GoodsReceipt`, `GoodsReceiptItem`, `PurchaseInvoice`,
+  `SupplierPayment`, and `JobCardPart`.
 - **`PrismaService.platform` is a constructor-assigned field, not a
   getter.** Prisma Client wraps the instance in a Proxy, and that Proxy's
   `get` trap does not preserve the correct receiver for accessor properties
@@ -183,24 +242,39 @@ curl -X PATCH http://localhost:4000/job-cards/<jobCardId>/status \
   types have no way to reflect statically. This is a deliberate, repeated
   pattern, not an oversight; keep using it in later phases.
 - **`forTenant().$transaction(async (tx) => ...)` does propagate tenant
-  scoping into `tx`** — verified empirically, not just assumed (see
-  `job-cards.service.ts`'s numbering transaction). The one wrinkle: `tx`'s
-  type is the extended client's own transaction type, not the generated
-  `Prisma.TransactionClient` — functions that accept a transaction client as
-  a parameter (like `generateSequenceNumber`) need `tx as unknown as
-  Prisma.TransactionClient` at the call site, same class of cast as the
-  `UncheckedCreateInput` one above.
+  scoping into `tx`** — verified empirically, not just assumed. The one
+  wrinkle: `tx`'s type is the extended client's own transaction type, not
+  the generated `Prisma.TransactionClient` — functions that accept a
+  transaction client as a parameter (like `generateSequenceNumber`) need
+  `tx as unknown as Prisma.TransactionClient` at the call site, same class
+  of cast as the `UncheckedCreateInput` one above.
+- **Routes registered under the same prefix are matched in registration
+  order, not by specificity** (Nest/Express, not a Prisma quirk). This is
+  why part categories live at `/part-categories`, a fully separate path,
+  instead of `/parts/categories` — that would risk being shadowed by
+  `GET /parts/:id` if `PartsController`'s routes happened to register first.
+- Nested-only records — only ever reached via a parent's `:id`, no
+  independent top-level list route (`EstimateLineItem`, `JobCardLabour`,
+  `PurchaseOrderItem`, `GoodsReceipt(Item)`, `JobCardPart`, …) — get a bare
+  `tenantId` scalar column with no `tenant Tenant @relation`. Entities with
+  their own top-level CRUD controller get the full relation + a back-array
+  on `Tenant`, even if they're also linked to something else (`Estimate`,
+  `PurchaseInvoice`, `SupplierPayment`, …). This is a schema-hygiene choice
+  about `Tenant` model bloat, not a tenant-isolation one — isolation is
+  `TENANT_SCOPED_MODELS` either way, independent of whether the relation
+  object exists.
 - The demo tenant's login is `owner@demoworkshop.test` / `ChangeMe123!` —
   seeded for local development only; never ships to a real deployment.
 - Run `npm test` to exercise the tenant-isolation primitive, the permissions
-  guard, DTO validation rules, the estimate total calculation logic, the job
-  card status-transition map, and the sequence-number formatter (72 tests).
+  guard, DTO validation rules, the estimate/purchase-invoice total
+  calculation logic, the job card and purchase order status pipelines, and
+  the sequence-number formatter (116 tests).
 
 ## What's deliberately NOT in this phase yet
 
-Parts, inventory, suppliers, purchases, invoices, payments — these land in
-Phases 6–7 per the sequencing in the Phase 1 architecture doc. `JobCardPart`
-does not exist yet; the `JobCard` model has a comment marking where it goes.
-Estimate `PART`/`CONSUMABLE` lines are skipped (not dropped — the estimate
-itself remains the record) when converting to a job card, for the same
-reason.
+GST invoice PDF generation, customer-facing Invoicing/Billing, and Reports —
+these land in Phase 7 per the sequencing in the Phase 1 architecture doc.
+`PurchaseInvoice`/`SupplierPayment` here are the *supplier/AP* side
+(recording what we owe and paid suppliers); Phase 7's Billing module is the
+*customer/AR* side (what customers owe us) and uses the separate
+`invoice`/`payment` permission resources, not `purchase`.

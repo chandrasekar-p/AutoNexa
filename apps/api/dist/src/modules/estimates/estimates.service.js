@@ -115,6 +115,9 @@ let EstimatesService = class EstimatesService {
         await this.prisma.forTenant().estimateLineItem.delete({ where: { id: itemId } });
         return this.recalculate(estimateId);
     }
+    async send(id) {
+        return this.transition(id, client_1.EstimateStatus.DRAFT, client_1.EstimateStatus.SENT, {});
+    }
     async approve(id) {
         return this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.APPROVED, { approvedAt: new Date() });
     }

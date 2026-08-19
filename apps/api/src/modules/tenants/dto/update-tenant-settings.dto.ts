@@ -19,6 +19,11 @@ export class UpdateTenantSettingsDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  poPrefix?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
   defaultGstRate?: number;
 

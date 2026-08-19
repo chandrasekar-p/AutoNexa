@@ -1,15 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Estimate, EstimateLineItem, EstimateLineItemType, JobCardStatus, Prisma } from '@prisma/client';
+import { Estimate, EstimateLineItem, EstimateLineItemType, InventoryTxnType, JobCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
 import { isValidJobCardTransition } from './job-card-status-transitions';
+import { resolveConvertedLabourLine } from './resolve-converted-labour-line';
+import { hasSufficientStock } from './stock-guard';
 import { CreateJobCardDto } from './dto/create-job-card.dto';
 import { UpdateJobCardDto } from './dto/update-job-card.dto';
 import { UpdateJobCardStatusDto } from './dto/update-job-card-status.dto';
 import { ListJobCardsQueryDto } from './dto/list-job-cards-query.dto';
 import { CreateJobCardLabourDto } from './dto/create-job-card-labour.dto';
 import { CreateJobCardNoteDto } from './dto/create-job-card-note.dto';
+import { CreateJobCardPartDto } from './dto/create-job-card-part.dto';
 
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true } as const;
@@ -17,9 +20,11 @@ const JOB_CARD_INCLUDE = {
   vehicle: { select: VEHICLE_SUMMARY_SELECT },
   customer: { select: CUSTOMER_SUMMARY_SELECT },
   labourItems: true,
+  parts: true,
   statusHistory: { orderBy: { changedAt: 'desc' as const } },
   notes: { orderBy: { createdAt: 'desc' as const } },
 };
+const TERMINAL_JOB_CARD_STATUSES: JobCardStatus[] = [JobCardStatus.DELIVERED, JobCardStatus.CANCELLED];
 
 type EstimateForConversion = Estimate & { lineItems: EstimateLineItem[] };
 
@@ -136,22 +141,19 @@ export class JobCardsService {
       const labourLines = estimate.lineItems.filter((li) => li.itemType === EstimateLineItemType.LABOUR);
 
       for (const line of labourLines) {
-        // Best-effort catalogue match by exact description. If the estimate
-        // used freeform text with no catalogue counterpart, fall back to
-        // the estimate line's own rate/description rather than blocking
-        // the conversion or fabricating a new LabourItem — this is why
-        // JobCardLabour.labourItemId is nullable (see schema.prisma).
+        // Best-effort catalogue match by description — see
+        // resolveConvertedLabourLine for why this only affects
+        // categorization, never the price charged.
         const matched = await tx.labourItem.findFirst({
           where: { description: line.description, isActive: true },
         });
-        const rate = matched ? matched.labourRate : line.unitPrice;
-        const gstRate = matched ? matched.gstRate : line.gstRate;
+        const { labourItemId, rate, gstRate } = resolveConvertedLabourLine(line, matched);
         const hours = line.quantity;
 
         await tx.jobCardLabour.create({
           data: {
             jobCardId: created.id,
-            labourItemId: matched?.id,
+            labourItemId,
             description: line.description,
             hours,
             rate,
@@ -288,6 +290,93 @@ export class JobCardsService {
     return this.findOne(jobCardId);
   }
 
+  /**
+   * Stock deducts here, when the part is ADDED to the job card — not
+   * deferred to invoicing (Invoicing doesn't exist until Phase 7, and
+   * physically the part leaves the shelf when it's used, not when the
+   * paperwork is generated). Deliberate deviation from the Phase 1 doc's
+   * literal "Job Card Invoiced -> Inventory Reduced" wording — see the
+   * same note on the JobCardPart model in schema.prisma.
+   */
+  async addPart(jobCardId: string, dto: CreateJobCardPartDto) {
+    await this.assertExists(jobCardId);
+    const db = this.prisma.forTenant();
+
+    await db.$transaction(async (tx) => {
+      const part = await tx.part.findFirst({ where: { id: dto.partId, deletedAt: null, isActive: true } });
+      if (!part) throw new NotFoundException('Part not found');
+      if (!hasSufficientStock(part.currentStock, dto.quantity)) {
+        throw new BadRequestException('Insufficient stock');
+      }
+
+      // Guarded UPDATE (WHERE currentStock >= quantity) rather than acting
+      // on the plain read above — Postgres evaluates the WHERE clause
+      // atomically against the row's state at UPDATE time, so two
+      // concurrent adds against the same part can't both pass the
+      // above (now-stale) check and drive stock negative. The check above
+      // is just a fast-fail for a clean error before any writes happen.
+      const updated = await tx.part.updateMany({
+        where: { id: part.id, currentStock: { gte: dto.quantity } },
+        data: { currentStock: { decrement: dto.quantity } },
+      });
+      if (updated.count === 0) {
+        throw new BadRequestException('Insufficient stock');
+      }
+
+      await tx.jobCardPart.create({
+        data: {
+          jobCardId,
+          partId: part.id,
+          quantity: dto.quantity,
+          unitPrice: part.sellingPrice,
+          gstRate: part.gstRate,
+          lineTotal: new Prisma.Decimal(dto.quantity).mul(part.sellingPrice).toDecimalPlaces(2),
+        } as unknown as Prisma.JobCardPartUncheckedCreateInput,
+      });
+
+      await tx.inventoryTransaction.create({
+        data: {
+          partId: part.id,
+          type: InventoryTxnType.JOB_CARD_CONSUMPTION,
+          quantity: -dto.quantity,
+          refType: 'JobCard',
+          refId: jobCardId,
+        } as unknown as Prisma.InventoryTransactionUncheckedCreateInput,
+      });
+    });
+
+    return this.findOne(jobCardId);
+  }
+
+  /** Reverses addPart symmetrically — restores stock, logs a positive RETURN transaction. */
+  async removePart(jobCardId: string, lineId: string) {
+    const jobCard = await this.assertExists(jobCardId);
+    if (TERMINAL_JOB_CARD_STATUSES.includes(jobCard.status)) {
+      throw new BadRequestException(`Cannot remove a part from a job card that is ${jobCard.status}`);
+    }
+    const line = await this.assertPartLineExists(jobCardId, lineId);
+    const db = this.prisma.forTenant();
+
+    await db.$transaction(async (tx) => {
+      await tx.jobCardPart.delete({ where: { id: lineId } });
+      await tx.part.update({
+        where: { id: line.partId },
+        data: { currentStock: { increment: line.quantity } },
+      });
+      await tx.inventoryTransaction.create({
+        data: {
+          partId: line.partId,
+          type: InventoryTxnType.RETURN,
+          quantity: line.quantity,
+          refType: 'JobCard',
+          refId: jobCardId,
+        } as unknown as Prisma.InventoryTransactionUncheckedCreateInput,
+      });
+    });
+
+    return this.findOne(jobCardId);
+  }
+
   async addNote(jobCardId: string, dto: CreateJobCardNoteDto, authorId: string) {
     await this.assertExists(jobCardId);
     await this.prisma.forTenant().jobCardNote.create({
@@ -313,6 +402,12 @@ export class JobCardsService {
   private async assertLabourLineExists(jobCardId: string, lineId: string) {
     const line = await this.prisma.forTenant().jobCardLabour.findFirst({ where: { id: lineId, jobCardId } });
     if (!line) throw new NotFoundException('Job card labour line not found');
+    return line;
+  }
+
+  private async assertPartLineExists(jobCardId: string, lineId: string) {
+    const line = await this.prisma.forTenant().jobCardPart.findFirst({ where: { id: lineId, jobCardId } });
+    if (!line) throw new NotFoundException('Job card part line not found');
     return line;
   }
 
