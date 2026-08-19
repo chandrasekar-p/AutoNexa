@@ -25,6 +25,9 @@ const roles_module_1 = require("./modules/roles/roles.module");
 const permissions_module_1 = require("./modules/permissions/permissions.module");
 const customers_module_1 = require("./modules/customers/customers.module");
 const vehicles_module_1 = require("./modules/vehicles/vehicles.module");
+const appointments_module_1 = require("./modules/appointments/appointments.module");
+const inspections_module_1 = require("./modules/inspections/inspections.module");
+const estimates_module_1 = require("./modules/estimates/estimates.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -42,6 +45,9 @@ exports.AppModule = AppModule = __decorate([
             permissions_module_1.PermissionsModule,
             customers_module_1.CustomersModule,
             vehicles_module_1.VehiclesModule,
+            appointments_module_1.AppointmentsModule,
+            inspections_module_1.InspectionsModule,
+            estimates_module_1.EstimatesModule,
         ],
         providers: [{ provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard }],
     })

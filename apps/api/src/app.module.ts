@@ -13,6 +13,9 @@ import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { InspectionsModule } from './modules/inspections/inspections.module';
+import { EstimatesModule } from './modules/estimates/estimates.module';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { VehiclesModule } from './modules/vehicles/vehicles.module';
     PermissionsModule,
     CustomersModule,
     VehiclesModule,
+    AppointmentsModule,
+    InspectionsModule,
+    EstimatesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

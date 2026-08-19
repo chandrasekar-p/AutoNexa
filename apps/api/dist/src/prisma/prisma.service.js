@@ -22,6 +22,12 @@ const TENANT_SCOPED_MODELS = new Set([
     'Customer',
     'Vehicle',
     'VehicleDocument',
+    'Appointment',
+    'Inspection',
+    'InspectionItem',
+    'InspectionPhoto',
+    'Estimate',
+    'EstimateLineItem',
 ]);
 const NULLABLE_TENANT_MODELS = new Set(['Role']);
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {
@@ -30,6 +36,7 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
             log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
         });
         this.logger = new common_1.Logger(PrismaService_1.name);
+        this.platform = this;
     }
     async onModuleInit() {
         await this.$connect();
@@ -77,9 +84,6 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
                 },
             },
         });
-    }
-    get platform() {
-        return this;
     }
 };
 exports.PrismaService = PrismaService;

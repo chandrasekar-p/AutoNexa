@@ -20,6 +20,12 @@ const TENANT_SCOPED_MODELS = new Set([
   'Customer',
   'Vehicle',
   'VehicleDocument',
+  'Appointment',
+  'Inspection',
+  'InspectionItem',
+  'InspectionPhoto',
+  'Estimate',
+  'EstimateLineItem',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows
@@ -30,10 +36,27 @@ const NULLABLE_TENANT_MODELS = new Set(['Role']);
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
+  /**
+   * Escape hatch for genuinely platform-level operations (tenant
+   * provisioning, Super Admin console, seeding, audit logging). Any use of
+   * this outside `modules/tenants` for platform administration should be
+   * treated as a code-review red flag.
+   *
+   * This is a plain field set once in the constructor, not a `get platform()`
+   * accessor — Prisma Client wraps `this` in a Proxy, and that Proxy's `get`
+   * trap does not preserve the correct receiver for accessor properties
+   * defined on a subclass prototype (`this` inside such a getter resolves to
+   * the unwrapped target, whose model delegates aren't callable the same
+   * way). A field assigned in the constructor, where `this` is confirmed to
+   * be the fully-constructed Proxy, sidesteps that entirely.
+   */
+  readonly platform: PrismaClient;
+
   constructor() {
     super({
       log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     });
+    this.platform = this;
   }
 
   async onModuleInit() {
@@ -105,15 +128,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     });
   }
 
-  /**
-   * Escape hatch for genuinely platform-level operations (tenant
-   * provisioning, Super Admin console, seeding). Any use of this outside
-   * `modules/tenants` for platform administration should be treated as a
-   * code-review red flag.
-   */
-  get platform() {
-    return this as PrismaClient;
-  }
 }
 
 function injectTenantFilter(
