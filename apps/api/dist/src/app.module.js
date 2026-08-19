@@ -23,6 +23,8 @@ const branches_module_1 = require("./modules/branches/branches.module");
 const users_module_1 = require("./modules/users/users.module");
 const roles_module_1 = require("./modules/roles/roles.module");
 const permissions_module_1 = require("./modules/permissions/permissions.module");
+const customers_module_1 = require("./modules/customers/customers.module");
+const vehicles_module_1 = require("./modules/vehicles/vehicles.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -38,6 +40,8 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             roles_module_1.RolesModule,
             permissions_module_1.PermissionsModule,
+            customers_module_1.CustomersModule,
+            vehicles_module_1.VehiclesModule,
         ],
         providers: [{ provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard }],
     })

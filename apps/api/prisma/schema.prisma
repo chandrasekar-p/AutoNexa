@@ -30,6 +30,8 @@ model Tenant {
   users     User[]
   roles     Role[]
   auditLogs AuditLog[]
+  customers Customer[]
+  vehicles  Vehicle[]
 
   @@map("tenants")
 }
@@ -191,4 +193,83 @@ model AuditLog {
   @@index([tenantId, entity, entityId])
   @@index([tenantId, createdAt])
   @@map("audit_logs")
+}
+
+// ───────────────────────── CRM (Phase 3) ─────────────────────────
+
+model Customer {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  mobile    String
+  altMobile String?
+  email     String?
+  address   String?
+  city      String?
+  state     String?
+  gstin     String?
+  customerType String @default("individual") // "individual" | "business"
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  vehicles  Vehicle[]
+
+  @@index([tenantId])
+  @@index([tenantId, mobile])
+  @@index([tenantId, name])
+  @@map("customers")
+}
+
+model Vehicle {
+  id                String    @id @default(uuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  customerId        String
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  registrationNo    String
+  vin               String?
+  brand             String
+  model             String
+  variant           String?
+  manufactureYear   Int?
+  fuelType          String?   // "petrol" | "diesel" | "electric" | "hybrid" | "cng"
+  transmission      String?   // "manual" | "automatic"
+  colour            String?
+  odometerReading   Int?
+  insuranceExpiry   DateTime?
+  pucExpiry         DateTime?
+  warrantyInfo      String?
+  purchaseDate      DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  documents         VehicleDocument[]
+
+  @@index([tenantId])
+  @@index([tenantId, registrationNo])
+  @@index([tenantId, customerId])
+  @@index([tenantId, vin])
+  @@map("vehicles")
+}
+
+// Insurance papers, RC copy, warranty card scans, etc. — metadata only;
+// actual bytes live in object storage (see Phase 1 architecture, Section
+// "File Storage"). `fileUrl` is a signed/reference URL, not a raw path.
+model VehicleDocument {
+  id         String   @id @default(uuid())
+  tenantId   String
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id])
+  docType    String   // "insurance" | "rc" | "puc" | "warranty" | "other"
+  fileUrl    String
+  fileName   String?
+  uploadedAt DateTime @default(now())
+
+  @@index([tenantId, vehicleId])
+  @@map("vehicle_documents")
 }

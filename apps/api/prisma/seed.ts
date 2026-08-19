@@ -139,6 +139,42 @@ async function main() {
   console.log('Seed complete.');
   console.log(`Super Admin login: ${superAdminEmail} / (value of SUPER_ADMIN_PASSWORD)`);
   console.log('Demo Owner login: owner@demoworkshop.test / ChangeMe123!');
+
+  console.log('Seeding a demo customer + vehicle for local API testing…');
+  const demoCustomer = await prisma.customer.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000001' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000001',
+      tenantId: demoTenant.id,
+      name: 'Arun Prakash',
+      mobile: '9876543210',
+      email: 'arun.prakash@example.com',
+      city: 'Coimbatore',
+      state: 'Tamil Nadu',
+      customerType: 'individual',
+    },
+  });
+
+  await prisma.vehicle.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000002' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000002',
+      tenantId: demoTenant.id,
+      customerId: demoCustomer.id,
+      registrationNo: 'TN 37 AB 1234',
+      brand: 'BMW',
+      model: 'X5',
+      variant: 'xDrive30d',
+      manufactureYear: 2023,
+      fuelType: 'diesel',
+      transmission: 'automatic',
+      colour: 'Alpine White',
+      odometerReading: 12500,
+    },
+  });
+  console.log('Demo customer + vehicle ready.');
 }
 
 main()

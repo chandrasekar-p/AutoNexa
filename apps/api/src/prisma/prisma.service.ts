@@ -17,6 +17,9 @@ const TENANT_SCOPED_MODELS = new Set([
   'User',
   'Role', // Role.tenantId is nullable (system roles) — handled specially below
   'AuditLog',
+  'Customer',
+  'Vehicle',
+  'VehicleDocument',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows
