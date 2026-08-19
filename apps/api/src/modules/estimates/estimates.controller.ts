@@ -86,4 +86,11 @@ export class EstimatesController {
   reject(@Param('id') id: string) {
     return this.estimatesService.reject(id);
   }
+
+  @Permissions('estimate:update')
+  @Post(':id/convert-to-job-card')
+  @Audit('estimate.convert-to-job-card', 'Estimate')
+  convertToJobCard(@Param('id') id: string) {
+    return this.estimatesService.convertToJobCard(id);
+  }
 }

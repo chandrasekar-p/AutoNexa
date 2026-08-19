@@ -28,6 +28,9 @@ const vehicles_module_1 = require("./modules/vehicles/vehicles.module");
 const appointments_module_1 = require("./modules/appointments/appointments.module");
 const inspections_module_1 = require("./modules/inspections/inspections.module");
 const estimates_module_1 = require("./modules/estimates/estimates.module");
+const labour_items_module_1 = require("./modules/labour-items/labour-items.module");
+const technicians_module_1 = require("./modules/technicians/technicians.module");
+const job_cards_module_1 = require("./modules/job-cards/job-cards.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -48,6 +51,9 @@ exports.AppModule = AppModule = __decorate([
             appointments_module_1.AppointmentsModule,
             inspections_module_1.InspectionsModule,
             estimates_module_1.EstimatesModule,
+            labour_items_module_1.LabourItemsModule,
+            technicians_module_1.TechniciansModule,
+            job_cards_module_1.JobCardsModule,
         ],
         providers: [{ provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard }],
     })

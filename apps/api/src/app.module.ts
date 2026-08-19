@@ -16,6 +16,9 @@ import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { InspectionsModule } from './modules/inspections/inspections.module';
 import { EstimatesModule } from './modules/estimates/estimates.module';
+import { LabourItemsModule } from './modules/labour-items/labour-items.module';
+import { TechniciansModule } from './modules/technicians/technicians.module';
+import { JobCardsModule } from './modules/job-cards/job-cards.module';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { EstimatesModule } from './modules/estimates/estimates.module';
     AppointmentsModule,
     InspectionsModule,
     EstimatesModule,
+    LabourItemsModule,
+    TechniciansModule,
+    JobCardsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

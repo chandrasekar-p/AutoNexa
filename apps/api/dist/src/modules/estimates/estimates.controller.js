@@ -57,6 +57,9 @@ let EstimatesController = class EstimatesController {
     reject(id) {
         return this.estimatesService.reject(id);
     }
+    convertToJobCard(id) {
+        return this.estimatesService.convertToJobCard(id);
+    }
 };
 exports.EstimatesController = EstimatesController;
 __decorate([
@@ -152,6 +155,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], EstimatesController.prototype, "reject", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('estimate:update'),
+    (0, common_1.Post)(':id/convert-to-job-card'),
+    (0, audit_log_interceptor_1.Audit)('estimate.convert-to-job-card', 'Estimate'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EstimatesController.prototype, "convertToJobCard", null);
 exports.EstimatesController = EstimatesController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiTags)('estimates'),

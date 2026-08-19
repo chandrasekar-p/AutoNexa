@@ -35,6 +35,9 @@ model Tenant {
   appointments Appointment[]
   inspections  Inspection[]
   estimates    Estimate[]
+  labourItems  LabourItem[]
+  technicians  Technician[]
+  jobCards     JobCard[]
 
   @@map("tenants")
 }
@@ -110,6 +113,11 @@ model User {
   appointmentsAsAdvisor    Appointment[] @relation("AppointmentServiceAdvisor")
   appointmentsAsTechnician Appointment[] @relation("AppointmentTechnician")
   inspectionsAsTechnician  Inspection[]  @relation("InspectionTechnician")
+
+  technician               Technician?
+  jobCardsAsServiceAdvisor JobCard[]
+  jobCardStatusChanges     JobCardStatusHistory[]
+  jobCardNotes             JobCardNote[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -225,6 +233,7 @@ model Customer {
   vehicles     Vehicle[]
   appointments Appointment[]
   estimates    Estimate[]
+  jobCards     JobCard[]
 
   @@index([tenantId])
   @@index([tenantId, mobile])
@@ -261,6 +270,7 @@ model Vehicle {
   appointments Appointment[]
   inspections  Inspection[]
   estimates    Estimate[]
+  jobCards     JobCard[]
 
   @@index([tenantId])
   @@index([tenantId, registrationNo])
@@ -362,8 +372,9 @@ model Inspection {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  items  InspectionItem[]
-  photos InspectionPhoto[]
+  items    InspectionItem[]
+  photos   InspectionPhoto[]
+  jobCards JobCard[]
 
   @@index([tenantId])
   @@index([tenantId, vehicleId])
@@ -433,6 +444,7 @@ model Estimate {
   deletedAt      DateTime?
 
   lineItems EstimateLineItem[]
+  jobCard   JobCard?
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -465,4 +477,180 @@ model EstimateLineItem {
 
   @@index([tenantId, estimateId])
   @@map("estimate_line_items")
+}
+
+// ─────────────── OPERATIONAL CORE (Phase 5) ───────────────
+
+model LabourItem {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+  code               String
+  description        String
+  standardHours      Decimal   @db.Decimal(6, 2)
+  labourRate         Decimal   @db.Decimal(10, 2)
+  gstRate            Decimal   @default(18) @db.Decimal(5, 2)
+  technicianCategory String?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  jobCardLabours JobCardLabour[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("labour_items")
+}
+
+enum TechnicianStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+}
+
+// A technician IS a User with the Technician role — this table is their
+// operational profile (skills, workload), not a separate identity. No
+// deletedAt: deactivation goes through `status` (INACTIVE), not soft delete.
+model Technician {
+  id              String           @id @default(uuid())
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  userId          String           @unique
+  user            User             @relation(fields: [userId], references: [id])
+  employeeId      String?
+  skills          String[]
+  specialisation  String?
+  experienceYears Int?
+  status          TechnicianStatus @default(ACTIVE)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  jobCards JobCard[]
+
+  @@index([tenantId])
+  @@map("technicians")
+}
+
+enum JobCardStatus {
+  OPEN
+  DIAGNOSIS
+  WAITING_APPROVAL
+  APPROVED
+  IN_PROGRESS
+  WAITING_PARTS
+  QUALITY_CHECK
+  READY_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model JobCard {
+  id            String @id @default(uuid())
+  tenantId      String
+  tenant        Tenant @relation(fields: [tenantId], references: [id])
+  jobCardNumber String
+
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id])
+  // Denormalized from vehicle.customerId for query convenience — same
+  // pattern as Appointment.
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // Optional: walk-ins skip estimates entirely.
+  estimateId String?   @unique
+  estimate   Estimate? @relation(fields: [estimateId], references: [id])
+
+  inspectionId String?
+  inspection   Inspection? @relation(fields: [inspectionId], references: [id])
+
+  technicianId String?
+  technician   Technician? @relation(fields: [technicianId], references: [id])
+
+  serviceAdvisorId String?
+  serviceAdvisor   User?   @relation(fields: [serviceAdvisorId], references: [id])
+
+  odometer        Int?
+  complaint       String?
+  customerRequest String?
+  estimatedWork   String?
+
+  status           JobCardStatus @default(OPEN)
+  startAt          DateTime?
+  expectedDelivery DateTime?
+  actualDelivery   DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  labourItems   JobCardLabour[]
+  statusHistory JobCardStatusHistory[]
+  notes         JobCardNote[]
+  // JobCardPart added in Phase 6 once Part/Inventory exists
+
+  @@unique([tenantId, jobCardNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, vehicleId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, technicianId])
+  @@map("job_cards")
+}
+
+// labourItemId is nullable, not strictly required: Estimate -> Job Card
+// conversion (estimates.service.ts convertToJobCard) can produce a LABOUR
+// line with no exact LabourItem catalogue match — rate/gstRate/description
+// are snapshotted directly from the estimate line in that case rather than
+// fabricating a synthetic LabourItem row. POST /job-cards/:id/labour, the
+// direct-add endpoint, still requires labourItemId via its DTO.
+model JobCardLabour {
+  id           String      @id @default(uuid())
+  tenantId     String
+  jobCardId    String
+  jobCard      JobCard     @relation(fields: [jobCardId], references: [id])
+  labourItemId String?
+  labourItem   LabourItem? @relation(fields: [labourItemId], references: [id])
+  description  String?
+  hours        Decimal     @db.Decimal(6, 2)
+  rate         Decimal     @db.Decimal(10, 2)
+  gstRate      Decimal     @db.Decimal(5, 2)
+  lineTotal    Decimal     @db.Decimal(12, 2)
+
+  @@index([tenantId, jobCardId])
+  @@map("job_card_labour")
+}
+
+// Append-only domain timeline (shown on the job card's UI timeline), not
+// just a compliance log like AuditLog — no updatedAt/deletedAt, rows are
+// never edited or removed.
+model JobCardStatusHistory {
+  id              String         @id @default(uuid())
+  tenantId        String
+  jobCardId       String
+  jobCard         JobCard        @relation(fields: [jobCardId], references: [id])
+  fromStatus      JobCardStatus?
+  toStatus        JobCardStatus
+  changedByUserId String?
+  changedByUser   User?          @relation(fields: [changedByUserId], references: [id])
+  changedAt       DateTime       @default(now())
+  notes           String?
+
+  @@index([tenantId, jobCardId])
+  @@map("job_card_status_history")
+}
+
+model JobCardNote {
+  id        String   @id @default(uuid())
+  tenantId  String
+  jobCardId String
+  jobCard   JobCard  @relation(fields: [jobCardId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  note      String
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, jobCardId])
+  @@map("job_card_notes")
 }

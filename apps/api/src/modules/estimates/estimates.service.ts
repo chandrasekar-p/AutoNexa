@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EstimateStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JobCardsService } from '../job-cards/job-cards.service';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { ListEstimatesQueryDto } from './dto/list-estimates-query.dto';
@@ -10,7 +11,10 @@ import { calculateEstimateTotals, calculateLineTotal } from './estimate-totals';
 
 @Injectable()
 export class EstimatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jobCardsService: JobCardsService,
+  ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
   // at runtime (see PrismaService) — the generated create types can't see that.
@@ -135,11 +139,29 @@ export class EstimatesService {
     return this.transition(id, EstimateStatus.SENT, EstimateStatus.REJECTED, { rejectedAt: new Date() });
   }
 
-  // TODO(Phase 5): once JobCard exists, hook Estimate -> JobCard conversion
-  // in here (Phase 1 Section 1's "Estimate Approved -> Job Card Created"
-  // event). Add a `convertToJobCard(id)` that creates the JobCard from this
-  // estimate's line items and only then transitions status to CONVERTED —
-  // do not flip the enum value without the JobCard actually existing.
+  /**
+   * Estimate -> Job Card conversion (Phase 1 Section 1's "Estimate Approved
+   * -> Job Card Created" event). Only valid from APPROVED. The JobCard is
+   * created first (see JobCardsService.createFromEstimate) and CONVERTED is
+   * only stamped once that succeeds — never flip the status ahead of the
+   * JobCard actually existing.
+   */
+  async convertToJobCard(id: string) {
+    const estimate = await this.assertExists(id);
+    if (estimate.status !== EstimateStatus.APPROVED) {
+      throw new BadRequestException('Estimate must be in APPROVED status to convert to a job card');
+    }
+
+    const full = await this.findOne(id);
+    const jobCard = await this.jobCardsService.createFromEstimate(full);
+
+    await this.prisma.forTenant().estimate.update({
+      where: { id },
+      data: { status: EstimateStatus.CONVERTED },
+    });
+
+    return jobCard;
+  }
 
   private async transition(
     id: string,

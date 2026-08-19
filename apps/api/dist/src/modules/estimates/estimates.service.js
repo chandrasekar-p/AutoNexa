@@ -13,10 +13,12 @@ exports.EstimatesService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const job_cards_service_1 = require("../job-cards/job-cards.service");
 const estimate_totals_1 = require("./estimate-totals");
 let EstimatesService = class EstimatesService {
-    constructor(prisma) {
+    constructor(prisma, jobCardsService) {
         this.prisma = prisma;
+        this.jobCardsService = jobCardsService;
     }
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
@@ -119,6 +121,19 @@ let EstimatesService = class EstimatesService {
     async reject(id) {
         return this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.REJECTED, { rejectedAt: new Date() });
     }
+    async convertToJobCard(id) {
+        const estimate = await this.assertExists(id);
+        if (estimate.status !== client_1.EstimateStatus.APPROVED) {
+            throw new common_1.BadRequestException('Estimate must be in APPROVED status to convert to a job card');
+        }
+        const full = await this.findOne(id);
+        const jobCard = await this.jobCardsService.createFromEstimate(full);
+        await this.prisma.forTenant().estimate.update({
+            where: { id },
+            data: { status: client_1.EstimateStatus.CONVERTED },
+        });
+        return jobCard;
+    }
     async transition(id, fromStatus, toStatus, extra) {
         const estimate = await this.assertExists(id);
         if (estimate.status !== fromStatus) {
@@ -186,6 +201,7 @@ let EstimatesService = class EstimatesService {
 exports.EstimatesService = EstimatesService;
 exports.EstimatesService = EstimatesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        job_cards_service_1.JobCardsService])
 ], EstimatesService);
 //# sourceMappingURL=estimates.service.js.map

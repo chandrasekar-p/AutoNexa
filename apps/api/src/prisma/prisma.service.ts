@@ -26,6 +26,12 @@ const TENANT_SCOPED_MODELS = new Set([
   'InspectionPhoto',
   'Estimate',
   'EstimateLineItem',
+  'LabourItem',
+  'Technician',
+  'JobCard',
+  'JobCardLabour',
+  'JobCardStatusHistory',
+  'JobCardNote',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows

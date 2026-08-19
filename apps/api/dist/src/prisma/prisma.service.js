@@ -28,6 +28,12 @@ const TENANT_SCOPED_MODELS = new Set([
     'InspectionPhoto',
     'Estimate',
     'EstimateLineItem',
+    'LabourItem',
+    'Technician',
+    'JobCard',
+    'JobCardLabour',
+    'JobCardStatusHistory',
+    'JobCardNote',
 ]);
 const NULLABLE_TENANT_MODELS = new Set(['Role']);
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {
