@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomersService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 let CustomersService = class CustomersService {
     constructor(prisma) {
@@ -53,11 +54,23 @@ let CustomersService = class CustomersService {
             where: { id, deletedAt: null },
             include: {
                 vehicles: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+                invoices: {
+                    include: { payments: true },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
         if (!customer)
             throw new common_1.NotFoundException('Customer not found');
-        return customer;
+        const invoicesWithOutstanding = customer.invoices.map((invoice) => {
+            const paid = invoice.payments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
+            const outstanding = new client_1.Prisma.Decimal(invoice.grandTotal).sub(paid).toDecimalPlaces(2);
+            return { ...invoice, outstanding };
+        });
+        const totalOutstanding = invoicesWithOutstanding
+            .filter((inv) => inv.status === client_1.InvoiceStatus.UNPAID || inv.status === client_1.InvoiceStatus.PARTIALLY_PAID)
+            .reduce((sum, inv) => sum.add(inv.outstanding), new client_1.Prisma.Decimal(0));
+        return { ...customer, invoices: invoicesWithOutstanding, totalOutstanding };
     }
     async update(id, dto) {
         await this.assertExists(id);

@@ -99,4 +99,11 @@ export class JobCardsController {
   ) {
     return this.jobCardsService.addNote(id, dto, user.userId);
   }
+
+  @Permissions('invoice:create')
+  @Post(':id/generate-invoice')
+  @Audit('job-card.generate-invoice', 'Invoice')
+  generateInvoice(@Param('id') id: string) {
+    return this.jobCardsService.generateInvoice(id);
+  }
 }

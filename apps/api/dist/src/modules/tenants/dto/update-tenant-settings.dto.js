@@ -51,4 +51,13 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UpdateTenantSettingsDto.prototype, "timezone", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'The workshop\'s own home state — used to determine CGST+SGST vs IGST on generated invoices',
+        example: 'Tamil Nadu',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateTenantSettingsDto.prototype, "state", void 0);
 //# sourceMappingURL=update-tenant-settings.dto.js.map

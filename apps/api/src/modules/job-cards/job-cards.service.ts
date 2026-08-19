@@ -3,6 +3,7 @@ import { Estimate, EstimateLineItem, EstimateLineItemType, InventoryTxnType, Job
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
+import { InvoicesService } from '../invoices/invoices.service';
 import { isValidJobCardTransition } from './job-card-status-transitions';
 import { resolveConvertedLabourLine } from './resolve-converted-labour-line';
 import { hasSufficientStock } from './stock-guard';
@@ -30,7 +31,10 @@ type EstimateForConversion = Estimate & { lineItems: EstimateLineItem[] };
 
 @Injectable()
 export class JobCardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly invoicesService: InvoicesService,
+  ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
   // at runtime (see PrismaService) — the generated create types can't see that.
@@ -134,10 +138,13 @@ export class JobCardsService {
       });
 
       // PART/CONSUMABLE lines are intentionally skipped, not silently
-      // dropped: Part/Inventory doesn't exist until Phase 6, so there's
-      // nowhere yet to record stock consumption for them. The estimate
-      // itself remains the record of what parts were priced; JobCardPart
-      // will pick this up once it exists.
+      // dropped: adding parts to a job card is a deliberate manual step
+      // (POST /job-cards/:id/parts) because it deducts real stock at that
+      // moment (see addPart below) — estimate line items are just priced
+      // text, not a stock-backed commitment, so conversion can't safely
+      // auto-consume inventory on the technician's behalf. The estimate
+      // itself remains the record of what parts were priced; a technician
+      // adds them to the job card explicitly once work actually starts.
       const labourLines = estimate.lineItems.filter((li) => li.itemType === EstimateLineItemType.LABOUR);
 
       for (const line of labourLines) {
@@ -391,6 +398,16 @@ export class JobCardsService {
       where: { jobCardId },
       orderBy: { changedAt: 'desc' },
     });
+  }
+
+  /**
+   * Public entry point is POST /job-cards/:id/generate-invoice — the
+   * actual generation logic (status guard, duplicate check, GST split,
+   * line-item snapshotting) lives in InvoicesService since Invoice isn't
+   * owned by this module, same shape as Estimate -> JobCard conversion.
+   */
+  generateInvoice(jobCardId: string) {
+    return this.invoicesService.generateFromJobCard(jobCardId);
   }
 
   private async assertExists(id: string) {

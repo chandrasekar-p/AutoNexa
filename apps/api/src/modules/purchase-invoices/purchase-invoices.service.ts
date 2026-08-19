@@ -1,10 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PurchaseInvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { rollupPaymentStatus } from '../../common/billing/rollup-payment-status';
 import { CreatePurchaseInvoiceDto } from './dto/create-purchase-invoice.dto';
 import { UpdatePurchaseInvoiceDto } from './dto/update-purchase-invoice.dto';
 import { ListPurchaseInvoicesQueryDto } from './dto/list-purchase-invoices-query.dto';
-import { rollupPurchaseInvoiceStatus } from './purchase-invoice-status';
+
+const PURCHASE_INVOICE_STATUSES = {
+  unpaid: PurchaseInvoiceStatus.UNPAID,
+  partiallyPaid: PurchaseInvoiceStatus.PARTIALLY_PAID,
+  paid: PurchaseInvoiceStatus.PAID,
+};
 
 @Injectable()
 export class PurchaseInvoicesService {
@@ -85,7 +91,7 @@ export class PurchaseInvoicesService {
     ]);
 
     const totalPaid = payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
-    const status = rollupPurchaseInvoiceStatus(totalPaid, invoice.total);
+    const status = rollupPaymentStatus(totalPaid, invoice.total, PURCHASE_INVOICE_STATUSES);
 
     return db.purchaseInvoice.update({
       where: { id },

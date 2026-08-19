@@ -56,18 +56,23 @@ let TechniciansService = class TechniciansService {
     async findOne(id) {
         const technician = await this.assertExists(id);
         const db = this.prisma.forTenant();
-        const [jobsOpen, jobsCompleted, hoursAgg] = await Promise.all([
+        const [jobsOpen, jobsCompleted, hoursAgg, revenueAgg] = await Promise.all([
             db.jobCard.count({
                 where: { technicianId: id, deletedAt: null, status: { notIn: TERMINAL_STATUSES } },
             }),
             db.jobCard.count({ where: { technicianId: id, deletedAt: null, status: client_1.JobCardStatus.DELIVERED } }),
             db.jobCardLabour.aggregate({ where: { jobCard: { technicianId: id } }, _sum: { hours: true } }),
+            db.jobCardLabour.aggregate({
+                where: { jobCard: { technicianId: id, invoice: { status: client_1.InvoiceStatus.PAID } } },
+                _sum: { lineTotal: true },
+            }),
         ]);
         return {
             ...technician,
             jobsOpen,
             jobsCompleted,
             totalLabourHours: hoursAgg._sum.hours ?? new client_1.Prisma.Decimal(0),
+            revenueGenerated: revenueAgg._sum.lineTotal ?? new client_1.Prisma.Decimal(0),
         };
     }
     async update(id, dto) {

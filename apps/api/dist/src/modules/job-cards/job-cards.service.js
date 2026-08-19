@@ -15,6 +15,7 @@ const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const generate_sequence_number_1 = require("../../common/sequence/generate-sequence-number");
+const invoices_service_1 = require("../invoices/invoices.service");
 const job_card_status_transitions_1 = require("./job-card-status-transitions");
 const resolve_converted_labour_line_1 = require("./resolve-converted-labour-line");
 const stock_guard_1 = require("./stock-guard");
@@ -30,8 +31,9 @@ const JOB_CARD_INCLUDE = {
 };
 const TERMINAL_JOB_CARD_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 let JobCardsService = class JobCardsService {
-    constructor(prisma) {
+    constructor(prisma, invoicesService) {
         this.prisma = prisma;
+        this.invoicesService = invoicesService;
     }
     async create(dto) {
         await this.assertVehicleExists(dto.vehicleId);
@@ -307,6 +309,9 @@ let JobCardsService = class JobCardsService {
             orderBy: { changedAt: 'desc' },
         });
     }
+    generateInvoice(jobCardId) {
+        return this.invoicesService.generateFromJobCard(jobCardId);
+    }
     async assertExists(id) {
         const jobCard = await this.prisma.forTenant().jobCard.findFirst({ where: { id, deletedAt: null } });
         if (!jobCard)
@@ -351,6 +356,7 @@ let JobCardsService = class JobCardsService {
 exports.JobCardsService = JobCardsService;
 exports.JobCardsService = JobCardsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        invoices_service_1.InvoicesService])
 ], JobCardsService);
 //# sourceMappingURL=job-cards.service.js.map

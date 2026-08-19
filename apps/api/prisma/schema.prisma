@@ -44,6 +44,7 @@ model Tenant {
   purchaseOrders   PurchaseOrder[]
   purchaseInvoices PurchaseInvoice[]
   supplierPayments SupplierPayment[]
+  invoices         Invoice[]
 
   @@map("tenants")
 }
@@ -59,6 +60,11 @@ model TenantSettings {
   defaultGstRate Decimal  @default(18) @db.Decimal(5, 2)
   timezone       String   @default("Asia/Kolkata")
   currency       String   @default("INR")
+  // The workshop's own home state — determines CGST+SGST (same state as
+  // the customer) vs IGST (different state) on generated invoices. See
+  // calculateGstSplit in modules/invoices/gst-split.ts for the fallback
+  // behavior when this (or the customer's own state) is unset.
+  state          String?
   updatedAt      DateTime @updatedAt
 
   @@map("tenant_settings")
@@ -244,6 +250,7 @@ model Customer {
   appointments Appointment[]
   estimates    Estimate[]
   jobCards     JobCard[]
+  invoices     Invoice[]
 
   @@index([tenantId])
   @@index([tenantId, mobile])
@@ -599,6 +606,7 @@ model JobCard {
   statusHistory JobCardStatusHistory[]
   notes         JobCardNote[]
   parts         JobCardPart[]
+  invoice       Invoice?
 
   @@unique([tenantId, jobCardNumber])
   @@index([tenantId])
@@ -925,4 +933,90 @@ model JobCardPart {
 
   @@index([tenantId, jobCardId])
   @@map("job_card_parts")
+}
+
+// ─────────────── BILLING / GST (Phase 7) ───────────────
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  REFUNDED
+}
+
+model Invoice {
+  id            String @id @default(uuid())
+  tenantId      String
+  tenant        Tenant @relation(fields: [tenantId], references: [id])
+  invoiceNumber String
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // One invoice per job card; nullable for any future non-job-card
+  // invoicing (this phase only generates invoices from a job card).
+  jobCardId String?  @unique
+  jobCard   JobCard? @relation(fields: [jobCardId], references: [id])
+
+  subtotal   Decimal @default(0) @db.Decimal(12, 2)
+  cgstAmount Decimal @default(0) @db.Decimal(12, 2)
+  sgstAmount Decimal @default(0) @db.Decimal(12, 2)
+  igstAmount Decimal @default(0) @db.Decimal(12, 2)
+  roundOff   Decimal @default(0) @db.Decimal(12, 2)
+  grandTotal Decimal @default(0) @db.Decimal(12, 2)
+
+  status InvoiceStatus @default(UNPAID)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@map("invoices")
+}
+
+// Snapshotted from JobCardLabour/JobCardPart at generation time — same
+// discipline as every other line-item snapshot in this codebase (never a
+// live join back to LabourItem/Part pricing). No Tenant relation/back-array
+// — nested-only, same reasoning as EstimateLineItem/JobCardLabour.
+model InvoiceLineItem {
+  id          String  @id @default(uuid())
+  tenantId    String
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  gstRate     Decimal @db.Decimal(5, 2)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  @@index([tenantId, invoiceId])
+  @@map("invoice_line_items")
+}
+
+// Append-only — no update/delete, same discipline as SupplierPayment/
+// InventoryTransaction; corrections are new entries, not edits. No Tenant
+// relation/back-array either: unlike SupplierPayment (which got its own
+// top-level /supplier-payments controller in Phase 6 and so counts as
+// "primary" by this schema's own convention), Payment here is reached only
+// via POST /invoices/:id/payments — nested-only, so it follows the child-
+// table pattern instead.
+model Payment {
+  id              String   @id @default(uuid())
+  tenantId        String
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  amount          Decimal  @db.Decimal(12, 2)
+  paymentDate     DateTime @default(now())
+  method          String // "cash" | "upi" | "card" | "bank_transfer" | "credit"
+  referenceNumber String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, invoiceId])
+  @@map("payments")
 }

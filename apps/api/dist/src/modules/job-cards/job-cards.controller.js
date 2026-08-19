@@ -63,6 +63,9 @@ let JobCardsController = class JobCardsController {
     addNote(id, dto, user) {
         return this.jobCardsService.addNote(id, dto, user.userId);
     }
+    generateInvoice(id) {
+        return this.jobCardsService.generateInvoice(id);
+    }
 };
 exports.JobCardsController = JobCardsController;
 __decorate([
@@ -170,6 +173,15 @@ __decorate([
     __metadata("design:paramtypes", [String, create_job_card_note_dto_1.CreateJobCardNoteDto, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "addNote", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('invoice:create'),
+    (0, common_1.Post)(':id/generate-invoice'),
+    (0, audit_log_interceptor_1.Audit)('job-card.generate-invoice', 'Invoice'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], JobCardsController.prototype, "generateInvoice", null);
 exports.JobCardsController = JobCardsController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiTags)('job-cards'),

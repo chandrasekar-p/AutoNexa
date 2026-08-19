@@ -1,7 +1,7 @@
-# AutoNexa API — Phases 2–6: Auth/Tenancy/RBAC + CRM + Front-of-House + Operational Core + Inventory
+# AutoNexa API — Phases 2–7: Auth/Tenancy/RBAC + CRM + Front-of-House + Operational Core + Inventory + Billing
 
-This is the backend built so far: everything Phase 7 (Billing/GST, payments,
-reports) will build on top of.
+This is the backend built so far: everything Phase 8 (Reports, Dashboard,
+Notifications) will build on top of.
 
 ## What's in Phase 2 (foundation)
 
@@ -24,9 +24,9 @@ reports) will build on top of.
 ## What's in Phase 3 (CRM foundation)
 
 - **Customers** — full CRUD, paginated search (name/mobile/email), soft
-  delete. `GET /customers/:id` returns the customer's vehicles inline —
-  invoices/estimates/job cards/outstanding balance get added to that same
-  response shape as Phases 4–7 land, per the Phase 1 customer-profile spec.
+  delete. `GET /customers/:id` returns vehicles, invoices (each with a
+  computed `outstanding`), and a `totalOutstanding` across unpaid/
+  partially-paid invoices — closed as of Phase 7, see below.
 - **Vehicles** — full CRUD scoped to a customer, paginated search
   (registration no / VIN / brand / model), document attachments (insurance,
   RC, PUC, warranty — metadata only; actual files live in object storage
@@ -64,9 +64,9 @@ reports) will build on top of.
   `Technician` has no `deletedAt`; deactivation goes through `status`
   (`ACTIVE`/`ON_LEAVE`/`INACTIVE`) via the normal `PATCH`. `GET /technicians/:id`
   returns the stored profile plus computed workload — `jobsOpen`,
-  `jobsCompleted`, `totalLabourHours` — derived from `JobCard`/`JobCardLabour`
-  on every read, never stored redundantly. `revenueGenerated` is a commented
-  TODO for Phase 7 (Invoicing), where there's finally paid-invoice data to sum.
+  `jobsCompleted`, `totalLabourHours`, and (closed as of Phase 7)
+  `revenueGenerated` — all derived from `JobCard`/`JobCardLabour`/`Invoice`
+  on every read, never stored redundantly.
 - **Job Cards** — the operational core:
   - **Numbering**: `{tenantId, "JOB_CARD"}` atomically incremented against
     `TenantSequence` inside the same transaction as the `JobCard` insert, so a
@@ -74,7 +74,7 @@ reports) will build on top of.
     `{TenantSettings.jobCardPrefix}-{number padded to 4 digits}`, e.g.
     `JC-0001`. The increment+format logic lives in
     `common/sequence/generate-sequence-number.ts`, reused as-is by Purchase
-    Orders in Phase 6 (`PO-0001`, …).
+    Orders (`PO-0001`) and now Invoices (`INV-0001`).
   - **Status pipeline**: `PATCH /job-cards/:id/status` validates against an
     explicit allowed-transitions map (`job-card-status-transitions.ts`, pure
     and unit-tested — no DB, no NestJS) — invalid transitions `400`. Every
@@ -88,15 +88,16 @@ reports) will build on top of.
   - **Estimate conversion**: `POST /estimates/:id/convert-to-job-card` (only
     from `APPROVED`) creates the `JobCard`, converts each `LABOUR` estimate
     line into a `JobCardLabour` row, skips `PART`/`CONSUMABLE` lines with a
-    comment (they're picked up by Phase 6's `JobCardPart` instead, via a
-    *separate* `POST /job-cards/:id/parts` call — conversion doesn't
-    auto-add parts), and only then flips the Estimate to `CONVERTED`. The
-    rate/gstRate charged on the converted `JobCardLabour` line is **always**
-    the estimate line's own approved `unitPrice`/`gstRate` — a catalogue
-    `LabourItem` match by description only populates `labourItemId` for
-    categorization, it never overrides the approved price (see
-    `resolve-converted-labour-line.ts`, pure and unit-tested: approved-price
-    integrity, not live catalogue pricing).
+    comment (adding parts to a job card is a deliberate manual step that
+    deducts real stock — see Phase 6 — so conversion can't safely auto-consume
+    inventory on the technician's behalf; a technician adds them explicitly
+    via `POST /job-cards/:id/parts` once work starts), and only then flips
+    the Estimate to `CONVERTED`. The rate/gstRate charged on the converted
+    `JobCardLabour` line is **always** the estimate line's own approved
+    `unitPrice`/`gstRate` — a catalogue `LabourItem` match by description
+    only populates `labourItemId` for categorization, it never overrides the
+    approved price (see `resolve-converted-labour-line.ts`, pure and
+    unit-tested: approved-price integrity, not live catalogue pricing).
 
 ## What's in Phase 6 (parts, inventory, suppliers, purchases)
 
@@ -128,34 +129,93 @@ reports) will build on top of.
   client-supplied (they record what the supplier's own invoice document
   says — an external fact), unlike Estimate's server-computed totals, which
   we control end-to-end. `status` (`UNPAID` → `PARTIALLY_PAID` → `PAID`) is
-  always recomputed from sum-of-payments vs total after every payment
-  (`purchase-invoice-status.ts`, pure and unit-tested), never set directly.
-  `SupplierPayment` has no update/delete — same append-only discipline as
-  `InventoryTransaction`/`JobCardStatusHistory`; corrections are new entries,
-  not edits.
+  always recomputed from sum-of-payments vs total after every payment, via
+  the shared `rollupPaymentStatus` (see Phase 7 — this used to be a
+  Purchase-Invoice-only function, refactored to a generic one once Invoice
+  needed the identical logic), never set directly. `SupplierPayment` has no
+  update/delete — same append-only discipline as
+  `InventoryTransaction`/`JobCardStatusHistory`; corrections are new
+  entries, not edits.
 - **JobCardPart** (nested under `job-cards`, not its own module) —
   `POST /job-cards/:id/parts` snapshots `unitPrice`/`gstRate` from `Part` at
   add time (same discipline as `JobCardLabour.rate`).
   > **Stock deducts when a part is ADDED to a job card, not deferred to
   > invoicing.** This is a deliberate deviation from the Phase 1 doc's
-  > literal "Job Card Invoiced → Inventory Reduced" wording: Invoicing
-  > doesn't exist until Phase 7, and physically the part leaves the shelf
-  > when it's used, not when the paperwork is generated. Insufficient stock
-  > is rejected with `400` before anything is written; the actual
-  > concurrency-safe guard is a `WHERE currentStock >= quantity` UPDATE
-  > (not a plain read-then-check-then-decrement), since Postgres evaluates
-  > that WHERE clause atomically against the row's state at UPDATE time —
-  > the exact inventory race the Phase 1 architecture doc's risk table
-  > calls out. `DELETE /job-cards/:id/parts/:lineId` reverses it
-  > symmetrically (restores stock, logs a positive `RETURN` transaction),
-  > only while the job card isn't `DELIVERED`/`CANCELLED`.
+  > literal "Job Card Invoiced → Inventory Reduced" wording: physically the
+  > part leaves the shelf when it's used, not when the paperwork is
+  > generated. Insufficient stock is rejected with `400` before anything is
+  > written; the actual concurrency-safe guard is a
+  > `WHERE currentStock >= quantity` UPDATE (not a plain
+  > read-then-check-then-decrement), since Postgres evaluates that WHERE
+  > clause atomically against the row's state at UPDATE time — the exact
+  > inventory race the Phase 1 architecture doc's risk table calls out.
+  > `DELETE /job-cards/:id/parts/:lineId` reverses it symmetrically
+  > (restores stock, logs a positive `RETURN` transaction), only while the
+  > job card isn't `DELIVERED`/`CANCELLED`.
+
+## What's in Phase 7 (billing / GST invoicing, payments)
+
+- **⚠️ Setup step: set `TenantSettings.state`** (`PATCH /tenants/me/settings
+  {"state": "Tamil Nadu"}`) — the workshop's own home state, needed to
+  determine CGST+SGST (same state as the customer) vs IGST (different
+  state) on generated invoices. See the fallback behavior below if this
+  isn't set.
+- **Invoice generation** — `POST /job-cards/:id/generate-invoice`, only
+  valid from `READY_FOR_DELIVERY`/`DELIVERED` (`400` otherwise), rejects a
+  second invoice for the same job card with a clean `409` (the DB unique
+  constraint on `jobCardId` would also catch it, but this gives a readable
+  error first). In one transaction: pulls every `JobCardLabour`/`JobCardPart`
+  row for the job card and snapshots each into an `InvoiceLineItem`
+  (description, quantity, unitPrice, gstRate, lineTotal — never a live
+  re-read of `Part`/`LabourItem` pricing, since those rows were themselves
+  already snapshotted when added to the job card), computes the GST split,
+  computes `roundOff` (nearest whole rupee; `roundOff = rounded - unrounded`),
+  and creates the `Invoice` with `invoiceNumber` generated the same way as
+  `JobCard`/`PurchaseOrder` numbering (`INV-0001`, …).
+- **GST split** (`gst-split.ts`, pure and unit-tested, mirrors
+  `resolve-converted-labour-line.ts`'s style) — same state (tenant home
+  state === customer state): half each line's GST as CGST, half as SGST.
+  Different state: the full line GST as IGST.
+  > **Fallback when either state is unset: treated as SAME-STATE
+  > (CGST+SGST).** This is the safer operational default for a
+  > single-location Indian workshop whose customer base is typically local
+  > — silently defaulting to IGST instead would be the more surprising
+  > failure mode. It lets invoice generation succeed with a usable (if not
+  > perfectly accurate) split rather than blocking outright, but tenants
+  > should still set `TenantSettings.state` for GST accuracy.
+- **Payments** — `POST /invoices/:id/payments` records a `Payment`
+  (append-only, no update/delete — same discipline as `SupplierPayment`/
+  `InventoryTransaction`) then recomputes `Invoice.status` via the shared
+  rollup. Overpayment (a payment that would push total-paid past
+  `grandTotal`) is rejected outright with `400` — no special-casing for
+  `method: "credit"` — via a pure `isOverpayment` predicate
+  (`payment-guard.ts`, unit-tested).
+- **Shared `rollupPaymentStatus`** (`common/billing/rollup-payment-status.ts`)
+  — generic over the status enum's three values (`unpaid`/`partiallyPaid`/`paid`),
+  since `PurchaseInvoiceStatus` and `InvoiceStatus` are distinct
+  Prisma-generated types that happen to share the same three states.
+  `PurchaseInvoicesService` was refactored in this phase to call this
+  directly (its old `purchase-invoice-status.ts` wrapper is gone) instead
+  of duplicating the same sum-of-payments arithmetic a second time.
+- **Customer outstanding** (closes the Phase 3 TODO) — `GET /customers/:id`
+  now includes `invoices` (each with a computed `outstanding = grandTotal -
+  sum of payments`) and a `totalOutstanding` across `UNPAID`/`PARTIALLY_PAID`
+  invoices.
+- **Technician revenue** (closes the Phase 5 TODO) — `GET /technicians/:id`'s
+  `revenueGenerated` sums `JobCardLabour.lineTotal` across the technician's
+  job cards where a `PAID` `Invoice` now exists — labour revenue
+  specifically, not parts (parts aren't "generated" by their labour).
+
+**Explicitly out of scope for Phase 7**: PDF generation and WhatsApp/print
+sharing (Phase 1 lists these, but they're a later polish pass on top of this
+data model, not core to it) — just the data model and REST API here.
 
 ## Modules
 
 `auth`, `tenants`, `branches`, `users`, `roles`, `permissions`, `customers`,
 `vehicles`, `appointments`, `inspections`, `estimates`, `labour-items`,
 `technicians`, `job-cards`, `parts`, `suppliers`, `purchase-orders`,
-`purchase-invoices`, `supplier-payments`
+`purchase-invoices`, `supplier-payments`, `invoices`
 
 ## Setup
 
@@ -165,12 +225,21 @@ cp .env.example .env
 # and change JWT_ACCESS_SECRET / JWT_REFRESH_SECRET / SUPER_ADMIN_PASSWORD
 
 npm install
-npx prisma migrate dev --name phase6_parts_inventory_suppliers_purchases
+npx prisma migrate dev --name phase7_billing_gst_payments
 npm run prisma:seed
 npm run start:dev
 ```
 
 API docs: `http://localhost:4000/api/docs`
+
+After seeding, **set your tenant's home state** before generating any real
+invoices — GST accuracy depends on it (see the Phase 7 section above):
+
+```bash
+curl -X PATCH http://localhost:4000/tenants/me/settings \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"state": "Tamil Nadu"}'
+```
 
 ## Try it
 
@@ -180,32 +249,20 @@ curl -X POST http://localhost:4000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"tenantSlug":"demo-workshop","email":"owner@demoworkshop.test","password":"ChangeMe123!"}'
 
-# Use the returned accessToken
-curl http://localhost:4000/customers \
+# Build a job card up to READY_FOR_DELIVERY, add labour/parts along the way,
+# then generate its invoice — subtotal/CGST/SGST/IGST/roundOff/grandTotal
+# all come back server-computed.
+curl -X POST http://localhost:4000/job-cards/<jobCardId>/generate-invoice \
   -H "Authorization: Bearer <accessToken>"
 
-# Catalogue a part, then order 20 of it from a supplier.
-curl -X POST http://localhost:4000/parts \
+# Pay it down — status flips UNPAID -> PARTIALLY_PAID -> PAID automatically.
+# A payment that would exceed grandTotal is rejected with 400.
+curl -X POST http://localhost:4000/invoices/<invoiceId>/payments \
   -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{"partNumber":"PN-BRK-001","sku":"SKU-BRK-001","name":"Front brake pad set","purchasePrice":800,"sellingPrice":1200,"minStock":5}'
+  -d '{"amount": 1000, "method": "upi"}'
 
-curl -X POST http://localhost:4000/purchase-orders \
-  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{"supplierId":"<supplierId>","items":[{"partId":"<partId>","quantityOrdered":20,"unitCost":800,"gstRate":18}]}'
-
-# Receive them (can be partial — try 12, then 8 later) — stock and the
-# PO's status (PARTIALLY_RECEIVED / RECEIVED) update automatically.
-curl -X POST http://localhost:4000/purchase-orders/<poId>/receive \
-  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{"items":[{"purchaseOrderItemId":"<itemId>","quantityReceived":12}]}'
-
-# Consume 2 on a job card — stock deducts immediately, not at invoicing.
-curl -X POST http://localhost:4000/job-cards/<jobCardId>/parts \
-  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
-  -d '{"partId":"<partId>","quantity":2}'
-
-# See what's running low.
-curl "http://localhost:4000/parts?lowStock=true" \
+# The customer's outstanding balance across all their invoices.
+curl http://localhost:4000/customers/<customerId> \
   -H "Authorization: Bearer <accessToken>"
 ```
 
@@ -227,7 +284,8 @@ curl "http://localhost:4000/parts?lowStock=true" \
   `JobCardLabour`, `JobCardStatusHistory`, and `JobCardNote`; Phase 6 added
   `PartCategory`, `Part`, `InventoryTransaction`, `Supplier`, `PurchaseOrder`,
   `PurchaseOrderItem`, `GoodsReceipt`, `GoodsReceiptItem`, `PurchaseInvoice`,
-  `SupplierPayment`, and `JobCardPart`.
+  `SupplierPayment`, and `JobCardPart`; Phase 7 added `Invoice`,
+  `InvoiceLineItem`, and `Payment`.
 - **`PrismaService.platform` is a constructor-assigned field, not a
   getter.** Prisma Client wraps the instance in a Proxy, and that Proxy's
   `get` trap does not preserve the correct receiver for accessor properties
@@ -255,26 +313,35 @@ curl "http://localhost:4000/parts?lowStock=true" \
   `GET /parts/:id` if `PartsController`'s routes happened to register first.
 - Nested-only records — only ever reached via a parent's `:id`, no
   independent top-level list route (`EstimateLineItem`, `JobCardLabour`,
-  `PurchaseOrderItem`, `GoodsReceipt(Item)`, `JobCardPart`, …) — get a bare
-  `tenantId` scalar column with no `tenant Tenant @relation`. Entities with
-  their own top-level CRUD controller get the full relation + a back-array
-  on `Tenant`, even if they're also linked to something else (`Estimate`,
-  `PurchaseInvoice`, `SupplierPayment`, …). This is a schema-hygiene choice
-  about `Tenant` model bloat, not a tenant-isolation one — isolation is
-  `TENANT_SCOPED_MODELS` either way, independent of whether the relation
-  object exists.
+  `PurchaseOrderItem`, `GoodsReceipt(Item)`, `JobCardPart`, `InvoiceLineItem`,
+  `Payment`, …) — get a bare `tenantId` scalar column with no
+  `tenant Tenant @relation`. Entities with their own top-level CRUD
+  controller get the full relation + a back-array on `Tenant`, even if
+  they're also linked to something else (`Estimate`, `PurchaseInvoice`,
+  `SupplierPayment`, …). `Payment` is the clearest example of this rule
+  actually mattering: it's structurally almost identical to
+  `SupplierPayment`, but `SupplierPayment` got its own top-level
+  `/supplier-payments` controller in Phase 6 (so it's "primary"), while
+  `Payment` here is reached only via `POST /invoices/:id/payments` (so it's
+  a "child"). This is a schema-hygiene choice about `Tenant` model bloat,
+  not a tenant-isolation one — isolation is `TENANT_SCOPED_MODELS` either
+  way, independent of whether the relation object exists.
+- Cross-module service injection now chains three deep and is still
+  one-directional (no cycles): `EstimatesModule` → `JobCardsModule` →
+  `InvoicesModule`. Each link exists because the *public entry point*
+  naturally lives on the "earlier" resource (convert an estimate; generate
+  an invoice from a job card) while the actual creation logic lives with
+  the model being created.
 - The demo tenant's login is `owner@demoworkshop.test` / `ChangeMe123!` —
   seeded for local development only; never ships to a real deployment.
 - Run `npm test` to exercise the tenant-isolation primitive, the permissions
-  guard, DTO validation rules, the estimate/purchase-invoice total
-  calculation logic, the job card and purchase order status pipelines, and
-  the sequence-number formatter (116 tests).
+  guard, DTO validation rules, the estimate/GST/payment-status calculation
+  logic, the job card and purchase order status pipelines, and the
+  sequence-number formatter (139 tests).
 
 ## What's deliberately NOT in this phase yet
 
-GST invoice PDF generation, customer-facing Invoicing/Billing, and Reports —
-these land in Phase 7 per the sequencing in the Phase 1 architecture doc.
-`PurchaseInvoice`/`SupplierPayment` here are the *supplier/AP* side
-(recording what we owe and paid suppliers); Phase 7's Billing module is the
-*customer/AR* side (what customers owe us) and uses the separate
-`invoice`/`payment` permission resources, not `purchase`.
+PDF generation, WhatsApp/print sharing of invoices, Reports, the Dashboard,
+and Notifications — these land in Phase 8 per the sequencing in the Phase 1
+architecture doc, each building on the transactional data Phases 2–7 now
+provide end-to-end.

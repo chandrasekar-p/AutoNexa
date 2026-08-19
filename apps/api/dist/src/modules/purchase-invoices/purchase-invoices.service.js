@@ -13,7 +13,12 @@ exports.PurchaseInvoicesService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
-const purchase_invoice_status_1 = require("./purchase-invoice-status");
+const rollup_payment_status_1 = require("../../common/billing/rollup-payment-status");
+const PURCHASE_INVOICE_STATUSES = {
+    unpaid: client_1.PurchaseInvoiceStatus.UNPAID,
+    partiallyPaid: client_1.PurchaseInvoiceStatus.PARTIALLY_PAID,
+    paid: client_1.PurchaseInvoiceStatus.PAID,
+};
 let PurchaseInvoicesService = class PurchaseInvoicesService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -81,7 +86,7 @@ let PurchaseInvoicesService = class PurchaseInvoicesService {
             db.supplierPayment.findMany({ where: { purchaseInvoiceId: id } }),
         ]);
         const totalPaid = payments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
-        const status = (0, purchase_invoice_status_1.rollupPurchaseInvoiceStatus)(totalPaid, invoice.total);
+        const status = (0, rollup_payment_status_1.rollupPaymentStatus)(totalPaid, invoice.total, PURCHASE_INVOICE_STATUSES);
         return db.purchaseInvoice.update({
             where: { id },
             data: { status },

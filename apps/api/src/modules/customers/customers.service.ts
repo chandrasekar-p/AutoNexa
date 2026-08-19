@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { InvoiceStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -49,20 +49,35 @@ export class CustomersService {
   }
 
   /**
-   * Full customer profile — vehicles now; invoices, payments, estimates,
-   * job cards, and outstanding balance are added here as those modules
-   * land in Phases 4–7 (each just extends this `include`/response shape,
-   * per the Phase 1 architecture's customer-profile spec).
+   * Full customer profile — vehicles, plus invoices with a computed
+   * `outstanding` (grandTotal - sum of payments) per invoice, plus a
+   * `totalOutstanding` across their UNPAID/PARTIALLY_PAID invoices. Closes
+   * the TODO left here since Phase 3, now that Invoicing/Payments exist.
    */
   async findOne(id: string) {
     const customer = await this.prisma.forTenant().customer.findFirst({
       where: { id, deletedAt: null },
       include: {
         vehicles: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        invoices: {
+          include: { payments: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!customer) throw new NotFoundException('Customer not found');
-    return customer;
+
+    const invoicesWithOutstanding = customer.invoices.map((invoice) => {
+      const paid = invoice.payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
+      const outstanding = new Prisma.Decimal(invoice.grandTotal).sub(paid).toDecimalPlaces(2);
+      return { ...invoice, outstanding };
+    });
+
+    const totalOutstanding = invoicesWithOutstanding
+      .filter((inv) => inv.status === InvoiceStatus.UNPAID || inv.status === InvoiceStatus.PARTIALLY_PAID)
+      .reduce((sum, inv) => sum.add(inv.outstanding), new Prisma.Decimal(0));
+
+    return { ...customer, invoices: invoicesWithOutstanding, totalOutstanding };
   }
 
   async update(id: string, dto: UpdateCustomerDto) {

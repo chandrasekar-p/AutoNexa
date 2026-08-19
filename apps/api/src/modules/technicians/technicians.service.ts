@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { JobCardStatus, Prisma } from '@prisma/client';
+import { InvoiceStatus, JobCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTechnicianDto } from './dto/create-technician.dto';
 import { UpdateTechnicianDto } from './dto/update-technician.dto';
@@ -55,20 +55,26 @@ export class TechniciansService {
 
   /**
    * Base profile plus computed workload — jobsOpen/jobsCompleted/
-   * totalLabourHours are derived on read, never stored redundantly.
-   * Revenue generated is deferred to Phase 7 (Invoicing): there's no paid-
-   * invoice data to sum against yet.
+   * totalLabourHours/revenueGenerated are all derived on read, never
+   * stored redundantly. revenueGenerated closes the TODO left here since
+   * Phase 5: sum of JobCardLabour.lineTotal across this technician's job
+   * cards where a PAID Invoice now exists — labour revenue attributed to
+   * the technician, not parts (parts aren't "generated" by their labour).
    */
   async findOne(id: string) {
     const technician = await this.assertExists(id);
     const db = this.prisma.forTenant();
 
-    const [jobsOpen, jobsCompleted, hoursAgg] = await Promise.all([
+    const [jobsOpen, jobsCompleted, hoursAgg, revenueAgg] = await Promise.all([
       db.jobCard.count({
         where: { technicianId: id, deletedAt: null, status: { notIn: TERMINAL_STATUSES } },
       }),
       db.jobCard.count({ where: { technicianId: id, deletedAt: null, status: JobCardStatus.DELIVERED } }),
       db.jobCardLabour.aggregate({ where: { jobCard: { technicianId: id } }, _sum: { hours: true } }),
+      db.jobCardLabour.aggregate({
+        where: { jobCard: { technicianId: id, invoice: { status: InvoiceStatus.PAID } } },
+        _sum: { lineTotal: true },
+      }),
     ]);
 
     return {
@@ -76,8 +82,7 @@ export class TechniciansService {
       jobsOpen,
       jobsCompleted,
       totalLabourHours: hoursAgg._sum.hours ?? new Prisma.Decimal(0),
-      // TODO(Phase 7): revenueGenerated once Invoicing exists — sum of
-      // paid invoice totals across this technician's job cards.
+      revenueGenerated: revenueAgg._sum.lineTotal ?? new Prisma.Decimal(0),
     };
   }
 

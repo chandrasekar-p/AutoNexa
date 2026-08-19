@@ -24,6 +24,7 @@ import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { PurchaseInvoicesModule } from './modules/purchase-invoices/purchase-invoices.module';
 import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-pay
     PurchaseOrdersModule,
     PurchaseInvoicesModule,
     SupplierPaymentsModule,
+    InvoicesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

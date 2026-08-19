@@ -31,4 +31,12 @@ export class UpdateTenantSettingsDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiPropertyOptional({
+    description: 'The workshop\'s own home state — used to determine CGST+SGST vs IGST on generated invoices',
+    example: 'Tamil Nadu',
+  })
+  @IsOptional()
+  @IsString()
+  state?: string;
 }
