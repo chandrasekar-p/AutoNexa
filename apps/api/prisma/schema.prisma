@@ -1,0 +1,194 @@
+// AutoNexa — Phase 2 Prisma schema
+// Covers: tenancy, branches, users, roles, permissions, refresh tokens, audit log.
+// Later phases append models here (customers, vehicles, job-cards, inventory, billing…)
+// following the same tenantId-first indexing convention.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── PLATFORM / TENANCY ─────────────────────────
+
+model Tenant {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  gstin     String?
+  planTier  String    @default("standard")
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  settings  TenantSettings?
+  branches  Branch[]
+  users     User[]
+  roles     Role[]
+  auditLogs AuditLog[]
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  id                 String   @id @default(uuid())
+  tenantId           String   @unique
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  jobCardPrefix      String   @default("JC")
+  invoicePrefix      String   @default("INV")
+  estimatePrefix     String   @default("EST")
+  defaultGstRate     Decimal  @default(18) @db.Decimal(5, 2)
+  timezone           String   @default("Asia/Kolkata")
+  currency           String   @default("INR")
+  updatedAt          DateTime @updatedAt
+
+  @@map("tenant_settings")
+}
+
+model Branch {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  address   String?
+  city      String?
+  phone     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users     User[]
+
+  @@index([tenantId])
+  @@map("branches")
+}
+
+// A per-tenant, per-entity sequence generator for human-readable numbers
+// (job card #, invoice #, estimate #) — avoids collisions under concurrency.
+model TenantSequence {
+  id         String @id @default(uuid())
+  tenantId   String
+  entityType String // "JOB_CARD" | "INVOICE" | "ESTIMATE" | "PURCHASE_ORDER"
+  lastNumber Int    @default(0)
+
+  @@unique([tenantId, entityType])
+  @@map("tenant_sequences")
+}
+
+// ───────────────────────── IDENTITY & ACCESS ─────────────────────────
+
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  branchId     String?
+  branch       Branch?   @relation(fields: [branchId], references: [id])
+  name         String
+  email        String
+  passwordHash String
+  phone        String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// Roles are tenant-scoped, except system roles (tenantId = null), e.g. SUPER_ADMIN.
+model Role {
+  id       String  @id @default(uuid())
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+  name     String
+  isSystem Boolean @default(false)
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+// Permissions are global (resource:action pairs); tenants compose roles from them.
+model Permission {
+  id       String @id @default(uuid())
+  resource String // e.g. "job-card", "invoice", "part"
+  action   String // e.g. "create", "read", "update", "delete", "cancel"
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  tokenHash  String
+  familyId   String    // groups rotated tokens; reuse-after-revoke invalidates the family
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+// ───────────────────────── AUDIT ─────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   // e.g. "user.create", "role.assign"
+  entity    String
+  entityId  String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
