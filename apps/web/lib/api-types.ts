@@ -333,13 +333,162 @@ export interface LabourItemRef {
   labourRate: string;
 }
 
-/** Minimal projection of GET /parts — enough for the Add Part Line picker; the Parts & Inventory module itself isn't built yet. */
+/** Minimal projection of GET /parts — enough for the Add Part Line picker. */
 export interface PartRef {
   id: string;
   partNumber: string;
   name: string;
   sellingPrice: string;
   currentStock: number;
+}
+
+export interface PartCategory {
+  id: string;
+  name: string;
+}
+
+/**
+ * GET /parts list items and GET /parts/:id are the exact same shape —
+ * PartsService has no `include` on either (no category/supplier relation
+ * joined), so there's just one Part type, unlike Vehicle/Inspection/
+ * Estimate's separate ListItem/Detail split.
+ */
+export interface Part {
+  id: string;
+  partNumber: string;
+  sku: string;
+  name: string;
+  categoryId: string | null;
+  brand: string | null;
+  vehicleCompatibility: string | null;
+  supplierId: string | null;
+  purchasePrice: string;
+  sellingPrice: string;
+  gstRate: string;
+  hsnCode: string | null;
+  currentStock: number;
+  minStock: number;
+  maxStock: number | null;
+  binLocation: string | null;
+  warrantyPeriodMonths: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type InventoryTxnType = 'PURCHASE_IN' | 'JOB_CARD_CONSUMPTION' | 'SALE' | 'RETURN' | 'ADJUSTMENT' | 'DAMAGED' | 'TRANSFER';
+
+/** One row of GET /parts/:id/stock-ledger — append-only, quantity is signed (positive = in, negative = out). */
+export interface InventoryTransactionEntry {
+  id: string;
+  type: InventoryTxnType;
+  quantity: number;
+  refType: string | null;
+  refId: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactPerson: string | null;
+  mobile: string | null;
+  email: string | null;
+  address: string | null;
+  gstin: string | null;
+  paymentTerms: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/** A minimal reference to a supplier, as embedded in purchase order responses. */
+export interface SupplierRef {
+  id: string;
+  name: string;
+  mobile: string | null;
+  email: string | null;
+}
+
+export type PurchaseOrderStatus = 'DRAFT' | 'SENT' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
+
+/** A minimal reference to a part, as embedded in purchase order item responses. */
+export interface PartInPurchaseOrderRef {
+  id: string;
+  partNumber: string;
+  sku: string;
+  name: string;
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  part: PartInPurchaseOrderRef;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitCost: string;
+  gstRate: string;
+  lineTotal: string;
+}
+
+export interface GoodsReceiptItem {
+  id: string;
+  purchaseOrderItemId: string;
+  quantityReceived: number;
+}
+
+export interface GoodsReceipt {
+  id: string;
+  receivedById: string | null;
+  receivedAt: string;
+  notes: string | null;
+  items: GoodsReceiptItem[];
+}
+
+interface PurchaseOrderFields {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  status: PurchaseOrderStatus;
+  expectedDeliveryDate: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+/** GET /purchase-orders list item — includes supplier but not items/goodsReceipts. */
+export interface PurchaseOrderListItem extends PurchaseOrderFields {
+  supplier: SupplierRef;
+}
+
+/** GET /purchase-orders/:id — full PURCHASE_ORDER_INCLUDE shape. */
+export interface PurchaseOrderDetail extends PurchaseOrderFields {
+  supplier: SupplierRef;
+  items: PurchaseOrderItem[];
+  goodsReceipts: GoodsReceipt[];
+}
+
+export type PurchaseInvoiceStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+
+export interface SupplierPayment {
+  id: string;
+  purchaseInvoiceId: string;
+  amount: string;
+  paymentDate: string;
+  method: string;
+  referenceNumber: string | null;
+  createdAt: string;
+}
+
+/** GET /purchase-invoices list items and GET /purchase-invoices/:id both include payments (see PurchaseInvoicesService). */
+export interface PurchaseInvoice {
+  id: string;
+  purchaseOrderId: string;
+  supplierInvoiceNumber: string;
+  invoiceDate: string;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  status: PurchaseInvoiceStatus;
+  createdAt: string;
+  payments: SupplierPayment[];
 }
 
 export type TechnicianStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
