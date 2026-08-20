@@ -44,6 +44,7 @@ export default function VehicleDetailPage() {
   const canReadInspections = usePermission('inspection:read');
   const canCreateEstimate = usePermission('estimate:create');
   const canReadEstimates = usePermission('estimate:read');
+  const canCreateJobCard = usePermission('job-card:create');
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -121,6 +122,11 @@ export default function VehicleDetailPage() {
           {canCreateEstimate ? (
             <Link href={`/estimates/new?vehicleId=${vehicle.id}`}>
               <Button variant="secondary">New Estimate</Button>
+            </Link>
+          ) : null}
+          {canCreateJobCard ? (
+            <Link href={`/job-cards/new?customerId=${vehicle.customer.id}&vehicleId=${vehicle.id}`}>
+              <Button variant="secondary">New Job Card</Button>
             </Link>
           ) : null}
           {canUpdate ? (

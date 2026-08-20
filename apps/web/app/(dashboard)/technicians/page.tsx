@@ -7,9 +7,8 @@ import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
 import { usePermission } from '@/lib/hooks/use-permission';
-import type { JobCardListItem, JobCardStatus, PaginatedResult } from '@/lib/api-types';
-import { formatDate } from '@/lib/format';
-import { JobCardStatusBadge } from '@/components/domain/job-card-status-badge';
+import type { PaginatedResult, Technician, TechnicianStatus } from '@/lib/api-types';
+import { TechnicianStatusBadge } from '@/components/domain/technician-status-badge';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -19,46 +18,22 @@ import { Pagination } from '@/components/ui/pagination';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '@/components/ui/table';
 
 const PAGE_SIZE = 20;
-const STATUSES: JobCardStatus[] = [
-  'OPEN',
-  'DIAGNOSIS',
-  'WAITING_APPROVAL',
-  'APPROVED',
-  'IN_PROGRESS',
-  'WAITING_PARTS',
-  'QUALITY_CHECK',
-  'READY_FOR_DELIVERY',
-  'DELIVERED',
-  'CANCELLED',
-];
-const STATUS_LABEL: Record<JobCardStatus, string> = {
-  OPEN: 'Open',
-  DIAGNOSIS: 'Diagnosis',
-  WAITING_APPROVAL: 'Waiting Approval',
-  APPROVED: 'Approved',
-  IN_PROGRESS: 'In Progress',
-  WAITING_PARTS: 'Waiting Parts',
-  QUALITY_CHECK: 'Quality Check',
-  READY_FOR_DELIVERY: 'Ready for Delivery',
-  DELIVERED: 'Delivered',
-  CANCELLED: 'Cancelled',
-};
 
-export default function JobCardsPage() {
+export default function TechniciansPage() {
   const router = useRouter();
-  const canCreate = usePermission('job-card:create');
+  const canCreate = usePermission('technician:create');
 
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<JobCardStatus | ''>('');
+  const [status, setStatus] = useState<TechnicianStatus | ''>('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
 
-  const query = useApiQuery<PaginatedResult<JobCardListItem>>(
+  const query = useApiQuery<PaginatedResult<Technician>>(
     () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (status) params.set('status', status);
-      return apiGet(`/job-cards?${params.toString()}`);
+      return apiGet(`/technicians?${params.toString()}`);
     },
     [page, debouncedSearch, status],
   );
@@ -69,7 +44,7 @@ export default function JobCardsPage() {
   }
 
   function handleStatusChange(value: string) {
-    setStatus(value as JobCardStatus | '');
+    setStatus(value as TechnicianStatus | '');
     setPage(1);
   }
 
@@ -77,10 +52,10 @@ export default function JobCardsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Job Cards</h1>
-          <p className="text-sm text-ink-secondary">The operational core — every job card, newest first.</p>
+          <h1 className="text-2xl font-semibold text-ink">Technicians</h1>
+          <p className="text-sm text-ink-secondary">Every technician profile on file.</p>
         </div>
-        {canCreate ? <Button onClick={() => router.push('/job-cards/new')}>New Job Card</Button> : null}
+        {canCreate ? <Button onClick={() => router.push('/technicians/new')}>New Technician</Button> : null}
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -88,18 +63,16 @@ export default function JobCardsPage() {
           <Input
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search by job card number or complaint"
-            aria-label="Search job cards"
+            placeholder="Search by employee ID or specialisation"
+            aria-label="Search technicians"
           />
         </div>
         <div className="w-52">
           <Select value={status} onChange={(e) => handleStatusChange(e.target.value)} aria-label="Filter by status">
             <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
+            <option value="ACTIVE">Active</option>
+            <option value="ON_LEAVE">On Leave</option>
+            <option value="INACTIVE">Inactive</option>
           </Select>
         </div>
       </div>
@@ -116,7 +89,7 @@ export default function JobCardsPage() {
 
       {query.data && query.data.items.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface px-5 py-10 text-center text-sm text-ink-muted">
-          No job cards match those filters.
+          No technicians match those filters.
         </p>
       ) : null}
 
@@ -126,28 +99,24 @@ export default function JobCardsPage() {
             <Table>
               <TableHead>
                 <tr>
-                  <TableHeaderCell>Job Card #</TableHeaderCell>
-                  <TableHeaderCell>Customer</TableHeaderCell>
-                  <TableHeaderCell>Vehicle</TableHeaderCell>
-                  <TableHeaderCell>Expected Delivery</TableHeaderCell>
+                  <TableHeaderCell>Name</TableHeaderCell>
+                  <TableHeaderCell>Employee ID</TableHeaderCell>
+                  <TableHeaderCell>Specialisation</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
                 </tr>
               </TableHead>
               <TableBody>
-                {query.data.items.map((jobCard) => (
-                  <TableRow key={jobCard.id}>
-                    <TableCell className="num font-medium">
-                      <Link href={`/job-cards/${jobCard.id}`} className="hover:text-accent-600">
-                        {jobCard.jobCardNumber}
+                {query.data.items.map((technician) => (
+                  <TableRow key={technician.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/technicians/${technician.id}`} className="hover:text-accent-600">
+                        {technician.user.name}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-ink-secondary">{jobCard.customer.name}</TableCell>
-                    <TableCell className="num text-ink-secondary">{jobCard.vehicle.registrationNo}</TableCell>
-                    <TableCell className="text-ink-secondary">
-                      {jobCard.expectedDelivery ? formatDate(jobCard.expectedDelivery) : '—'}
-                    </TableCell>
+                    <TableCell className="text-ink-secondary">{technician.employeeId ?? '—'}</TableCell>
+                    <TableCell className="text-ink-secondary">{technician.specialisation ?? '—'}</TableCell>
                     <TableCell>
-                      <JobCardStatusBadge status={jobCard.status} />
+                      <TechnicianStatusBadge status={technician.status} />
                     </TableCell>
                   </TableRow>
                 ))}

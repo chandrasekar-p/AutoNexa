@@ -324,6 +324,118 @@ export interface EstimateDetail extends EstimateFields {
   lineItems: EstimateLineItem[];
 }
 
+/** Minimal projection of GET /labour-items — enough for the Add Labour Line picker; the Labour catalogue itself isn't a built module yet. */
+export interface LabourItemRef {
+  id: string;
+  code: string;
+  description: string;
+  standardHours: string;
+  labourRate: string;
+}
+
+/** Minimal projection of GET /parts — enough for the Add Part Line picker; the Parts & Inventory module itself isn't built yet. */
+export interface PartRef {
+  id: string;
+  partNumber: string;
+  name: string;
+  sellingPrice: string;
+  currentStock: number;
+}
+
+export type TechnicianStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
+
+/** GET /technicians list item — see TechniciansService.findAll's include. */
+export interface Technician {
+  id: string;
+  userId: string;
+  employeeId: string | null;
+  skills: string[];
+  specialisation: string | null;
+  experienceYears: number | null;
+  status: TechnicianStatus;
+  createdAt: string;
+  user: { id: string; name: string; email: string; phone: string | null };
+}
+
+/** GET /technicians/:id — base profile plus computed workload (see computeTechnicianPerformance, all derived on read, never stored). */
+export interface TechnicianDetail extends Technician {
+  jobsOpen: number;
+  jobsCompleted: number;
+  totalLabourHours: string;
+  revenueGenerated: string;
+}
+
+/** hours/rate/gstRate/lineTotal are Decimal on the backend — strings over the wire. No update endpoint exists for a line once added — only add (POST) and remove (DELETE); hsnSac is a GST snapshot, not displayed. */
+export interface JobCardLabourLine {
+  id: string;
+  labourItemId: string | null;
+  description: string | null;
+  hours: string;
+  rate: string;
+  gstRate: string;
+  lineTotal: string;
+}
+
+/** quantity is Int; unitPrice/gstRate/lineTotal are Decimal → strings. Same add/remove-only discipline as JobCardLabourLine — removing restores stock (see VehiclesService.removePart). */
+export interface JobCardPartLine {
+  id: string;
+  partId: string;
+  quantity: number;
+  unitPrice: string;
+  gstRate: string;
+  lineTotal: string;
+}
+
+export interface JobCardStatusHistoryEntry {
+  id: string;
+  fromStatus: JobCardStatus | null;
+  toStatus: JobCardStatus;
+  changedByUserId: string | null;
+  changedAt: string;
+  notes: string | null;
+}
+
+/** Append-only — no edit/delete endpoint exists, matching the schema's own "never edited or removed" comment on JobCardNote. */
+export interface JobCardNoteEntry {
+  id: string;
+  authorId: string;
+  note: string;
+  createdAt: string;
+}
+
+interface JobCardFields {
+  id: string;
+  jobCardNumber: string;
+  vehicleId: string;
+  customerId: string;
+  vehicle: { id: string; registrationNo: string; brand: string; model: string };
+  customer: CustomerRef;
+  estimateId: string | null;
+  inspectionId: string | null;
+  technicianId: string | null;
+  serviceAdvisorId: string | null;
+  odometer: number | null;
+  complaint: string | null;
+  customerRequest: string | null;
+  estimatedWork: string | null;
+  status: JobCardStatus;
+  startAt: string | null;
+  expectedDelivery: string | null;
+  actualDelivery: string | null;
+  createdAt: string;
+}
+
+/** GET /job-cards list item — includes vehicle/customer (unlike Inspections/Estimates), but not labourItems/parts/statusHistory/notes — see JobCardsService.findAll's narrower include vs. JOB_CARD_INCLUDE. */
+export type JobCardListItem = JobCardFields;
+
+/** GET /job-cards/:id — full JOB_CARD_INCLUDE shape. */
+export interface JobCardDetail extends JobCardFields {
+  labourItems: JobCardLabourLine[];
+  parts: JobCardPartLine[];
+  statusHistory: JobCardStatusHistoryEntry[];
+  notes: JobCardNoteEntry[];
+}
+
 /** GET/PATCH /users/me — email/roles/isActive are read-only from this endpoint (see UpdateOwnProfileDto on the backend); only name/phone are self-editable. */
 export interface UserProfile {
   id: string;
