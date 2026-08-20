@@ -1,11 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { Download, FileText } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
+import { usePermission } from '@/lib/hooks/use-permission';
 import { formatMoney } from '@/lib/format';
+import { exportRowsAsCsv } from '@/lib/export/csv';
+import { exportRowsAsPdf } from '@/lib/export/pdf';
+import type { CurrentTenant } from '@/lib/api-types';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -117,6 +123,32 @@ function formatCell(key: string, value: unknown): string {
   return String(value);
 }
 
+/**
+ * Normalizes any report's response — paginated `{items}`, a plain array,
+ * or a flat summary object — into a uniform columns+rows shape. Shared by
+ * the on-screen table/summary render AND the CSV/PDF export, so what you
+ * export always matches exactly what you're looking at.
+ */
+function toExportShape(report: ReportConfig, data: unknown): { columns: { key: string; label: string }[]; rows: Record<string, unknown>[] } {
+  if (report.shape === 'object') {
+    const entries = Object.entries(data as Record<string, unknown>).filter(([key]) => key !== 'note');
+    return {
+      columns: [
+        { key: 'field', label: 'Field' },
+        { key: 'value', label: 'Value' },
+      ],
+      rows: entries.map(([key, value]) => ({ field: formatLabel(key), value: formatCell(key, value) })),
+    };
+  }
+
+  const rawRows: Record<string, unknown>[] = Array.isArray(data) ? data : ((data as { items?: Record<string, unknown>[] })?.items ?? []);
+  const keys = Object.keys(rawRows[0] ?? {}).filter((k) => k !== 'id');
+  return {
+    columns: keys.map((key) => ({ key, label: formatLabel(key) })),
+    rows: rawRows.map((row) => Object.fromEntries(keys.map((key) => [key, formatCell(key, row[key])]))),
+  };
+}
+
 function ReportTable({ data }: { data: unknown }) {
   const rows: Record<string, unknown>[] = Array.isArray(data)
     ? data
@@ -175,6 +207,7 @@ export default function ReportsPage() {
   const [reportKey, setReportKey] = useState(REPORTS[0]!.key);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const report = REPORTS.find((r) => r.key === reportKey)!;
 
@@ -188,6 +221,39 @@ export default function ReportsPage() {
     return apiGet(`${report.endpoint}${qs ? `?${qs}` : ''}`);
   }, [report.endpoint, report.supportsDateRange, from, to]);
 
+  // Best-effort — GET /tenants/me requires tenant:read (Workshop Owner by
+  // default, see WorkshopSettingsCard's same gate); exports still work
+  // without it, just without a workshop name/logo on the PDF.
+  const canReadTenant = usePermission('tenant:read');
+  const tenant = useApiQuery<CurrentTenant>(
+    () => (canReadTenant ? apiGet('/tenants/me') : Promise.reject(new Error('n/a'))),
+    [canReadTenant],
+  );
+
+  function handleExportCsv() {
+    if (!query.data) return;
+    const { columns, rows } = toExportShape(report, query.data);
+    exportRowsAsCsv(columns, rows, `${report.key}-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
+  async function handleExportPdf() {
+    if (!query.data) return;
+    const { columns, rows } = toExportShape(report, query.data);
+    setIsExportingPdf(true);
+    try {
+      await exportRowsAsPdf({
+        title: report.label,
+        workshopName: tenant.data?.name ?? null,
+        logoUrl: tenant.data?.settings.logoUrl ?? null,
+        columns,
+        rows,
+        filename: `${report.key}-${new Date().toISOString().slice(0, 10)}.pdf`,
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -195,28 +261,43 @@ export default function ReportsPage() {
         <p className="text-sm text-ink-secondary">One representative report per category — see each module for full detail.</p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64">
-          <Select label="Report" value={reportKey} onChange={(e) => setReportKey(e.target.value)}>
-            {CATEGORIES.map((category) => (
-              <optgroup key={category} label={category}>
-                {REPORTS.filter((r) => r.category === category).map((r) => (
-                  <option key={r.key} value={r.key}>
-                    {r.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-64">
+            <Select label="Report" value={reportKey} onChange={(e) => setReportKey(e.target.value)}>
+              {CATEGORIES.map((category) => (
+                <optgroup key={category} label={category}>
+                  {REPORTS.filter((r) => r.category === category).map((r) => (
+                    <option key={r.key} value={r.key}>
+                      {r.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+          </div>
+          {report.supportsDateRange ? (
+            <>
+              <Input label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+              <Input label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
+            </>
+          ) : (
+            <p className="pb-2 text-xs text-ink-muted">Point-in-time snapshot — no date range for this report.</p>
+          )}
         </div>
-        {report.supportsDateRange ? (
-          <>
-            <Input label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
-            <Input label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
-          </>
-        ) : (
-          <p className="pb-2 text-xs text-ink-muted">Point-in-time snapshot — no date range for this report.</p>
-        )}
+
+        {query.data ? (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={handleExportCsv}>
+              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              CSV
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={handleExportPdf} isLoading={isExportingPdf}>
+              <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              PDF
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <Card>

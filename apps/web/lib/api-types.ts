@@ -83,6 +83,8 @@ export interface TenantSettings {
   timezone: string;
   currency: string;
   state: string | null;
+  /** Relative path from POST /uploads — resolve with lib/uploads.ts's resolveUploadUrl before use in an <img src>. Printed on this workshop's own exported PDF reports. */
+  logoUrl: string | null;
   updatedAt: string;
 }
 

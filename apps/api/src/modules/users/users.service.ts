@@ -128,7 +128,13 @@ export class UsersService {
     await this.findOne(id);
     const passwordHash = await argon2.hash(dto.newPassword);
     await this.prisma.forTenant().user.update({ where: { id }, data: { passwordHash } });
-    return { success: true };
+    // Returning `id` (never the hash) is deliberate, not incidental — the
+    // audit interceptor reads `.id` off every @Audit()-tagged response to
+    // fill in entityId (see audit-log.interceptor.ts); returning a bare
+    // `{success: true}` here made every admin password reset log as
+    // entityId "unknown", losing exactly the "which account did this
+    // touch" fact an audit trail exists to answer.
+    return { success: true, id };
   }
 
   private async assertRolesBelongToTenant(roleIds: string[]) {

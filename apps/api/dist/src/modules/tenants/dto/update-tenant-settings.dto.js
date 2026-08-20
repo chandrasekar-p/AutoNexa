@@ -60,4 +60,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UpdateTenantSettingsDto.prototype, "state", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Relative path from POST /uploads (e.g. /uploads/<tenantId>/<uuid>.png), not an external URL',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateTenantSettingsDto.prototype, "logoUrl", void 0);
 //# sourceMappingURL=update-tenant-settings.dto.js.map

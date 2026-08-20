@@ -66,6 +66,11 @@ model TenantSettings {
   // calculateGstSplit in modules/invoices/gst-split.ts for the fallback
   // behavior when this (or the customer's own state) is unset.
   state          String?
+  // Set via POST /uploads then PATCH /tenants/me/settings — a relative
+  // path like /uploads/<tenantId>/<uuid>.png (see upload-storage.ts), not
+  // a bare filename. Printed on this workshop's own exported PDF reports
+  // (their branding, not the AutoNexa platform's).
+  logoUrl        String?
   updatedAt      DateTime @updatedAt
 
   @@map("tenant_settings")

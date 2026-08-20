@@ -1,15 +1,80 @@
 'use client';
 
-import { useState } from 'react';
-import { apiGet, apiPatch, ApiError } from '@/lib/api-client';
+import { useRef, useState } from 'react';
+import { apiGet, apiPatch, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
+import { resolveUploadUrl } from '@/lib/uploads';
 import type { CurrentTenant, TenantSettings } from '@/lib/api-types';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
+
+function WorkshopLogoSetting({
+  logoUrl,
+  canUpdate,
+  onUpdated,
+}: {
+  logoUrl: string | null;
+  canUpdate: boolean;
+  onUpdated: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploaded = await apiPost<{ url: string }>('/uploads', formData);
+      await apiPatch('/tenants/me/settings', { logoUrl: uploaded.url });
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload logo.');
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-b border-line pb-4">
+      <span className="text-xs font-medium text-ink-secondary">Workshop Logo</span>
+      <p className="text-xs text-ink-muted">Printed on this workshop&rsquo;s exported PDF reports.</p>
+      <div className="flex items-center gap-3">
+        {logoUrl ? (
+          <div
+            className="h-14 w-14 rounded border border-line bg-surface-hover bg-contain bg-center bg-no-repeat"
+            style={{ backgroundImage: `url(${resolveUploadUrl(logoUrl)})` }}
+            role="img"
+            aria-label="Current workshop logo"
+          />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed border-line text-micro text-ink-muted">
+            No logo
+          </div>
+        )}
+        {canUpdate ? (
+          <div className="flex flex-col gap-1">
+            <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()} isLoading={isUploading}>
+              {logoUrl ? 'Change Logo' : 'Upload Logo'}
+            </Button>
+            {error ? <span className="text-xs text-danger-600 dark:text-danger-400">{error}</span> : null}
+          </div>
+        ) : null}
+      </div>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
+    </div>
+  );
+}
 
 /**
  * GET /tenants/me requires tenant:read, which only Workshop Owner gets by
@@ -70,6 +135,8 @@ export function WorkshopSettingsCard() {
 
         {query.data ? (
           <>
+            <WorkshopLogoSetting logoUrl={query.data.settings.logoUrl} canUpdate={canUpdate} onUpdated={query.refetch} />
+
             <p className="text-xs text-ink-muted">
               The home state below determines CGST+SGST vs IGST on generated invoices — it must match your GSTIN
               registration state.

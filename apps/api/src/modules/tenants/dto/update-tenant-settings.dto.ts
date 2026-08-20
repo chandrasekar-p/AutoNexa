@@ -39,4 +39,11 @@ export class UpdateTenantSettingsDto {
   @IsOptional()
   @IsString()
   state?: string;
+
+  @ApiPropertyOptional({
+    description: 'Relative path from POST /uploads (e.g. /uploads/<tenantId>/<uuid>.png), not an external URL',
+  })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
 }

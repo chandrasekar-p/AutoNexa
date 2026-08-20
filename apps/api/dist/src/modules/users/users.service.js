@@ -150,7 +150,7 @@ let UsersService = class UsersService {
         await this.findOne(id);
         const passwordHash = await argon2.hash(dto.newPassword);
         await this.prisma.forTenant().user.update({ where: { id }, data: { passwordHash } });
-        return { success: true };
+        return { success: true, id };
     }
     async assertRolesBelongToTenant(roleIds) {
         if (roleIds.length === 0)
