@@ -119,7 +119,11 @@ export default function EstimateDetailPage() {
 
       {convertedJobCard ? (
         <p className="rounded border border-success-100 bg-success-50 px-3 py-2 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
-          Converted to job card <span className="num font-medium">{convertedJobCard.jobCardNumber}</span>.
+          Converted to job card{' '}
+          <Link href={`/job-cards/${convertedJobCard.id}`} className="num font-medium underline">
+            {convertedJobCard.jobCardNumber}
+          </Link>
+          .
         </p>
       ) : null}
 

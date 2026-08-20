@@ -44,7 +44,9 @@ export default function JobCardDetailPage() {
 
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [generatedInvoice, setGeneratedInvoice] = useState<{ invoiceNumber: string; grandTotal: string } | null>(null);
+  const [generatedInvoice, setGeneratedInvoice] = useState<{ id: string; invoiceNumber: string; grandTotal: string } | null>(
+    null,
+  );
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
 
   const [complaint, setComplaint] = useState<string | null>(null);
@@ -79,7 +81,9 @@ export default function JobCardDetailPage() {
     setIsGeneratingInvoice(true);
     setActionError(null);
     try {
-      const invoice = await apiPost<{ invoiceNumber: string; grandTotal: string }>(`/job-cards/${params.id}/generate-invoice`);
+      const invoice = await apiPost<{ id: string; invoiceNumber: string; grandTotal: string }>(
+        `/job-cards/${params.id}/generate-invoice`,
+      );
       setGeneratedInvoice(invoice);
       query.refetch();
     } catch (err) {
@@ -167,8 +171,11 @@ export default function JobCardDetailPage() {
 
       {generatedInvoice ? (
         <p className="rounded border border-success-100 bg-success-50 px-3 py-2 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
-          Invoice <span className="num font-medium">{generatedInvoice.invoiceNumber}</span> generated —{' '}
-          {formatMoney(generatedInvoice.grandTotal)}.
+          Invoice{' '}
+          <Link href={`/invoices/${generatedInvoice.id}`} className="num font-medium underline">
+            {generatedInvoice.invoiceNumber}
+          </Link>{' '}
+          generated — {formatMoney(generatedInvoice.grandTotal)}.
         </p>
       ) : null}
 

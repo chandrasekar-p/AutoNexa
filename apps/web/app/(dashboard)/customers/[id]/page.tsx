@@ -130,9 +130,9 @@ export default function CustomerDetailPage() {
               <ul className="mt-4 flex flex-col divide-y divide-line">
                 {customer.invoices.map((invoice) => (
                   <li key={invoice.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="text-ink">
+                    <Link href={`/invoices/${invoice.id}`} className="text-ink hover:text-accent-600">
                       {invoice.invoiceNumber} <span className="text-ink-muted">· {formatDate(invoice.createdAt)}</span>
-                    </span>
+                    </Link>
                     <span className="flex items-center gap-2">
                       <span className="num text-ink">{formatMoney(invoice.grandTotal)}</span>
                       <Badge

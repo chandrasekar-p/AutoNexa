@@ -585,6 +585,55 @@ export interface JobCardDetail extends JobCardFields {
   notes: JobCardNoteEntry[];
 }
 
+export type PaymentMethod = 'cash' | 'upi' | 'card' | 'bank_transfer' | 'credit';
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amount: string;
+  paymentDate: string;
+  method: PaymentMethod;
+  referenceNumber: string | null;
+  createdAt: string;
+}
+
+/** hsnSac is the final GST snapshot from JobCardPart/JobCardLabour (see the backend's Phase 7 HSN/SAC gap-fix) — printed per line item. */
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  gstRate: string;
+  hsnSac: string | null;
+  lineTotal: string;
+}
+
+interface InvoiceFields {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customer: CustomerRef & { state: string | null };
+  jobCardId: string | null;
+  subtotal: string;
+  cgstAmount: string;
+  sgstAmount: string;
+  igstAmount: string;
+  roundOff: string;
+  grandTotal: string;
+  status: InvoiceStatus;
+  createdAt: string;
+}
+
+/** GET /invoices list item — includes customer but not lineItems/payments/jobCard. */
+export type InvoiceListItem = InvoiceFields;
+
+/** GET /invoices/:id — full INVOICE_INCLUDE shape (customer, jobCard summary, lineItems, payments). No direct create/update/delete exists — invoices are only ever generated from a job card and paid down via payments. */
+export interface InvoiceDetail extends InvoiceFields {
+  jobCard: { id: string; jobCardNumber: string } | null;
+  lineItems: InvoiceLineItem[];
+  payments: Payment[];
+}
+
 /** GET/PATCH /users/me — email/roles/isActive are read-only from this endpoint (see UpdateOwnProfileDto on the backend); only name/phone are self-editable. */
 export interface UserProfile {
   id: string;
