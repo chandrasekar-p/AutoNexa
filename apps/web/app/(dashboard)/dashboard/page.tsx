@@ -1,5 +1,17 @@
 'use client';
 
+import {
+  CalendarCheck,
+  Car,
+  ClipboardList,
+  CheckCircle2,
+  FileText,
+  IndianRupee,
+  TrendingUp,
+  Wrench,
+  Package,
+  AlertTriangle,
+} from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
@@ -59,28 +71,73 @@ export default function DashboardPage() {
   );
 }
 
+const ICON_SIZE = 'h-4 w-4';
+
 function KpiGrid({ data }: { data: DashboardSummary }) {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-      <KpiCard label="Today's Appointments" value={formatNumber(data.todaysAppointments)} />
-      <KpiCard label="Vehicles In Service" value={formatNumber(data.vehiclesInService)} tone="accent" />
-      <KpiCard label="Open Job Cards" value={formatNumber(data.openJobCards)} tone="accent" />
-      <KpiCard label="Completed Today" value={formatNumber(data.completedJobsToday)} tone="accent" />
-      <KpiCard label="Pending Estimates" value={formatNumber(data.pendingEstimates)} />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <KpiCard
+        label="Today's Appointments"
+        value={formatNumber(data.todaysAppointments)}
+        icon={<CalendarCheck className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Vehicles In Service"
+        value={formatNumber(data.vehiclesInService)}
+        tone="accent"
+        icon={<Car className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Open Job Cards"
+        value={formatNumber(data.openJobCards)}
+        tone="accent"
+        icon={<ClipboardList className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Completed Today"
+        value={formatNumber(data.completedJobsToday)}
+        tone="accent"
+        icon={<CheckCircle2 className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Pending Estimates"
+        value={formatNumber(data.pendingEstimates)}
+        icon={<FileText className={ICON_SIZE} />}
+      />
       <KpiCard
         label="Pending Payments"
         value={formatMoney(data.pendingPayments.totalOutstanding)}
         sublabel={`${formatNumber(data.pendingPayments.count)} invoice${data.pendingPayments.count === 1 ? '' : 's'}`}
         tone="warning"
+        icon={<IndianRupee className={ICON_SIZE} />}
       />
-      <KpiCard label="Today's Sales" value={formatMoney(data.todaysSales)} tone="accent" />
-      <KpiCard label="Monthly Sales" value={formatMoney(data.monthlySales)} tone="accent" />
-      <KpiCard label="Labour Revenue (MTD)" value={formatMoney(data.labourRevenueMonthly)} />
-      <KpiCard label="Parts Revenue (MTD)" value={formatMoney(data.partsRevenueMonthly)} />
+      <KpiCard
+        label="Today's Sales"
+        value={formatMoney(data.todaysSales)}
+        tone="accent"
+        icon={<TrendingUp className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Monthly Sales"
+        value={formatMoney(data.monthlySales)}
+        tone="accent"
+        icon={<TrendingUp className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Labour Revenue (MTD)"
+        value={formatMoney(data.labourRevenueMonthly)}
+        icon={<Wrench className={ICON_SIZE} />}
+      />
+      <KpiCard
+        label="Parts Revenue (MTD)"
+        value={formatMoney(data.partsRevenueMonthly)}
+        icon={<Package className={ICON_SIZE} />}
+      />
       <KpiCard
         label="Low Stock Parts"
         value={formatNumber(data.lowStockCount)}
         tone={data.lowStockCount > 0 ? 'warning' : 'neutral'}
+        icon={<AlertTriangle className={ICON_SIZE} />}
       />
     </div>
   );
@@ -88,7 +145,7 @@ function KpiGrid({ data }: { data: DashboardSummary }) {
 
 function KpiGridSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 11 }).map((_, i) => (
         <Skeleton key={i} className="h-28 w-full" />
       ))}

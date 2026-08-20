@@ -11,6 +11,8 @@ interface Props {
 }
 
 export function TechnicianWorkloadCard({ workload, isLoading, error, onRetry }: Props) {
+  const maxOpen = workload ? Math.max(1, ...workload.map((t) => t.jobsOpen)) : 1;
+
   return (
     <Card>
       <CardHeader>
@@ -29,13 +31,21 @@ export function TechnicianWorkloadCard({ workload, isLoading, error, onRetry }: 
           <p className="text-sm text-ink-muted">No technicians on file yet.</p>
         ) : null}
         {workload && workload.length > 0 ? (
-          <ul className="flex flex-col divide-y divide-line">
+          <ul className="flex flex-col gap-3.5">
             {workload.map((t) => (
-              <li key={t.technicianId} className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-ink">{t.name}</span>
-                <span className="num text-sm font-semibold text-ink">
-                  {t.jobsOpen} <span className="font-normal text-ink-muted">open</span>
-                </span>
+              <li key={t.technicianId} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate text-sm text-ink">{t.name}</span>
+                  <span className="num shrink-0 text-sm font-semibold text-ink">
+                    {t.jobsOpen} <span className="font-normal text-ink-muted">open</span>
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-graphite-100 dark:bg-graphite-700/40">
+                  <div
+                    className="h-full rounded-full bg-accent-500 transition-[width]"
+                    style={{ width: `${(t.jobsOpen / maxOpen) * 100}%` }}
+                  />
+                </div>
               </li>
             ))}
           </ul>

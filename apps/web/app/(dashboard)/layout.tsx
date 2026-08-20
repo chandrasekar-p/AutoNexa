@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
@@ -9,12 +9,20 @@ import { Topbar } from '@/components/layout/topbar';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.replace('/login');
     }
   }, [isLoading, user, router]);
+
+  // Safety net alongside Sidebar's own onNavigate close — covers any route
+  // change the drawer didn't itself trigger (e.g. browser back/forward).
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [pathname]);
 
   // While the silent-refresh-on-mount is resolving, render nothing past a
   // loading state — never flash the shell (or the login redirect) before
@@ -35,10 +43,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar mobileOpen={isMobileNavOpen} onMobileClose={() => setIsMobileNavOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto bg-canvas p-6">{children}</main>
+        <Topbar onOpenMobileNav={() => setIsMobileNavOpen(true)} />
+        <main className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

@@ -63,14 +63,14 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={isOpen}
         className={cn(
-          'flex h-9 items-center gap-2 rounded-full pl-1 pr-3 text-sm transition-colors',
+          'flex h-9 items-center gap-2 rounded-full pl-1 pr-1 text-sm transition-colors sm:pr-3',
           isOpen ? 'bg-surface-hover' : 'hover:bg-surface-hover',
         )}
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-500 text-micro font-semibold text-white">
           {initialsFor(displayName || '?')}
         </span>
-        <span className="max-w-[10rem] truncate text-ink-secondary">{displayName}</span>
+        <span className="hidden max-w-[10rem] truncate text-ink-secondary sm:inline">{displayName}</span>
       </button>
 
       {isOpen ? (

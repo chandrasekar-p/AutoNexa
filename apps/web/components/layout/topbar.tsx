@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Menu } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { GlobalSearch } from '@/components/domain/global-search';
@@ -34,18 +35,30 @@ function useWorkshopName(): string | null {
   return name;
 }
 
-export function Topbar() {
+interface TopbarProps {
+  onOpenMobileNav: () => void;
+}
+
+export function Topbar({ onOpenMobileNav }: TopbarProps) {
   const workshopName = useWorkshopName();
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-line bg-surface px-6">
-      <div className="flex items-center gap-6">
-        <span className="shrink-0 text-sm font-medium text-ink">
+    <header className="flex h-14 items-center justify-between gap-3 border-b border-line bg-surface px-4 sm:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6">
+        <button
+          type="button"
+          onClick={onOpenMobileNav}
+          aria-label="Open menu"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-ink-secondary hover:bg-surface-hover hover:text-ink lg:hidden"
+        >
+          <Menu aria-hidden className="h-5 w-5" />
+        </button>
+        <span className="hidden shrink-0 text-sm font-medium text-ink md:block">
           {workshopName ?? <span className="text-ink-muted">&nbsp;</span>}
         </span>
         <GlobalSearch />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <ThemeToggle />
         <UserMenu />
       </div>

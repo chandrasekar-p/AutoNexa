@@ -62,10 +62,24 @@ export class ReportsService {
       ...(query.status ? { status: query.status } : {}),
     };
 
-    const [items, total, summaryAgg] = await Promise.all([
+    const [rows, total, summaryAgg] = await Promise.all([
       db.invoice.findMany({
         where,
-        include: { customer: { select: { id: true, name: true, mobile: true } } },
+        // Flat select, not the raw model — a bare `include` still returns
+        // every raw column alongside it (leaking `tenantId` into the
+        // report table), same issue as the payments report above.
+        select: {
+          id: true,
+          invoiceNumber: true,
+          status: true,
+          subtotal: true,
+          cgstAmount: true,
+          sgstAmount: true,
+          igstAmount: true,
+          grandTotal: true,
+          createdAt: true,
+          customer: { select: { name: true, mobile: true } },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -73,6 +87,12 @@ export class ReportsService {
       db.invoice.count({ where }),
       db.invoice.aggregate({ where, _sum: { grandTotal: true } }),
     ]);
+
+    const items = rows.map(({ customer, ...row }) => ({
+      ...row,
+      customerName: customer.name,
+      customerMobile: customer.mobile,
+    }));
 
     return {
       items,
@@ -94,10 +114,23 @@ export class ReportsService {
       ...(query.method ? { method: query.method } : {}),
     };
 
-    const [items, total, summaryAgg] = await Promise.all([
+    const [rows, total, summaryAgg] = await Promise.all([
       db.payment.findMany({
         where,
-        include: { invoice: { select: { id: true, invoiceNumber: true, customerId: true } } },
+        // Flat, display-ready select — not the raw model (which would also
+        // leak `tenantId`) and not a nested `invoice` object (which has no
+        // `.name` field for the report table's generic cell formatter to
+        // pick up, so it fell back to raw JSON). customerName is a bonus:
+        // useful on a payments report and previously missing entirely.
+        select: {
+          id: true,
+          amount: true,
+          paymentDate: true,
+          method: true,
+          referenceNumber: true,
+          createdAt: true,
+          invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } },
+        },
         orderBy: { paymentDate: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -105,6 +138,12 @@ export class ReportsService {
       db.payment.count({ where }),
       db.payment.aggregate({ where, _sum: { amount: true } }),
     ]);
+
+    const items = rows.map(({ invoice, ...row }) => ({
+      ...row,
+      invoiceNumber: invoice.invoiceNumber,
+      customerName: invoice.customer.name,
+    }));
 
     return {
       items,
