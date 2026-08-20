@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
+import { AdminSetPasswordDto } from './dto/admin-set-password.dto';
 
 const SAFE_SELECT = {
   id: true,
@@ -119,6 +120,14 @@ export class UsersService {
 
     const passwordHash = await argon2.hash(dto.newPassword);
     await db.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { success: true };
+  }
+
+  /** Admin-triggered reset (user:update) — no currentPassword check, unlike changeOwnPassword; the admin isn't proving anything about the target user's existing password, only their own permission to manage this account. */
+  async adminSetPassword(id: string, dto: AdminSetPasswordDto) {
+    await this.findOne(id);
+    const passwordHash = await argon2.hash(dto.newPassword);
+    await this.prisma.forTenant().user.update({ where: { id }, data: { passwordHash } });
     return { success: true };
   }
 

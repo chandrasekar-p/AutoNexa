@@ -146,6 +146,12 @@ let UsersService = class UsersService {
         await db.user.update({ where: { id: userId }, data: { passwordHash } });
         return { success: true };
     }
+    async adminSetPassword(id, dto) {
+        await this.findOne(id);
+        const passwordHash = await argon2.hash(dto.newPassword);
+        await this.prisma.forTenant().user.update({ where: { id }, data: { passwordHash } });
+        return { success: true };
+    }
     async assertRolesBelongToTenant(roleIds) {
         if (roleIds.length === 0)
             throw new common_1.BadRequestException('At least one role is required');

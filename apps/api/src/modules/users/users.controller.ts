@@ -5,6 +5,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
+import { AdminSetPasswordDto } from './dto/admin-set-password.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Audit } from '../../common/interceptors/audit-log.interceptor';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -62,6 +63,16 @@ export class UsersController {
   @Audit('user.deactivate', 'User')
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
+  }
+
+  // Admin-triggered reset — user:update, same permission as editing the
+  // rest of the account. No currentPassword check (see AdminSetPasswordDto);
+  // that's the whole point versus PATCH /users/me/password below.
+  @Permissions('user:update')
+  @Patch(':id/password')
+  @Audit('user.password.reset', 'User')
+  adminSetPassword(@Param('id') id: string, @Body() dto: AdminSetPasswordDto) {
+    return this.usersService.adminSetPassword(id, dto);
   }
 
   // Any authenticated user can change their own password — no special

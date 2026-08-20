@@ -20,6 +20,7 @@ const create_user_dto_1 = require("./dto/create-user.dto");
 const update_user_dto_1 = require("./dto/update-user.dto");
 const change_password_dto_1 = require("./dto/change-password.dto");
 const update_own_profile_dto_1 = require("./dto/update-own-profile.dto");
+const admin_set_password_dto_1 = require("./dto/admin-set-password.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
@@ -47,6 +48,9 @@ let UsersController = class UsersController {
     }
     remove(id) {
         return this.usersService.remove(id);
+    }
+    adminSetPassword(id, dto) {
+        return this.usersService.adminSetPassword(id, dto);
     }
     changeOwnPassword(user, dto) {
         return this.usersService.changeOwnPassword(user.userId, dto);
@@ -112,6 +116,16 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "remove", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('user:update'),
+    (0, common_1.Patch)(':id/password'),
+    (0, audit_log_interceptor_1.Audit)('user.password.reset', 'User'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, admin_set_password_dto_1.AdminSetPasswordDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "adminSetPassword", null);
 __decorate([
     (0, common_1.Patch)('me/password'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

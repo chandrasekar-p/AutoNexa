@@ -8,6 +8,7 @@ import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate } from '@/lib/format';
 import type { AppUser, Role } from '@/lib/api-types';
+import { ResetPasswordCard } from '@/components/domain/reset-password-card';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -160,6 +161,8 @@ export default function UserDetailPage() {
           ) : null}
         </CardBody>
       </Card>
+
+      {canUpdate ? <ResetPasswordCard userId={user.id} userName={user.name} /> : null}
     </div>
   );
 }
