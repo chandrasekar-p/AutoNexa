@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PartsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const low_stock_1 = require("./low-stock");
 let PartsService = class PartsService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -46,7 +47,7 @@ let PartsService = class PartsService {
         };
         if (query.lowStock) {
             const all = await db.part.findMany({ where, orderBy: { name: 'asc' } });
-            const lowStockItems = all.filter((p) => p.currentStock <= p.minStock);
+            const lowStockItems = all.filter(low_stock_1.isLowStock);
             const total = lowStockItems.length;
             const items = lowStockItems.slice((page - 1) * pageSize, page * pageSize);
             return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };

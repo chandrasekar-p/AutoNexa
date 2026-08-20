@@ -136,7 +136,26 @@ export class EstimatesService {
   }
 
   async approve(id: string) {
-    return this.transition(id, EstimateStatus.SENT, EstimateStatus.APPROVED, { approvedAt: new Date() });
+    const estimate = await this.transition(id, EstimateStatus.SENT, EstimateStatus.APPROVED, {
+      approvedAt: new Date(),
+    });
+
+    // Estimates don't track a per-estimate owner/service advisor (no such
+    // field on the model), so this is broadcast-only (userId: null) for
+    // now — every tenant user sees it. Revisit once/if Estimate gains
+    // ownership tracking.
+    await this.prisma.forTenant().notification.create({
+      data: {
+        userId: null,
+        type: 'estimate_approved',
+        title: 'Estimate approved',
+        message: `Estimate for ${estimate.jobDescription ?? 'a vehicle'} has been approved.`,
+        relatedEntityType: 'Estimate',
+        relatedEntityId: id,
+      } as unknown as Prisma.NotificationUncheckedCreateInput,
+    });
+
+    return estimate;
   }
 
   async reject(id: string) {

@@ -66,23 +66,66 @@ export class VehiclesService {
   }
 
   /**
-   * Full service history timeline (Phase 1, Section 19). Placeholder for
-   * now — populated from Inspections/Estimates/Job Cards/Invoices once
-   * those modules land in Phases 4–7. Returning the shape early so the
-   * frontend's vehicle-profile screen has a stable contract to build
-   * against from day one.
+   * Full service history timeline (Phase 1, Section 19). Closes the TODO
+   * left here since Phase 3 — Inspections/Estimates/Job Cards/Invoices all
+   * exist now. Invoices don't carry `vehicleId` directly (they're keyed to
+   * a JobCard), so they're pulled via this vehicle's job card ids.
    */
   async getServiceHistory(id: string) {
-    await this.findOne(id);
+    await this.assertExists(id);
+    const db = this.prisma.forTenant();
+
+    const [inspections, estimates, jobCards] = await Promise.all([
+      db.inspection.findMany({ where: { vehicleId: id } }),
+      db.estimate.findMany({ where: { vehicleId: id, deletedAt: null } }),
+      db.jobCard.findMany({ where: { vehicleId: id, deletedAt: null } }),
+    ]);
+
+    const jobCardIds = jobCards.map((jc) => jc.id);
+    const invoices = jobCardIds.length
+      ? await db.invoice.findMany({ where: { jobCardId: { in: jobCardIds } } })
+      : [];
+
+    type TimelineEntry = {
+      date: Date;
+      type: 'inspection' | 'estimate' | 'job-card' | 'invoice';
+      refId: string;
+      description: string;
+      amount?: number;
+    };
+
+    const timeline: TimelineEntry[] = [
+      ...inspections.map((i) => ({
+        date: i.createdAt,
+        type: 'inspection' as const,
+        refId: i.id,
+        description: `Inspection (${i.status})`,
+      })),
+      ...estimates.map((e) => ({
+        date: e.createdAt,
+        type: 'estimate' as const,
+        refId: e.id,
+        description: e.jobDescription ?? 'Estimate',
+        amount: Number(e.total),
+      })),
+      ...jobCards.map((jc) => ({
+        date: jc.createdAt,
+        type: 'job-card' as const,
+        refId: jc.id,
+        description: jc.complaint ?? `Job card ${jc.jobCardNumber}`,
+      })),
+      ...invoices.map((inv) => ({
+        date: inv.createdAt,
+        type: 'invoice' as const,
+        refId: inv.id,
+        description: `Invoice ${inv.invoiceNumber}`,
+        amount: Number(inv.grandTotal),
+      })),
+    ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
     return {
       vehicleId: id,
-      timeline: [] as Array<{
-        date: string;
-        type: 'inspection' | 'estimate' | 'job-card' | 'invoice';
-        refId: string;
-        description: string;
-        amount?: number;
-      }>,
+      timeline: timeline.map((entry) => ({ ...entry, date: entry.date.toISOString() })),
     };
   }
 

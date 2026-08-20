@@ -260,6 +260,24 @@ export class JobCardsService {
           notes: dto.notes,
         } as unknown as Prisma.JobCardStatusHistoryUncheckedCreateInput,
       });
+
+      if (dto.status === JobCardStatus.READY_FOR_DELIVERY) {
+        // Recipient is the job card's service advisor if one is assigned;
+        // otherwise broadcast (userId: null) so any tenant staff member
+        // sees it — there's no notification-routing/escalation concept in
+        // this system yet, and most workshops are small enough that
+        // "someone" picking this up is an acceptable fallback.
+        await tx.notification.create({
+          data: {
+            userId: jobCard.serviceAdvisorId,
+            type: 'vehicle_ready',
+            title: 'Vehicle ready for delivery',
+            message: `Job card ${jobCard.jobCardNumber} is ready for delivery.`,
+            relatedEntityType: 'JobCard',
+            relatedEntityId: id,
+          } as unknown as Prisma.NotificationUncheckedCreateInput,
+        });
+      }
     });
 
     return this.findOne(id);

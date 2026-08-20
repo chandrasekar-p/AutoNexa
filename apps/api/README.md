@@ -1,7 +1,9 @@
-# AutoNexa API — Phases 2–7: Auth/Tenancy/RBAC + CRM + Front-of-House + Operational Core + Inventory + Billing
+# AutoNexa API — Phases 2–8: Auth/Tenancy/RBAC + CRM + Front-of-House + Operational Core + Inventory + Billing + Reports/Dashboard/Notifications
 
-This is the backend built so far: everything Phase 8 (Reports, Dashboard,
-Notifications) will build on top of.
+This is the full backend transactional core plus its read-side aggregation
+layer. Phase 8 is the last new-feature phase in the Phase 1 architecture
+doc's backend sequence — Phase 9 (testing/security hardening) and Phase 10
+(deployment) are cross-cutting passes over this codebase, not new modules.
 
 ## What's in Phase 2 (foundation)
 
@@ -30,9 +32,12 @@ Notifications) will build on top of.
 - **Vehicles** — full CRUD scoped to a customer, paginated search
   (registration no / VIN / brand / model), document attachments (insurance,
   RC, PUC, warranty — metadata only; actual files live in object storage
-  per the Phase 1 File Storage module), and a `GET /vehicles/:id/service-history`
-  endpoint whose response contract is stable now and gets populated once
-  Inspections/Estimates/Job Cards/Invoices exist.
+  per the Phase 1 File Storage module), and `GET /vehicles/:id/service-history`
+  — merges Inspections/Estimates/Job Cards/Invoices for the vehicle into one
+  chronologically-sorted (newest first) timeline; closed as of Phase 8 (the
+  response contract was stable from Phase 3, the data behind it wasn't).
+  Invoices are pulled via the vehicle's job card ids, since `Invoice` has no
+  `vehicleId` of its own (it's keyed to a `JobCard`).
 
 ## What's in Phase 4 (front-of-house workflow)
 
@@ -210,12 +215,118 @@ Notifications) will build on top of.
 sharing (Phase 1 lists these, but they're a later polish pass on top of this
 data model, not core to it) — just the data model and REST API here.
 
+## What's in Phase 8 (reports, dashboard, notifications)
+
+This phase is almost entirely read-side aggregation over the transactional
+core Phases 2–7 built — no new writes to core business models, aside from
+two small notification-creation side effects (below).
+
+- **Reports** (`reports`, all under `report:read`, gated once at the
+  controller class level rather than per-method — `PermissionsGuard` checks
+  the handler then falls back to the class via
+  `Reflector.getAllAndOverride`, so this is equivalent to repeating the
+  decorator 13 times): `sales` (bucketed by day/month — `sales-bucketing.ts`,
+  pure and unit-tested), `invoices`, `payments`, `outstanding` (tenant-wide,
+  per customer), `parts-sales`, `inventory-valuation`, `purchases`,
+  `supplier-outstanding`, `labour-revenue` (optionally grouped by
+  technician), `technician-performance` (tenant-wide, all technicians),
+  `customer-revenue`, `profit-margin`, `gst-summary`, `job-card-status`.
+  **Low Stock is not duplicated here** — it already exists as
+  `GET /parts?lowStock=true` (Phase 6); this list just points at it.
+  - `profit-margin` is explicitly **not a true profit figure** — parts
+    margin uses each `Part`'s *current* `purchasePrice` (a `JobCardPart`
+    only snapshots the price it sold at, never a cost basis, so this is an
+    approximation once purchase prices drift), and labour is counted at
+    100% margin since this system has no per-technician cost/pay-rate data
+    to net against labour revenue. The response carries an explicit `note`
+    field saying so — never presented as a bare, authoritative "profit"
+    number. See `profit-margin.ts`.
+  - Several report query DTOs share a small composable base
+    (`DateRangeQueryDto` / `PaginatedDateRangeQueryDto` /
+    `PaginationQueryDto` in `reports/dto/`) instead of each hand-declaring
+    `from`/`to`/`page`/`pageSize` — a deliberate departure from this
+    codebase's usual flat-DTO-per-endpoint style, justified by 13 reports
+    sharing the same shape (unlike the 2–3-DTO overlaps elsewhere, where
+    duplication stayed cheaper than an abstraction).
+- **Dashboard** (`dashboard`) — one `GET /dashboard/summary` aggregating the
+  Phase 1 dashboard's cards: `todaysAppointments`, `vehiclesInService` (job
+  cards in `DIAGNOSIS`/`APPROVED`/`IN_PROGRESS`/`WAITING_PARTS`/
+  `QUALITY_CHECK`), `openJobCards`, `completedJobsToday`, `pendingEstimates`,
+  `pendingPayments` (count + outstanding sum, via the same shared
+  `computeInvoiceOutstanding`/`sumOutstanding` the outstanding report and
+  customer profile use), `todaysSales`, `monthlySales`,
+  `labourRevenueMonthly`, `partsRevenueMonthly` (both mean *invoiced* this
+  month, not necessarily *paid* — that distinction is what `pendingPayments`
+  is for), `lowStockCount`, and `technicianWorkload` (each technician's
+  `jobsOpen`, via the same shared per-technician computation as
+  `GET /technicians/:id` and the technician-performance report).
+  > "Today"/"this calendar month" use the server's local time, not
+  > `TenantSettings.timezone` — this codebase has no per-tenant
+  > timezone-aware date math anywhere yet (no such dependency exists), so
+  > this is a documented simplification, not new to the dashboard
+  > specifically.
+- **Notifications** (`notifications`) — personal to the requesting user, not
+  a business resource: **no `@Permissions()`** on these routes by design,
+  any authenticated tenant user can list/mark-read their own. `userId` is
+  nullable on `Notification` — `null` means broadcast, visible to every
+  tenant user. `isRead` is a single flag on the row, not per-user read
+  receipts, so a broadcast notification read by one user reads as read for
+  everyone — a real, documented simplification for this phase's
+  proof-of-pattern scope. `GET /notifications` returns the requester's own
+  + broadcast, paginated, filterable by `isRead`; `PATCH /notifications/:id/read`
+  and `PATCH /notifications/read-all` mark read (restricted to the
+  requester's own + broadcast rows — a plain `404` on someone else's,
+  never leaking existence).
+  - **Two triggers wired to prove the pattern** (not every notification
+    type from the Phase 1 list — most of the rest need a scheduled job, see
+    below): (1) `JobCardsService.updateStatus`, on landing on
+    `READY_FOR_DELIVERY`, creates a `"vehicle_ready"` notification —
+    recipient is the job card's `serviceAdvisorId` if set, otherwise
+    broadcast (`userId: null`), since there's no notification-routing/
+    escalation concept in this system yet. (2) `EstimatesService.approve`
+    creates an `"estimate_approved"` notification — always broadcast, since
+    `Estimate` tracks no per-estimate owner/service-advisor field to target.
+  - `GET /notifications/alerts` is **computed, non-persisted** — aggregated
+    fresh on every call, not stored `Notification` rows. Mirrors the alerts
+    section from the Phase 1 dashboard mockup: low-stock parts (reuses
+    `isLowStock` — see below), vehicles with insurance/PUC expiring within
+    `days` (query param, default 30), and job cards past their
+    `expectedDelivery` that aren't yet `DELIVERED`/`CANCELLED`.
+- **Shared extractions this phase leans on** (mirrors Phase 7's
+  `rollupPaymentStatus` refactor — reuse over duplicating a second/third
+  time):
+  - `common/billing/outstanding.ts` (`computeInvoiceOutstanding`,
+    `sumOutstanding`) — `customers.service.ts` used this calculation first
+    (Phase 7); the outstanding report and dashboard now call the exact same
+    functions instead of a third copy.
+  - `technicians/technician-performance.ts` (`computeTechnicianPerformance`)
+    — `TechniciansService.findOne`'s workload/revenue computation, now
+    parameterized with an optional date range and called once per
+    technician by the technician-performance report and the dashboard.
+  - `parts/low-stock.ts` (`isLowStock`) — the `currentStock <= minStock`
+    comparison itself, used by `PartsService.findAll`'s `lowStock=true`
+    filter (refactored in this phase), the dashboard's `lowStockCount`, and
+    the notifications alerts endpoint.
+
+> **Explicitly deferred, architecture-note only**: appointment reminders,
+> payment reminders, service reminders, and any WhatsApp/SMS delivery
+> (Phase 1 lists these) all need a scheduled job — something like
+> `@nestjs/schedule` — that doesn't exist in this codebase yet, plus an
+> external send channel (WhatsApp/SMS provider integration). Building a
+> scheduler is out of scope for this phase; when it's added, it plugs in
+> as a cron-style task that queries the same kind of "due soon" conditions
+> `GET /notifications/alerts` already computes on demand, and turns each
+> hit into either a persisted broadcast/targeted `Notification` (this
+> phase's pattern) or an external send. Not built here — same spirit as
+> every other deferred-TODO note in this codebase.
+
 ## Modules
 
 `auth`, `tenants`, `branches`, `users`, `roles`, `permissions`, `customers`,
 `vehicles`, `appointments`, `inspections`, `estimates`, `labour-items`,
 `technicians`, `job-cards`, `parts`, `suppliers`, `purchase-orders`,
-`purchase-invoices`, `supplier-payments`, `invoices`
+`purchase-invoices`, `supplier-payments`, `invoices`, `reports`, `dashboard`,
+`notifications`
 
 ## Setup
 
@@ -225,7 +336,7 @@ cp .env.example .env
 # and change JWT_ACCESS_SECRET / JWT_REFRESH_SECRET / SUPER_ADMIN_PASSWORD
 
 npm install
-npx prisma migrate dev --name phase7_billing_gst_payments
+npx prisma migrate dev --name phase8_reports_dashboard_notifications
 npm run prisma:seed
 npm run start:dev
 ```
@@ -264,6 +375,19 @@ curl -X POST http://localhost:4000/invoices/<invoiceId>/payments \
 # The customer's outstanding balance across all their invoices.
 curl http://localhost:4000/customers/<customerId> \
   -H "Authorization: Bearer <accessToken>"
+
+# The dashboard's cards in one call.
+curl http://localhost:4000/dashboard/summary \
+  -H "Authorization: Bearer <accessToken>"
+
+# GST-filing-prep summary for a date range.
+curl "http://localhost:4000/reports/gst-summary?from=2026-08-01&to=2026-08-31" \
+  -H "Authorization: Bearer <accessToken>"
+
+# Your own + broadcast notifications (e.g. "vehicle_ready" from the last
+# READY_FOR_DELIVERY transition, "estimate_approved" from the last approval).
+curl http://localhost:4000/notifications \
+  -H "Authorization: Bearer <accessToken>"
 ```
 
 ## Notes on this codebase
@@ -285,7 +409,9 @@ curl http://localhost:4000/customers/<customerId> \
   `PartCategory`, `Part`, `InventoryTransaction`, `Supplier`, `PurchaseOrder`,
   `PurchaseOrderItem`, `GoodsReceipt`, `GoodsReceiptItem`, `PurchaseInvoice`,
   `SupplierPayment`, and `JobCardPart`; Phase 7 added `Invoice`,
-  `InvoiceLineItem`, and `Payment`.
+  `InvoiceLineItem`, and `Payment`; Phase 8 added `Notification` (the only
+  new model this phase — Reports and Dashboard are pure aggregation over
+  existing models, nothing new to scope).
 - **`PrismaService.platform` is a constructor-assigned field, not a
   getter.** Prisma Client wraps the instance in a Proxy, and that Proxy's
   `get` trap does not preserve the correct receiver for accessor properties
@@ -331,17 +457,29 @@ curl http://localhost:4000/customers/<customerId> \
   `InvoicesModule`. Each link exists because the *public entry point*
   naturally lives on the "earlier" resource (convert an estimate; generate
   an invoice from a job card) while the actual creation logic lives with
-  the model being created.
+  the model being created. Reports/Dashboard/Notifications don't extend
+  this chain — they read via their own `PrismaService.forTenant()` calls
+  and the shared pure/query functions above, no new cross-module injection.
+- `Reflector.getAllAndOverride([handler, class])` — used by the existing
+  `PermissionsGuard` since Phase 2 — means `@Permissions(...)` works at
+  either the method or the controller-class level; `ReportsController`
+  applies it once at the class level (Phase 8) rather than on all 13
+  methods, since every route there needs the identical `report:read`.
 - The demo tenant's login is `owner@demoworkshop.test` / `ChangeMe123!` —
   seeded for local development only; never ships to a real deployment.
 - Run `npm test` to exercise the tenant-isolation primitive, the permissions
   guard, DTO validation rules, the estimate/GST/payment-status calculation
-  logic, the job card and purchase order status pipelines, and the
-  sequence-number formatter (139 tests).
+  logic, the job card and purchase order status pipelines, the sales-
+  bucketing/profit-margin/outstanding-balance/low-stock pure functions, and
+  the sequence-number formatter (174 tests).
 
 ## What's deliberately NOT in this phase yet
 
-PDF generation, WhatsApp/print sharing of invoices, Reports, the Dashboard,
-and Notifications — these land in Phase 8 per the sequencing in the Phase 1
-architecture doc, each building on the transactional data Phases 2–7 now
-provide end-to-end.
+PDF generation and WhatsApp/print sharing of invoices (Phase 1 lists these
+as a later polish pass, not core). Scheduled reminders (appointment/
+payment/service) and any WhatsApp/SMS delivery — see the "Explicitly
+deferred" note in the Phase 8 section above for where that plugs in once a
+job scheduler exists in this codebase. Phase 9 (testing/security hardening)
+and Phase 10 (deployment) are cross-cutting passes over everything built in
+Phases 2–8, not new feature modules — nothing left in the Phase 1 backend
+module list is unbuilt.

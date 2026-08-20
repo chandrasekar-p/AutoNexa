@@ -11,10 +11,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TechniciansService = void 0;
 const common_1 = require("@nestjs/common");
-const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const technician_performance_1 = require("./technician-performance");
 const USER_SUMMARY_SELECT = { id: true, name: true, email: true, phone: true };
-const TERMINAL_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 let TechniciansService = class TechniciansService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -55,25 +54,8 @@ let TechniciansService = class TechniciansService {
     }
     async findOne(id) {
         const technician = await this.assertExists(id);
-        const db = this.prisma.forTenant();
-        const [jobsOpen, jobsCompleted, hoursAgg, revenueAgg] = await Promise.all([
-            db.jobCard.count({
-                where: { technicianId: id, deletedAt: null, status: { notIn: TERMINAL_STATUSES } },
-            }),
-            db.jobCard.count({ where: { technicianId: id, deletedAt: null, status: client_1.JobCardStatus.DELIVERED } }),
-            db.jobCardLabour.aggregate({ where: { jobCard: { technicianId: id } }, _sum: { hours: true } }),
-            db.jobCardLabour.aggregate({
-                where: { jobCard: { technicianId: id, invoice: { status: client_1.InvoiceStatus.PAID } } },
-                _sum: { lineTotal: true },
-            }),
-        ]);
-        return {
-            ...technician,
-            jobsOpen,
-            jobsCompleted,
-            totalLabourHours: hoursAgg._sum.hours ?? new client_1.Prisma.Decimal(0),
-            revenueGenerated: revenueAgg._sum.lineTotal ?? new client_1.Prisma.Decimal(0),
-        };
+        const performance = await (0, technician_performance_1.computeTechnicianPerformance)(this.prisma.forTenant(), id);
+        return { ...technician, ...performance };
     }
     async update(id, dto) {
         await this.assertExists(id);

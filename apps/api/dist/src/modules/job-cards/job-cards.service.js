@@ -200,6 +200,18 @@ let JobCardsService = class JobCardsService {
                     notes: dto.notes,
                 },
             });
+            if (dto.status === client_1.JobCardStatus.READY_FOR_DELIVERY) {
+                await tx.notification.create({
+                    data: {
+                        userId: jobCard.serviceAdvisorId,
+                        type: 'vehicle_ready',
+                        title: 'Vehicle ready for delivery',
+                        message: `Job card ${jobCard.jobCardNumber} is ready for delivery.`,
+                        relatedEntityType: 'JobCard',
+                        relatedEntityId: id,
+                    },
+                });
+            }
         });
         return this.findOne(id);
     }

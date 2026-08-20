@@ -119,7 +119,20 @@ let EstimatesService = class EstimatesService {
         return this.transition(id, client_1.EstimateStatus.DRAFT, client_1.EstimateStatus.SENT, {});
     }
     async approve(id) {
-        return this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.APPROVED, { approvedAt: new Date() });
+        const estimate = await this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.APPROVED, {
+            approvedAt: new Date(),
+        });
+        await this.prisma.forTenant().notification.create({
+            data: {
+                userId: null,
+                type: 'estimate_approved',
+                title: 'Estimate approved',
+                message: `Estimate for ${estimate.jobDescription ?? 'a vehicle'} has been approved.`,
+                relatedEntityType: 'Estimate',
+                relatedEntityId: id,
+            },
+        });
+        return estimate;
     }
     async reject(id) {
         return this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.REJECTED, { rejectedAt: new Date() });

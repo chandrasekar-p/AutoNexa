@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { computeInvoiceOutstanding, sumOutstanding } from '../../common/billing/outstanding';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
@@ -67,15 +68,12 @@ export class CustomersService {
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const invoicesWithOutstanding = customer.invoices.map((invoice) => {
-      const paid = invoice.payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
-      const outstanding = new Prisma.Decimal(invoice.grandTotal).sub(paid).toDecimalPlaces(2);
-      return { ...invoice, outstanding };
-    });
+    const invoicesWithOutstanding = customer.invoices.map((invoice) => ({
+      ...invoice,
+      outstanding: computeInvoiceOutstanding(invoice),
+    }));
 
-    const totalOutstanding = invoicesWithOutstanding
-      .filter((inv) => inv.status === InvoiceStatus.UNPAID || inv.status === InvoiceStatus.PARTIALLY_PAID)
-      .reduce((sum, inv) => sum.add(inv.outstanding), new Prisma.Decimal(0));
+    const totalOutstanding = sumOutstanding(invoicesWithOutstanding);
 
     return { ...customer, invoices: invoicesWithOutstanding, totalOutstanding };
   }

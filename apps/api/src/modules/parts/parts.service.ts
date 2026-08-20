@@ -5,6 +5,7 @@ import { CreatePartDto } from './dto/create-part.dto';
 import { UpdatePartDto } from './dto/update-part.dto';
 import { ListPartsQueryDto } from './dto/list-parts-query.dto';
 import { StockLedgerQueryDto } from './dto/stock-ledger-query.dto';
+import { isLowStock } from './low-stock';
 
 @Injectable()
 export class PartsService {
@@ -51,7 +52,7 @@ export class PartsService {
       // Low-stock result sets are inherently small — that's the point of
       // the filter — so this stays cheap without DB-level pagination.
       const all = await db.part.findMany({ where, orderBy: { name: 'asc' } });
-      const lowStockItems = all.filter((p) => p.currentStock <= p.minStock);
+      const lowStockItems = all.filter(isLowStock);
       const total = lowStockItems.length;
       const items = lowStockItems.slice((page - 1) * pageSize, page * pageSize);
       return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };

@@ -1,12 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceStatus, JobCardStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTechnicianDto } from './dto/create-technician.dto';
 import { UpdateTechnicianDto } from './dto/update-technician.dto';
 import { ListTechniciansQueryDto } from './dto/list-technicians-query.dto';
+import { computeTechnicianPerformance } from './technician-performance';
 
 const USER_SUMMARY_SELECT = { id: true, name: true, email: true, phone: true } as const;
-const TERMINAL_STATUSES = [JobCardStatus.DELIVERED, JobCardStatus.CANCELLED];
 
 @Injectable()
 export class TechniciansService {
@@ -63,27 +63,8 @@ export class TechniciansService {
    */
   async findOne(id: string) {
     const technician = await this.assertExists(id);
-    const db = this.prisma.forTenant();
-
-    const [jobsOpen, jobsCompleted, hoursAgg, revenueAgg] = await Promise.all([
-      db.jobCard.count({
-        where: { technicianId: id, deletedAt: null, status: { notIn: TERMINAL_STATUSES } },
-      }),
-      db.jobCard.count({ where: { technicianId: id, deletedAt: null, status: JobCardStatus.DELIVERED } }),
-      db.jobCardLabour.aggregate({ where: { jobCard: { technicianId: id } }, _sum: { hours: true } }),
-      db.jobCardLabour.aggregate({
-        where: { jobCard: { technicianId: id, invoice: { status: InvoiceStatus.PAID } } },
-        _sum: { lineTotal: true },
-      }),
-    ]);
-
-    return {
-      ...technician,
-      jobsOpen,
-      jobsCompleted,
-      totalLabourHours: hoursAgg._sum.hours ?? new Prisma.Decimal(0),
-      revenueGenerated: revenueAgg._sum.lineTotal ?? new Prisma.Decimal(0),
-    };
+    const performance = await computeTechnicianPerformance(this.prisma.forTenant(), id);
+    return { ...technician, ...performance };
   }
 
   async update(id: string, dto: UpdateTechnicianDto) {

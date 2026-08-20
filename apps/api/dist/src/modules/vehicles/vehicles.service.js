@@ -65,10 +65,48 @@ let VehiclesService = class VehiclesService {
         return vehicle;
     }
     async getServiceHistory(id) {
-        await this.findOne(id);
+        await this.assertExists(id);
+        const db = this.prisma.forTenant();
+        const [inspections, estimates, jobCards] = await Promise.all([
+            db.inspection.findMany({ where: { vehicleId: id } }),
+            db.estimate.findMany({ where: { vehicleId: id, deletedAt: null } }),
+            db.jobCard.findMany({ where: { vehicleId: id, deletedAt: null } }),
+        ]);
+        const jobCardIds = jobCards.map((jc) => jc.id);
+        const invoices = jobCardIds.length
+            ? await db.invoice.findMany({ where: { jobCardId: { in: jobCardIds } } })
+            : [];
+        const timeline = [
+            ...inspections.map((i) => ({
+                date: i.createdAt,
+                type: 'inspection',
+                refId: i.id,
+                description: `Inspection (${i.status})`,
+            })),
+            ...estimates.map((e) => ({
+                date: e.createdAt,
+                type: 'estimate',
+                refId: e.id,
+                description: e.jobDescription ?? 'Estimate',
+                amount: Number(e.total),
+            })),
+            ...jobCards.map((jc) => ({
+                date: jc.createdAt,
+                type: 'job-card',
+                refId: jc.id,
+                description: jc.complaint ?? `Job card ${jc.jobCardNumber}`,
+            })),
+            ...invoices.map((inv) => ({
+                date: inv.createdAt,
+                type: 'invoice',
+                refId: inv.id,
+                description: `Invoice ${inv.invoiceNumber}`,
+                amount: Number(inv.grandTotal),
+            })),
+        ].sort((a, b) => b.date.getTime() - a.date.getTime());
         return {
             vehicleId: id,
-            timeline: [],
+            timeline: timeline.map((entry) => ({ ...entry, date: entry.date.toISOString() })),
         };
     }
     async update(id, dto) {

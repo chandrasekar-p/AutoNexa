@@ -37,6 +37,9 @@ const purchase_orders_module_1 = require("./modules/purchase-orders/purchase-ord
 const purchase_invoices_module_1 = require("./modules/purchase-invoices/purchase-invoices.module");
 const supplier_payments_module_1 = require("./modules/supplier-payments/supplier-payments.module");
 const invoices_module_1 = require("./modules/invoices/invoices.module");
+const reports_module_1 = require("./modules/reports/reports.module");
+const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
+const notifications_module_1 = require("./modules/notifications/notifications.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -66,6 +69,9 @@ exports.AppModule = AppModule = __decorate([
             purchase_invoices_module_1.PurchaseInvoicesModule,
             supplier_payments_module_1.SupplierPaymentsModule,
             invoices_module_1.InvoicesModule,
+            reports_module_1.ReportsModule,
+            dashboard_module_1.DashboardModule,
+            notifications_module_1.NotificationsModule,
         ],
         providers: [{ provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard }],
     })

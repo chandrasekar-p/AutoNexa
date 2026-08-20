@@ -45,6 +45,7 @@ model Tenant {
   purchaseInvoices PurchaseInvoice[]
   supplierPayments SupplierPayment[]
   invoices         Invoice[]
+  notifications    Notification[]
 
   @@map("tenants")
 }
@@ -134,6 +135,7 @@ model User {
 
   inventoryTransactions InventoryTransaction[]
   goodsReceiptsReceived GoodsReceipt[]
+  notifications         Notification[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1019,4 +1021,35 @@ model Payment {
 
   @@index([tenantId, invoiceId])
   @@map("payments")
+}
+
+// ─────────────── NOTIFICATIONS (Phase 8) ───────────────
+
+// `type` is a plain string, not an enum — this list will keep growing
+// ("vehicle_ready", "estimate_approved", …) and a new type shouldn't need
+// a migration. `userId` is nullable: null means broadcast, visible to any
+// authenticated tenant user (see notifications.service.ts for the
+// visibility query, and job-cards.service.ts / estimates.service.ts for
+// the two wired triggers' fallback-recipient reasoning). isRead is a
+// single flag on the row, not per-user read receipts — a broadcast
+// notification marked read by one user reads as read for everyone. That's
+// a real, documented simplification for this phase's proof-of-pattern
+// scope, not an oversight.
+model Notification {
+  id                String   @id @default(uuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id])
+  type              String
+  title             String
+  message           String
+  relatedEntityType String?
+  relatedEntityId   String?
+  isRead            Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@index([tenantId, userId])
+  @@index([tenantId, createdAt])
+  @@map("notifications")
 }
