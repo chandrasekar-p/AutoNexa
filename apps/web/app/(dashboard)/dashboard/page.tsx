@@ -2,17 +2,26 @@
 
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
+import { usePermission } from '@/lib/hooks/use-permission';
 import type { DashboardSummary, NotificationAlerts } from '@/lib/api-types';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { KpiCard } from '@/components/domain/kpi-card';
 import { TechnicianWorkloadCard } from '@/components/domain/technician-workload-card';
 import { DashboardAlertsCard } from '@/components/domain/dashboard-alerts-card';
+import { SalesTrendChart } from '@/components/domain/sales-trend-chart';
+import { JobCardStatusChart } from '@/components/domain/job-card-status-chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 
 export default function DashboardPage() {
   const summary = useApiQuery<DashboardSummary>(() => apiGet('/dashboard/summary'), []);
   const alerts = useApiQuery<NotificationAlerts>(() => apiGet('/notifications/alerts'), []);
+  // The two charts below hit GET /reports/*, which requires report:read —
+  // Technician and Receptionist don't have it by default (see
+  // default-role-grants.ts), so skip rendering (and fetching) rather than
+  // showing them a guaranteed 403. UX-only, same caveat as every other
+  // usePermission() call — the backend is what actually enforces this.
+  const canViewReports = usePermission('report:read');
 
   return (
     <div className="flex flex-col gap-6">
@@ -24,6 +33,13 @@ export default function DashboardPage() {
       {summary.isLoading ? <KpiGridSkeleton /> : null}
       {summary.error ? <ErrorState message={summary.error} onRetry={summary.refetch} /> : null}
       {summary.data ? <KpiGrid data={summary.data} /> : null}
+
+      {canViewReports ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <SalesTrendChart />
+          <JobCardStatusChart />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <TechnicianWorkloadCard

@@ -124,6 +124,16 @@ let UsersService = class UsersService {
             select: SAFE_SELECT,
         });
     }
+    findOwnProfile(userId) {
+        return this.findOne(userId);
+    }
+    updateOwnProfile(userId, dto) {
+        return this.prisma.forTenant().user.update({
+            where: { id: userId },
+            data: { name: dto.name, phone: dto.phone },
+            select: SAFE_SELECT,
+        });
+    }
     async changeOwnPassword(userId, dto) {
         const db = this.prisma.forTenant();
         const user = await db.user.findFirst({ where: { id: userId } });

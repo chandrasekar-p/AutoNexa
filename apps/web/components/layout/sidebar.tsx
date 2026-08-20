@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { useHasResourceAccess } from '@/lib/hooks/use-permission';
@@ -38,8 +39,8 @@ function NavItemGated(item: NavItem) {
 export function Sidebar() {
   return (
     <aside className="flex h-full w-60 flex-col border-r border-graphite-800 bg-graphite-900">
-      <div className="flex h-14 items-center gap-2 border-b border-graphite-800 px-5">
-        <span className="h-2 w-2 rounded-full bg-accent-500" aria-hidden />
+      <div className="flex h-14 items-center gap-2.5 border-b border-graphite-800 px-5">
+        <Image src="/logo.png" alt="" width={28} height={28} className="rounded-md" priority />
         <span className="text-sm font-semibold tracking-wide text-white">AutoNexa</span>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">

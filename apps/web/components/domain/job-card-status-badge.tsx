@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import type { JobCardStatus } from '@/lib/api-types';
 
-const STATUS_TONE: Record<JobCardStatus, 'neutral' | 'accent' | 'warning' | 'success' | 'danger'> = {
+export const STATUS_TONE: Record<JobCardStatus, 'neutral' | 'accent' | 'warning' | 'success' | 'danger'> = {
   OPEN: 'neutral',
   DIAGNOSIS: 'accent',
   WAITING_APPROVAL: 'warning',
@@ -14,7 +14,7 @@ const STATUS_TONE: Record<JobCardStatus, 'neutral' | 'accent' | 'warning' | 'suc
   CANCELLED: 'danger',
 };
 
-const STATUS_LABEL: Record<JobCardStatus, string> = {
+export const STATUS_LABEL: Record<JobCardStatus, string> = {
   OPEN: 'Open',
   DIAGNOSIS: 'Diagnosis',
   WAITING_APPROVAL: 'Waiting Approval',

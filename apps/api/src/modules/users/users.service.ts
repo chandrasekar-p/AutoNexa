@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
 
 const SAFE_SELECT = {
   id: true,
@@ -91,6 +92,19 @@ export class UsersService {
     return this.prisma.forTenant().user.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
+      select: SAFE_SELECT,
+    });
+  }
+
+  /** GET /users/me — no permission gate; every authenticated user can see their own record, unlike GET /users/:id (user:read). */
+  findOwnProfile(userId: string) {
+    return this.findOne(userId);
+  }
+
+  updateOwnProfile(userId: string, dto: UpdateOwnProfileDto) {
+    return this.prisma.forTenant().user.update({
+      where: { id: userId },
+      data: { name: dto.name, phone: dto.phone },
       select: SAFE_SELECT,
     });
   }

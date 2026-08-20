@@ -3,14 +3,13 @@ export interface AuthUser {
   tenantId: string;
   email: string;
   /**
-   * Only reliably populated right after a fresh login this session — the
-   * backend's GET /auth/me (used to restore a session after a silent
-   * refresh, e.g. on page reload) doesn't currently return `name`, only
-   * `{userId, tenantId, email, permissions, isSuperAdmin}`. See
-   * apps/web/README.md "Auth architecture" for the full explanation and
-   * where the UI falls back to `email` instead. This is a real backend
-   * gap worth a tiny follow-up (add `name` to AuthenticatedUser/JWT
-   * payload), not something the frontend can fully paper over.
+   * GET /auth/me (used to restore a session after a silent refresh, e.g.
+   * on page reload) doesn't return `name` — only `{userId, tenantId,
+   * email, permissions, isSuperAdmin}`, since it's decoded straight off
+   * the JWT payload. AuthProvider fills this in with a second, best-effort
+   * call to GET /users/me right after, so `name` is reliable in practice;
+   * it's still optional here because that second call could in principle
+   * fail transiently — Topbar falls back to `email` if so.
    */
   name?: string;
   permissions: string[];

@@ -19,6 +19,7 @@ const users_service_1 = require("./users.service");
 const create_user_dto_1 = require("./dto/create-user.dto");
 const update_user_dto_1 = require("./dto/update-user.dto");
 const change_password_dto_1 = require("./dto/change-password.dto");
+const update_own_profile_dto_1 = require("./dto/update-own-profile.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
@@ -31,6 +32,12 @@ let UsersController = class UsersController {
     }
     findAll() {
         return this.usersService.findAll();
+    }
+    getOwnProfile(user) {
+        return this.usersService.findOwnProfile(user.userId);
+    }
+    updateOwnProfile(user, dto) {
+        return this.usersService.updateOwnProfile(user.userId, dto);
     }
     findOne(id) {
         return this.usersService.findOne(id);
@@ -62,6 +69,22 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('me'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "getOwnProfile", null);
+__decorate([
+    (0, common_1.Patch)('me'),
+    (0, audit_log_interceptor_1.Audit)('user.update-own-profile', 'User'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, update_own_profile_dto_1.UpdateOwnProfileDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "updateOwnProfile", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('user:read'),
     (0, common_1.Get)(':id'),

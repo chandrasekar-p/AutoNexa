@@ -143,3 +143,28 @@ export interface CustomerDetail extends Customer {
   invoices: CustomerInvoice[];
   totalOutstanding: string;
 }
+
+/** One point from GET /reports/sales — see sales-bucketing.ts's bucketSales(). `period` is "YYYY-MM-DD" (groupBy=day) or "YYYY-MM" (groupBy=month). */
+export interface SalesBucket {
+  period: string;
+  total: string;
+}
+
+/** GET /reports/job-card-status — current pipeline distribution, sorted by count descending. */
+export interface JobCardStatusCount {
+  status: JobCardStatus;
+  count: number;
+}
+
+/** GET/PATCH /users/me — email/roles/isActive are read-only from this endpoint (see UpdateOwnProfileDto on the backend); only name/phone are self-editable. */
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  isActive: boolean;
+  branchId: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  roles: Array<{ role: { id: string; name: string } }>;
+}

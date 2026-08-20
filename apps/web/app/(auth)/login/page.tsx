@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
@@ -48,8 +49,7 @@ export default function LoginPage() {
   return (
     <div className="rounded-lg border border-line bg-surface p-8 shadow-panel">
       <div className="mb-8 flex flex-col items-center gap-2 text-center">
-        <span className="h-2.5 w-2.5 rounded-full bg-accent-500" aria-hidden />
-        <h1 className="text-lg font-semibold text-ink">AutoNexa</h1>
+        <Image src="/logo.png" alt="AutoNexa" width={72} height={72} className="rounded-2xl" priority />
         <p className="text-xs text-ink-secondary">Sign in to your workshop</p>
       </div>
 

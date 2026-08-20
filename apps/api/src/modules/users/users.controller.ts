@@ -4,6 +4,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Audit } from '../../common/interceptors/audit-log.interceptor';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -25,6 +26,22 @@ export class UsersController {
   @Get()
   findAll() {
     return this.usersService.findAll();
+  }
+
+  // Registered BEFORE the `:id` routes below, deliberately — Nest/Express
+  // match routes in registration order, and `:id` has no ParseUUIDPipe
+  // here, so "me" would otherwise be swallowed by findOne/update and
+  // wrongly demand user:read/user:update just to see or edit your own
+  // profile. Same route-ordering lesson as elsewhere in this codebase.
+  @Get('me')
+  getOwnProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.findOwnProfile(user.userId);
+  }
+
+  @Patch('me')
+  @Audit('user.update-own-profile', 'User')
+  updateOwnProfile(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateOwnProfileDto) {
+    return this.usersService.updateOwnProfile(user.userId, dto);
   }
 
   @Permissions('user:read')

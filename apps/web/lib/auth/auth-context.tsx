@@ -10,6 +10,8 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (tenantSlug: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Called by the profile page after a successful PATCH /users/me so the topbar/sidebar reflect a name change immediately, without a reload. */
+  setUserName: (name: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -55,7 +57,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const me = await apiFetch<MeResponse>('/auth/me');
         if (cancelled) return;
-        setUser(me);
+        // Best-effort — GET /auth/me is decoded straight off the JWT and
+        // never carries `name`, so this second call is what makes the
+        // display name survive a page reload. Not fatal if it fails: the
+        // session itself is still valid off /auth/me alone, and Topbar
+        // falls back to email when `name` is undefined.
+        let name: string | undefined;
+        try {
+          const profile = await apiFetch<{ name: string }>('/users/me');
+          name = profile.name;
+        } catch {
+          // Non-fatal — see comment above.
+        }
+        if (!cancelled) setUser({ ...me, name });
       } catch {
         if (!cancelled) clearAuth();
       } finally {
@@ -95,9 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearAuth]);
 
+  const setUserName = useCallback((name: string) => {
+    setUser((prev) => (prev ? { ...prev, name } : prev));
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, accessToken: accessTokenState, isLoading, login, logout }),
-    [user, accessTokenState, isLoading, login, logout],
+    () => ({ user, accessToken: accessTokenState, isLoading, login, logout, setUserName }),
+    [user, accessTokenState, isLoading, login, logout, setUserName],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

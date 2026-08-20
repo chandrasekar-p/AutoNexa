@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiGet } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
@@ -62,7 +63,9 @@ export function Topbar() {
       </div>
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <span className="text-sm text-ink-secondary">{displayName}</span>
+        <Link href="/profile" className="text-sm text-ink-secondary hover:text-ink hover:underline">
+          {displayName}
+        </Link>
         <Button variant="ghost" size="sm" onClick={handleLogout} isLoading={isLoggingOut}>
           Log out
         </Button>
