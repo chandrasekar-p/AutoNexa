@@ -28,6 +28,7 @@ export default function CustomerDetailPage() {
   const router = useRouter();
   const canUpdate = usePermission('customer:update');
   const canDelete = usePermission('customer:delete');
+  const canCreateVehicle = usePermission('vehicle:create');
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -159,6 +160,11 @@ export default function CustomerDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Vehicles ({customer.vehicles.length})</CardTitle>
+          {canCreateVehicle ? (
+            <Link href={`/vehicles/new?customerId=${customer.id}`} className="text-xs font-medium text-accent-600 hover:underline">
+              + Add Vehicle
+            </Link>
+          ) : null}
         </CardHeader>
         <CardBody>
           {customer.vehicles.length === 0 ? (
@@ -167,13 +173,13 @@ export default function CustomerDetailPage() {
             <ul className="flex flex-col divide-y divide-line">
               {customer.vehicles.map((vehicle) => (
                 <li key={vehicle.id} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="text-ink">
+                  <Link href={`/vehicles/${vehicle.id}`} className="text-ink hover:text-accent-600">
                     <span className="num font-medium">{vehicle.registrationNo}</span>{' '}
                     <span className="text-ink-secondary">
                       — {vehicle.brand} {vehicle.model}
                       {vehicle.variant ? ` ${vehicle.variant}` : ''}
                     </span>
-                  </span>
+                  </Link>
                   {vehicle.insuranceExpiry ? (
                     <span className="text-xs text-ink-muted">
                       Insurance until {formatDate(vehicle.insuranceExpiry)}

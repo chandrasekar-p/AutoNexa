@@ -156,6 +156,174 @@ export interface JobCardStatusCount {
   count: number;
 }
 
+export type VehicleFuelType = 'petrol' | 'diesel' | 'electric' | 'hybrid' | 'cng';
+export type VehicleTransmission = 'manual' | 'automatic';
+
+/** A minimal reference to the owning customer, as embedded in vehicle responses. */
+export interface CustomerRef {
+  id: string;
+  name: string;
+  mobile: string;
+  email?: string | null;
+}
+
+interface VehicleFields {
+  id: string;
+  registrationNo: string;
+  vin: string | null;
+  brand: string;
+  model: string;
+  variant: string | null;
+  manufactureYear: number | null;
+  fuelType: VehicleFuelType | null;
+  transmission: VehicleTransmission | null;
+  colour: string | null;
+  odometerReading: number | null;
+  insuranceExpiry: string | null;
+  pucExpiry: string | null;
+  warrantyInfo: string | null;
+  purchaseDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /vehicles list item — see VehiclesService.findAll's `include`. */
+export interface VehicleListItem extends VehicleFields {
+  customer: CustomerRef;
+}
+
+export interface VehicleDocument {
+  id: string;
+  docType: 'insurance' | 'rc' | 'puc' | 'warranty' | 'other';
+  fileUrl: string;
+  fileName: string | null;
+  uploadedAt: string;
+}
+
+/** GET /vehicles/:id — see VehiclesService.findOne's `include`. */
+export interface VehicleDetail extends VehicleFields {
+  customer: CustomerRef;
+  documents: VehicleDocument[];
+}
+
+/** A minimal reference to an assigned staff member (service advisor / technician), as embedded in appointment/inspection responses. */
+export interface StaffRef {
+  id: string;
+  name: string;
+}
+
+export type AppointmentStatus =
+  | 'SCHEDULED'
+  | 'CONFIRMED'
+  | 'VEHICLE_RECEIVED'
+  | 'IN_SERVICE'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW';
+
+/** GET /appointments and GET /appointments/:id share this exact shape — see AppointmentsService's include. */
+export interface Appointment {
+  id: string;
+  customerId: string;
+  vehicleId: string;
+  customer: CustomerRef;
+  vehicle: { id: string; registrationNo: string; brand: string; model: string };
+  serviceType: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  serviceAdvisorId: string | null;
+  technicianId: string | null;
+  notes: string | null;
+  status: AppointmentStatus;
+  createdAt: string;
+}
+
+export type InspectionStatus = 'IN_PROGRESS' | 'COMPLETED';
+export type InspectionCategory = 'EXTERIOR' | 'INTERIOR' | 'MECHANICAL';
+export type InspectionResult = 'PASS' | 'FAIL' | 'NEEDS_ATTENTION' | 'NOT_CHECKED';
+
+export interface InspectionItem {
+  id: string;
+  category: InspectionCategory;
+  itemName: string;
+  result: InspectionResult;
+  remarks: string | null;
+}
+
+export interface InspectionPhoto {
+  id: string;
+  fileUrl: string;
+  fileName: string | null;
+  uploadedAt: string;
+}
+
+interface InspectionFields {
+  id: string;
+  vehicleId: string;
+  appointmentId: string | null;
+  technicianId: string | null;
+  status: InspectionStatus;
+  notes: string | null;
+  createdAt: string;
+}
+
+/**
+ * GET /inspections list items — no `items`/`photos` (InspectionsService's
+ * findAll has no `include` at all), and no vehicle relation either — the
+ * list page shows what's available and links through to the detail page
+ * for the rest.
+ */
+export type InspectionListItem = InspectionFields;
+
+/**
+ * GET /inspections/:id — includes the checklist + photos (see
+ * InspectionsService's INSPECTION_INCLUDE) but still not the vehicle
+ * relation; the detail page fetches that separately via GET
+ * /vehicles/:id using this row's own `vehicleId`.
+ */
+export interface InspectionDetail extends InspectionFields {
+  items: InspectionItem[];
+  photos: InspectionPhoto[];
+}
+
+export type EstimateStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONVERTED';
+export type EstimateLineItemType = 'LABOUR' | 'PART' | 'CONSUMABLE';
+
+/** quantity/unitPrice/gstRate/lineTotal are Decimal on the backend — always strings over the wire, see this file's header note. lineTotal is always server-computed, never sent by the client. */
+export interface EstimateLineItem {
+  id: string;
+  itemType: EstimateLineItemType;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  gstRate: string;
+  lineTotal: string;
+}
+
+interface EstimateFields {
+  id: string;
+  customerId: string;
+  vehicleId: string;
+  jobDescription: string | null;
+  status: EstimateStatus;
+  subtotal: string;
+  taxAmount: string;
+  discountAmount: string;
+  total: string;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  createdAt: string;
+}
+
+/** GET /estimates list items — no lineItems and no customer/vehicle relations (EstimatesService.findAll has no `include` at all); the detail page fetches customer/vehicle separately via the row's own ids, same pattern as Inspections. */
+export type EstimateListItem = EstimateFields;
+
+/** GET /estimates/:id — includes lineItems (see EstimatesService's `include: { lineItems: true }`) but still not customer/vehicle. */
+export interface EstimateDetail extends EstimateFields {
+  lineItems: EstimateLineItem[];
+}
+
 /** GET/PATCH /users/me — email/roles/isActive are read-only from this endpoint (see UpdateOwnProfileDto on the backend); only name/phone are self-editable. */
 export interface UserProfile {
   id: string;

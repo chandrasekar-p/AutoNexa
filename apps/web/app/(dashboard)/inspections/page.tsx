@@ -2,48 +2,33 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
-import { usePermission } from '@/lib/hooks/use-permission';
-import type { Appointment, AppointmentStatus, PaginatedResult } from '@/lib/api-types';
+import type { InspectionListItem, InspectionStatus, PaginatedResult } from '@/lib/api-types';
 import { formatDate } from '@/lib/format';
-import { AppointmentStatusBadge, APPOINTMENT_STATUS_LABEL } from '@/components/domain/appointment-status-badge';
+import { InspectionStatusBadge } from '@/components/domain/inspection-status-badge';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { Pagination } from '@/components/ui/pagination';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '@/components/ui/table';
 
 const PAGE_SIZE = 20;
-const STATUSES: AppointmentStatus[] = [
-  'SCHEDULED',
-  'CONFIRMED',
-  'VEHICLE_RECEIVED',
-  'IN_SERVICE',
-  'COMPLETED',
-  'CANCELLED',
-  'NO_SHOW',
-];
 
-export default function AppointmentsPage() {
-  const router = useRouter();
-  const canCreate = usePermission('appointment:create');
-
+export default function InspectionsPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<AppointmentStatus | ''>('');
+  const [status, setStatus] = useState<InspectionStatus | ''>('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
 
-  const query = useApiQuery<PaginatedResult<Appointment>>(
+  const query = useApiQuery<PaginatedResult<InspectionListItem>>(
     () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (status) params.set('status', status);
-      return apiGet(`/appointments?${params.toString()}`);
+      return apiGet(`/inspections?${params.toString()}`);
     },
     [page, debouncedSearch, status],
   );
@@ -54,18 +39,17 @@ export default function AppointmentsPage() {
   }
 
   function handleStatusChange(value: string) {
-    setStatus(value as AppointmentStatus | '');
+    setStatus(value as InspectionStatus | '');
     setPage(1);
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink">Appointments</h1>
-          <p className="text-sm text-ink-secondary">Every booked service appointment, soonest first.</p>
-        </div>
-        {canCreate ? <Button onClick={() => router.push('/appointments/new')}>New Appointment</Button> : null}
+      <div>
+        <h1 className="text-2xl font-semibold text-ink">Inspections</h1>
+        <p className="text-sm text-ink-secondary">
+          Started from a vehicle&rsquo;s page — this is every inspection on file, across all vehicles.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -73,25 +57,21 @@ export default function AppointmentsPage() {
           <Input
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search by service type or notes"
-            aria-label="Search appointments"
+            placeholder="Search by notes"
+            aria-label="Search inspections"
           />
         </div>
         <div className="w-52">
           <Select value={status} onChange={(e) => handleStatusChange(e.target.value)} aria-label="Filter by status">
             <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {APPOINTMENT_STATUS_LABEL[s]}
-              </option>
-            ))}
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="COMPLETED">Completed</option>
           </Select>
         </div>
       </div>
 
       {query.isLoading ? (
         <div className="flex flex-col gap-2">
-          <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -102,7 +82,7 @@ export default function AppointmentsPage() {
 
       {query.data && query.data.items.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface px-5 py-10 text-center text-sm text-ink-muted">
-          {debouncedSearch || status ? 'No appointments match those filters.' : 'No appointments yet — book the first one to get started.'}
+          No inspections match those filters.
         </p>
       ) : null}
 
@@ -112,26 +92,22 @@ export default function AppointmentsPage() {
             <Table>
               <TableHead>
                 <tr>
-                  <TableHeaderCell>Date & Time</TableHeaderCell>
-                  <TableHeaderCell>Customer</TableHeaderCell>
-                  <TableHeaderCell>Vehicle</TableHeaderCell>
-                  <TableHeaderCell>Service</TableHeaderCell>
+                  <TableHeaderCell>Started</TableHeaderCell>
+                  <TableHeaderCell>Notes</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
                 </tr>
               </TableHead>
               <TableBody>
-                {query.data.items.map((appointment) => (
-                  <TableRow key={appointment.id}>
-                    <TableCell className="num font-medium">
-                      <Link href={`/appointments/${appointment.id}`} className="hover:text-accent-600">
-                        {formatDate(appointment.appointmentDate)} · {appointment.appointmentTime}
+                {query.data.items.map((inspection) => (
+                  <TableRow key={inspection.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/inspections/${inspection.id}`} className="hover:text-accent-600">
+                        {formatDate(inspection.createdAt)}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-ink-secondary">{appointment.customer.name}</TableCell>
-                    <TableCell className="num text-ink-secondary">{appointment.vehicle.registrationNo}</TableCell>
-                    <TableCell className="text-ink-secondary">{appointment.serviceType}</TableCell>
+                    <TableCell className="text-ink-secondary">{inspection.notes ?? '—'}</TableCell>
                     <TableCell>
-                      <AppointmentStatusBadge status={appointment.status} />
+                      <InspectionStatusBadge status={inspection.status} />
                     </TableCell>
                   </TableRow>
                 ))}
