@@ -112,6 +112,7 @@ export function WorkshopSettingsCard() {
         defaultGstRate: Number(values.defaultGstRate ?? query.data.settings.defaultGstRate),
         timezone: values.timezone ?? query.data.settings.timezone,
         state: values.state ?? query.data.settings.state ?? undefined,
+        slackWebhookUrl: values.slackWebhookUrl ?? query.data.settings.slackWebhookUrl ?? undefined,
       });
       setValues({});
       query.refetch();
@@ -186,6 +187,16 @@ export function WorkshopSettingsCard() {
                 placeholder="Tamil Nadu"
                 disabled={!canUpdate}
               />
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  label="Slack Webhook URL"
+                  value={values.slackWebhookUrl ?? query.data.settings.slackWebhookUrl ?? ''}
+                  onChange={(e) => set('slackWebhookUrl', e.target.value)}
+                  placeholder="https://hooks.slack.com/services/..."
+                  disabled={!canUpdate}
+                />
+                <p className="text-xs text-ink-muted">Internal ops pings only (new appointment, invoice issued, ...) — never sent to customers.</p>
+              </div>
             </div>
 
             {saveError ? <p className="text-xs text-danger-600 dark:text-danger-400">{saveError}</p> : null}

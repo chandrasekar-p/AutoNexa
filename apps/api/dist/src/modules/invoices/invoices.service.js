@@ -16,9 +16,11 @@ const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const generate_sequence_number_1 = require("../../common/sequence/generate-sequence-number");
 const rollup_payment_status_1 = require("../../common/billing/rollup-payment-status");
+const messaging_service_1 = require("../messaging/messaging.service");
+const templates_1 = require("../messaging/templates");
 const gst_split_1 = require("./gst-split");
 const payment_guard_1 = require("./payment-guard");
-const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, state: true };
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true };
 const INVOICE_INCLUDE = {
     customer: { select: CUSTOMER_SUMMARY_SELECT },
     jobCard: { select: { id: true, jobCardNumber: true } },
@@ -32,8 +34,9 @@ const INVOICE_STATUSES = {
     paid: client_1.InvoiceStatus.PAID,
 };
 let InvoicesService = class InvoicesService {
-    constructor(prisma) {
+    constructor(prisma, messaging) {
         this.prisma = prisma;
+        this.messaging = messaging;
     }
     async generateFromJobCard(jobCardId) {
         const db = this.prisma.forTenant();
@@ -106,7 +109,19 @@ let InvoicesService = class InvoicesService {
             });
             return created;
         });
+        await this.sendInvoiceIssued(tenantId, customer, invoice.id, invoice.invoiceNumber, grandTotal);
         return this.findOne(invoice.id);
+    }
+    async sendInvoiceIssued(tenantId, customer, invoiceId, invoiceNumber, grandTotal) {
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const content = (0, templates_1.invoiceIssuedMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: customer.name,
+            invoiceNumber,
+            grandTotal: `₹${Number(grandTotal).toFixed(2)}`,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'invoice.issued', { email: customer.email, mobile: customer.mobile }, content, { type: 'Invoice', id: invoiceId });
+        await this.messaging.notifyOps(tenantId, 'invoice.issued', `Invoice ${invoiceNumber} issued: ${customer.name} — ₹${Number(grandTotal).toFixed(2)}`, { type: 'Invoice', id: invoiceId });
     }
     async findAll(query) {
         const page = query.page ?? 1;
@@ -155,7 +170,21 @@ let InvoicesService = class InvoicesService {
                 referenceNumber: dto.referenceNumber,
             },
         });
-        return this.recalculateStatus(invoiceId);
+        const updated = await this.recalculateStatus(invoiceId);
+        await this.sendPaymentReceived(updated, dto.amount);
+        return updated;
+    }
+    async sendPaymentReceived(invoice, amount) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const content = (0, templates_1.paymentReceivedMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: invoice.customer.name,
+            invoiceNumber: invoice.invoiceNumber,
+            amount: `₹${Number(amount).toFixed(2)}`,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'payment.received', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
+        await this.messaging.notifyOps(tenantId, 'payment.received', `Payment received: ${invoice.customer.name} — ₹${Number(amount).toFixed(2)} against ${invoice.invoiceNumber}`, { type: 'Invoice', id: invoice.id });
     }
     async recalculateStatus(id) {
         const db = this.prisma.forTenant();
@@ -181,6 +210,7 @@ let InvoicesService = class InvoicesService {
 exports.InvoicesService = InvoicesService;
 exports.InvoicesService = InvoicesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        messaging_service_1.MessagingService])
 ], InvoicesService);
 //# sourceMappingURL=invoices.service.js.map

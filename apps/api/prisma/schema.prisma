@@ -46,32 +46,37 @@ model Tenant {
   supplierPayments SupplierPayment[]
   invoices         Invoice[]
   notifications    Notification[]
+  deliveryLogs     DeliveryLog[]
 
   @@map("tenants")
 }
 
 model TenantSettings {
-  id             String   @id @default(uuid())
-  tenantId       String   @unique
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  jobCardPrefix  String   @default("JC")
-  invoicePrefix  String   @default("INV")
-  estimatePrefix String   @default("EST")
-  poPrefix       String   @default("PO")
-  defaultGstRate Decimal  @default(18) @db.Decimal(5, 2)
-  timezone       String   @default("Asia/Kolkata")
-  currency       String   @default("INR")
+  id              String   @id @default(uuid())
+  tenantId        String   @unique
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  jobCardPrefix   String   @default("JC")
+  invoicePrefix   String   @default("INV")
+  estimatePrefix  String   @default("EST")
+  poPrefix        String   @default("PO")
+  defaultGstRate  Decimal  @default(18) @db.Decimal(5, 2)
+  timezone        String   @default("Asia/Kolkata")
+  currency        String   @default("INR")
   // The workshop's own home state — determines CGST+SGST (same state as
   // the customer) vs IGST (different state) on generated invoices. See
   // calculateGstSplit in modules/invoices/gst-split.ts for the fallback
   // behavior when this (or the customer's own state) is unset.
-  state          String?
+  state           String?
   // Set via POST /uploads then PATCH /tenants/me/settings — a relative
   // path like /uploads/<tenantId>/<uuid>.png (see upload-storage.ts), not
   // a bare filename. Printed on this workshop's own exported PDF reports
   // (their branding, not the AutoNexa platform's).
-  logoUrl        String?
-  updatedAt      DateTime @updatedAt
+  logoUrl         String?
+  // Incoming webhook URL for this workshop's own Slack — internal ops
+  // pings only (new appointment, invoice issued, etc.), never customer-facing.
+  // Sent via POST to the URL with a plain {"text": "..."} body.
+  slackWebhookUrl String?
+  updatedAt       DateTime @updatedAt
 
   @@map("tenant_settings")
 }
@@ -349,6 +354,9 @@ model Appointment {
   technician       User?             @relation("AppointmentTechnician", fields: [technicianId], references: [id])
   notes            String?
   status           AppointmentStatus @default(SCHEDULED)
+  // Set by the daily reminder cron (see messaging/reminder-cron.service.ts)
+  // once a reminder has gone out, so it isn't re-sent on the next run.
+  reminderSentAt   DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   deletedAt        DateTime?
@@ -1062,4 +1070,47 @@ model Notification {
   @@index([tenantId, userId])
   @@index([tenantId, createdAt])
   @@map("notifications")
+}
+
+// ─────────────── OUTBOUND MESSAGING (Phase 9) ───────────────
+// Distinct from Notification above: that model is the in-app staff bell
+// (broadcast/personal, read/unread). DeliveryLog tracks actual outbound
+// sends to external channels — customer-facing (Email/SMS/WhatsApp) and
+// workshop-ops-facing (Slack) — one row per attempted send, so a
+// misconfigured or unreachable provider is visible rather than silent.
+
+enum DeliveryChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  SLACK
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  // Provider not configured (no env credentials) or no usable recipient
+  // (e.g. customer has no email) — not an error, a known no-op.
+  SKIPPED
+}
+
+model DeliveryLog {
+  id                String          @id @default(uuid())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+  channel           DeliveryChannel
+  // e.g. "appointment.confirmed", "estimate.ready", "job-card.ready",
+  // "invoice.issued", "payment.received" — free-form like Notification.type,
+  // deliberately not an enum for the same reason (this list will grow).
+  event             String
+  recipient         String
+  status            DeliveryStatus
+  errorMessage      String?
+  relatedEntityType String?
+  relatedEntityId   String?
+  createdAt         DateTime        @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@map("delivery_logs")
 }

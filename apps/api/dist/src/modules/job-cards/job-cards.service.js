@@ -16,11 +16,13 @@ const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const generate_sequence_number_1 = require("../../common/sequence/generate-sequence-number");
 const invoices_service_1 = require("../invoices/invoices.service");
+const messaging_service_1 = require("../messaging/messaging.service");
+const templates_1 = require("../messaging/templates");
 const job_card_status_transitions_1 = require("./job-card-status-transitions");
 const resolve_converted_labour_line_1 = require("./resolve-converted-labour-line");
 const stock_guard_1 = require("./stock-guard");
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
-const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true };
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const JOB_CARD_INCLUDE = {
     vehicle: { select: VEHICLE_SUMMARY_SELECT },
     customer: { select: CUSTOMER_SUMMARY_SELECT },
@@ -31,9 +33,10 @@ const JOB_CARD_INCLUDE = {
 };
 const TERMINAL_JOB_CARD_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 let JobCardsService = class JobCardsService {
-    constructor(prisma, invoicesService) {
+    constructor(prisma, invoicesService, messaging) {
         this.prisma = prisma;
         this.invoicesService = invoicesService;
+        this.messaging = messaging;
     }
     async create(dto) {
         await this.assertVehicleExists(dto.vehicleId);
@@ -214,7 +217,23 @@ let JobCardsService = class JobCardsService {
                 });
             }
         });
-        return this.findOne(id);
+        const updated = await this.findOne(id);
+        if (dto.status === client_1.JobCardStatus.READY_FOR_DELIVERY) {
+            await this.sendReadyForPickup(updated);
+        }
+        return updated;
+    }
+    async sendReadyForPickup(jobCard) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const content = (0, templates_1.jobCardReadyMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: jobCard.customer.name,
+            vehicleLabel: `${jobCard.vehicle.registrationNo} ${jobCard.vehicle.brand} ${jobCard.vehicle.model}`,
+            jobCardNumber: jobCard.jobCardNumber,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'job-card.ready', { email: jobCard.customer.email, mobile: jobCard.customer.mobile }, content, { type: 'JobCard', id: jobCard.id });
+        await this.messaging.notifyOps(tenantId, 'job-card.ready', `Ready for pickup: ${jobCard.jobCardNumber} — ${jobCard.customer.name} — ${jobCard.vehicle.registrationNo}`, { type: 'JobCard', id: jobCard.id });
     }
     async addLabour(jobCardId, dto) {
         await this.assertExists(jobCardId);
@@ -372,6 +391,7 @@ exports.JobCardsService = JobCardsService;
 exports.JobCardsService = JobCardsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        invoices_service_1.InvoicesService])
+        invoices_service_1.InvoicesService,
+        messaging_service_1.MessagingService])
 ], JobCardsService);
 //# sourceMappingURL=job-cards.service.js.map

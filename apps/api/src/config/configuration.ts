@@ -10,4 +10,23 @@ export default () => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
+  messaging: {
+    smtp: {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+      user: process.env.SMTP_USER,
+      password: process.env.SMTP_PASSWORD,
+      fromEmail: process.env.SMTP_FROM_EMAIL ?? 'no-reply@autonexa.app',
+      fromName: process.env.SMTP_FROM_NAME ?? 'AutoNexa',
+    },
+    twilio: {
+      accountSid: process.env.TWILIO_ACCOUNT_SID,
+      authToken: process.env.TWILIO_AUTH_TOKEN,
+      fromNumber: process.env.TWILIO_FROM_NUMBER,
+    },
+    whatsapp: {
+      accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    },
+  },
 });

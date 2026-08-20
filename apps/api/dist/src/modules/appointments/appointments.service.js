@@ -12,21 +12,42 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppointmentsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
-const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true };
+const tenant_context_1 = require("../../prisma/tenant-context");
+const messaging_service_1 = require("../messaging/messaging.service");
+const templates_1 = require("../messaging/templates");
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
 let AppointmentsService = class AppointmentsService {
-    constructor(prisma) {
+    constructor(prisma, messaging) {
         this.prisma = prisma;
+        this.messaging = messaging;
     }
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
         await this.assertVehicleExists(dto.vehicleId);
-        return this.prisma.forTenant().appointment.create({
+        const appointment = await this.prisma.forTenant().appointment.create({
             data: {
                 ...dto,
                 appointmentDate: new Date(dto.appointmentDate),
             },
+            include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
         });
+        await this.sendConfirmation(appointment);
+        return appointment;
+    }
+    async sendConfirmation(appointment) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const content = (0, templates_1.appointmentConfirmedMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: appointment.customer.name,
+            vehicleLabel: `${appointment.vehicle.registrationNo} ${appointment.vehicle.brand} ${appointment.vehicle.model}`,
+            serviceType: appointment.serviceType,
+            appointmentDate: appointment.appointmentDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+            appointmentTime: appointment.appointmentTime,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'appointment.confirmed', { email: appointment.customer.email, mobile: appointment.customer.mobile }, content, { type: 'Appointment', id: appointment.id });
+        await this.messaging.notifyOps(tenantId, 'appointment.confirmed', `New appointment: ${appointment.customer.name} — ${appointment.vehicle.registrationNo} — ${appointment.appointmentTime}`, { type: 'Appointment', id: appointment.id });
     }
     async findAll(query) {
         const page = query.page ?? 1;
@@ -116,6 +137,7 @@ let AppointmentsService = class AppointmentsService {
 exports.AppointmentsService = AppointmentsService;
 exports.AppointmentsService = AppointmentsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        messaging_service_1.MessagingService])
 ], AppointmentsService);
 //# sourceMappingURL=appointments.service.js.map

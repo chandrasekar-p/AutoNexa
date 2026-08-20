@@ -4,12 +4,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
 import { rollupPaymentStatus } from '../../common/billing/rollup-payment-status';
+import { MessagingService } from '../messaging/messaging.service';
+import { invoiceIssuedMessage, paymentReceivedMessage } from '../messaging/templates';
 import { calculateGstSplit, computeRoundOff, GstSplitLineItem } from './gst-split';
 import { isOverpayment } from './payment-guard';
 import { CreateInvoicePaymentDto } from './dto/create-invoice-payment.dto';
 import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
 
-const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, state: true } as const;
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true } as const;
 const INVOICE_INCLUDE = {
   customer: { select: CUSTOMER_SUMMARY_SELECT },
   jobCard: { select: { id: true, jobCardNumber: true } },
@@ -32,7 +34,10 @@ interface InvoiceLineItemInput extends GstSplitLineItem {
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly messaging: MessagingService,
+  ) {}
 
   /**
    * Called from JobCardsService.generateInvoice, the public entry point
@@ -139,7 +144,41 @@ export class InvoicesService {
       return created;
     });
 
+    await this.sendInvoiceIssued(tenantId, customer, invoice.id, invoice.invoiceNumber, grandTotal);
+
     return this.findOne(invoice.id);
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
+  private async sendInvoiceIssued(
+    tenantId: string,
+    customer: { name: string; mobile: string; email: string | null },
+    invoiceId: string,
+    invoiceNumber: string,
+    grandTotal: Prisma.Decimal,
+  ) {
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const content = invoiceIssuedMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: customer.name,
+      invoiceNumber,
+      grandTotal: `₹${Number(grandTotal).toFixed(2)}`,
+    });
+
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'invoice.issued',
+      { email: customer.email, mobile: customer.mobile },
+      content,
+      { type: 'Invoice', id: invoiceId },
+    );
+
+    await this.messaging.notifyOps(
+      tenantId,
+      'invoice.issued',
+      `Invoice ${invoiceNumber} issued: ${customer.name} — ₹${Number(grandTotal).toFixed(2)}`,
+      { type: 'Invoice', id: invoiceId },
+    );
   }
 
   async findAll(query: ListInvoicesQueryDto) {
@@ -197,7 +236,43 @@ export class InvoicesService {
       } as unknown as Prisma.PaymentUncheckedCreateInput,
     });
 
-    return this.recalculateStatus(invoiceId);
+    const updated = await this.recalculateStatus(invoiceId);
+    await this.sendPaymentReceived(updated, dto.amount);
+    return updated;
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
+  private async sendPaymentReceived(
+    invoice: {
+      id: string;
+      invoiceNumber: string;
+      customer: { name: string; mobile: string; email: string | null };
+    },
+    amount: number,
+  ) {
+    const tenantId = TenantContext.requireTenantId();
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const content = paymentReceivedMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: invoice.customer.name,
+      invoiceNumber: invoice.invoiceNumber,
+      amount: `₹${Number(amount).toFixed(2)}`,
+    });
+
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'payment.received',
+      { email: invoice.customer.email, mobile: invoice.customer.mobile },
+      content,
+      { type: 'Invoice', id: invoice.id },
+    );
+
+    await this.messaging.notifyOps(
+      tenantId,
+      'payment.received',
+      `Payment received: ${invoice.customer.name} — ₹${Number(amount).toFixed(2)} against ${invoice.invoiceNumber}`,
+      { type: 'Invoice', id: invoice.id },
+    );
   }
 
   /** Called after every payment recorded against this invoice. */

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsUrl } from 'class-validator';
 
 export class UpdateTenantSettingsDto {
   @ApiPropertyOptional()
@@ -46,4 +46,11 @@ export class UpdateTenantSettingsDto {
   @IsOptional()
   @IsString()
   logoUrl?: string;
+
+  @ApiPropertyOptional({
+    description: "Incoming webhook URL for this workshop's own Slack — internal ops pings only, never customer-facing",
+  })
+  @IsOptional()
+  @IsUrl()
+  slackWebhookUrl?: string;
 }

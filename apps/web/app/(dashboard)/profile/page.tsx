@@ -19,17 +19,17 @@ export default function ProfilePage() {
   const query = useApiQuery<UserProfile>(() => apiGet('/users/me'), []);
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex max-w-6xl flex-col gap-6">
       <h1 className="text-2xl font-semibold text-ink">My Profile</h1>
 
       {query.isLoading ? <Skeleton className="h-64 w-full" /> : null}
       {query.error ? <ErrorState message={query.error} onRetry={query.refetch} /> : null}
 
       {query.data ? (
-        <>
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <ProfileCard profile={query.data} onSaved={query.refetch} />
           <ChangePasswordCard />
-        </>
+        </div>
       ) : null}
     </div>
   );

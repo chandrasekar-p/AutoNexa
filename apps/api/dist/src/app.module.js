@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const schedule_1 = require("@nestjs/schedule");
 const throttler_1 = require("@nestjs/throttler");
 const core_1 = require("@nestjs/core");
 const throttler_2 = require("@nestjs/throttler");
@@ -44,6 +45,7 @@ const notifications_module_1 = require("./modules/notifications/notifications.mo
 const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
 const search_module_1 = require("./modules/search/search.module");
 const uploads_module_1 = require("./modules/uploads/uploads.module");
+const messaging_module_1 = require("./modules/messaging/messaging.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -51,6 +53,7 @@ exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
             config_1.ConfigModule.forRoot({ isGlobal: true, load: [configuration_1.default] }),
+            schedule_1.ScheduleModule.forRoot(),
             throttler_1.ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
             prisma_module_1.PrismaModule,
             auth_module_1.AuthModule,
@@ -79,6 +82,7 @@ exports.AppModule = AppModule = __decorate([
             audit_logs_module_1.AuditLogsModule,
             search_module_1.SearchModule,
             uploads_module_1.UploadsModule,
+            messaging_module_1.MessagingModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard },

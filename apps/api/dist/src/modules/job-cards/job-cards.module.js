@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.JobCardsModule = void 0;
 const common_1 = require("@nestjs/common");
 const invoices_module_1 = require("../invoices/invoices.module");
+const messaging_module_1 = require("../messaging/messaging.module");
 const job_cards_service_1 = require("./job-cards.service");
 const job_cards_controller_1 = require("./job-cards.controller");
 let JobCardsModule = class JobCardsModule {
@@ -16,7 +17,7 @@ let JobCardsModule = class JobCardsModule {
 exports.JobCardsModule = JobCardsModule;
 exports.JobCardsModule = JobCardsModule = __decorate([
     (0, common_1.Module)({
-        imports: [invoices_module_1.InvoicesModule],
+        imports: [invoices_module_1.InvoicesModule, messaging_module_1.MessagingModule],
         controllers: [job_cards_controller_1.JobCardsController],
         providers: [job_cards_service_1.JobCardsService],
         exports: [job_cards_service_1.JobCardsService],

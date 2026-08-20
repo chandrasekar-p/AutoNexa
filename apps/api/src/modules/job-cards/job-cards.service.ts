@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
 import { InvoicesService } from '../invoices/invoices.service';
+import { MessagingService } from '../messaging/messaging.service';
+import { jobCardReadyMessage } from '../messaging/templates';
 import { isValidJobCardTransition } from './job-card-status-transitions';
 import { resolveConvertedLabourLine } from './resolve-converted-labour-line';
 import { hasSufficientStock } from './stock-guard';
@@ -16,7 +18,7 @@ import { CreateJobCardNoteDto } from './dto/create-job-card-note.dto';
 import { CreateJobCardPartDto } from './dto/create-job-card-part.dto';
 
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
-const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true } as const;
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
 const JOB_CARD_INCLUDE = {
   vehicle: { select: VEHICLE_SUMMARY_SELECT },
   customer: { select: CUSTOMER_SUMMARY_SELECT },
@@ -34,6 +36,7 @@ export class JobCardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly invoicesService: InvoicesService,
+    private readonly messaging: MessagingService,
   ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
@@ -281,7 +284,46 @@ export class JobCardsService {
       }
     });
 
-    return this.findOne(id);
+    const updated = await this.findOne(id);
+
+    if (dto.status === JobCardStatus.READY_FOR_DELIVERY) {
+      await this.sendReadyForPickup(updated);
+    }
+
+    return updated;
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
+  private async sendReadyForPickup(jobCard: {
+    id: string;
+    jobCardNumber: string;
+    customer: { name: string; mobile: string; email: string | null };
+    vehicle: { registrationNo: string; brand: string; model: string };
+  }) {
+    const tenantId = TenantContext.requireTenantId();
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+
+    const content = jobCardReadyMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: jobCard.customer.name,
+      vehicleLabel: `${jobCard.vehicle.registrationNo} ${jobCard.vehicle.brand} ${jobCard.vehicle.model}`,
+      jobCardNumber: jobCard.jobCardNumber,
+    });
+
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'job-card.ready',
+      { email: jobCard.customer.email, mobile: jobCard.customer.mobile },
+      content,
+      { type: 'JobCard', id: jobCard.id },
+    );
+
+    await this.messaging.notifyOps(
+      tenantId,
+      'job-card.ready',
+      `Ready for pickup: ${jobCard.jobCardNumber} — ${jobCard.customer.name} — ${jobCard.vehicle.registrationNo}`,
+      { type: 'JobCard', id: jobCard.id },
+    );
   }
 
   async addLabour(jobCardId: string, dto: CreateJobCardLabourDto) {

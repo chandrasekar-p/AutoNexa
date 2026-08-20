@@ -13,12 +13,18 @@ exports.EstimatesService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const tenant_context_1 = require("../../prisma/tenant-context");
 const job_cards_service_1 = require("../job-cards/job-cards.service");
+const messaging_service_1 = require("../messaging/messaging.service");
+const templates_1 = require("../messaging/templates");
 const estimate_totals_1 = require("./estimate-totals");
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
+const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
 let EstimatesService = class EstimatesService {
-    constructor(prisma, jobCardsService) {
+    constructor(prisma, jobCardsService, messaging) {
         this.prisma = prisma;
         this.jobCardsService = jobCardsService;
+        this.messaging = messaging;
     }
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
@@ -116,7 +122,19 @@ let EstimatesService = class EstimatesService {
         return this.recalculate(estimateId);
     }
     async send(id) {
-        return this.transition(id, client_1.EstimateStatus.DRAFT, client_1.EstimateStatus.SENT, {});
+        const estimate = await this.transition(id, client_1.EstimateStatus.DRAFT, client_1.EstimateStatus.SENT, {});
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const content = (0, templates_1.estimateReadyMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: estimate.customer.name,
+            vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,
+            estimateNumber: `EST-${id.slice(0, 8).toUpperCase()}`,
+            grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'estimate.ready', { email: estimate.customer.email, mobile: estimate.customer.mobile }, content, { type: 'Estimate', id });
+        await this.messaging.notifyOps(tenantId, 'estimate.ready', `Estimate sent: ${estimate.customer.name} — ${estimate.vehicle.registrationNo} — ₹${Number(estimate.total).toFixed(2)}`, { type: 'Estimate', id });
+        return estimate;
     }
     async approve(id) {
         const estimate = await this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.APPROVED, {
@@ -158,7 +176,11 @@ let EstimatesService = class EstimatesService {
         return this.prisma.forTenant().estimate.update({
             where: { id },
             data: { status: toStatus, ...extra },
-            include: { lineItems: true },
+            include: {
+                lineItems: true,
+                customer: { select: CUSTOMER_SUMMARY_SELECT },
+                vehicle: { select: VEHICLE_SUMMARY_SELECT },
+            },
         });
     }
     toLineItemRow(estimateId, dto) {
@@ -218,6 +240,7 @@ exports.EstimatesService = EstimatesService;
 exports.EstimatesService = EstimatesService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        job_cards_service_1.JobCardsService])
+        job_cards_service_1.JobCardsService,
+        messaging_service_1.MessagingService])
 ], EstimatesService);
 //# sourceMappingURL=estimates.service.js.map

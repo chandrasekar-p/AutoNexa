@@ -85,7 +85,25 @@ export interface TenantSettings {
   state: string | null;
   /** Relative path from POST /uploads — resolve with lib/uploads.ts's resolveUploadUrl before use in an <img src>. Printed on this workshop's own exported PDF reports. */
   logoUrl: string | null;
+  /** Incoming webhook URL for this workshop's own Slack — internal ops pings only (new appointment, invoice issued, ...), never customer-facing. */
+  slackWebhookUrl: string | null;
   updatedAt: string;
+}
+
+export type DeliveryChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'SLACK';
+export type DeliveryStatus = 'SENT' | 'FAILED' | 'SKIPPED';
+
+/** One row per outbound message attempt — see GET /messaging/deliveries. */
+export interface DeliveryLog {
+  id: string;
+  channel: DeliveryChannel;
+  event: string;
+  recipient: string;
+  status: DeliveryStatus;
+  errorMessage: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  createdAt: string;
 }
 
 export interface BranchRef {

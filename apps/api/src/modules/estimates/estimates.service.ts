@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EstimateStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../prisma/tenant-context';
 import { JobCardsService } from '../job-cards/job-cards.service';
+import { MessagingService } from '../messaging/messaging.service';
+import { estimateReadyMessage } from '../messaging/templates';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { ListEstimatesQueryDto } from './dto/list-estimates-query.dto';
@@ -9,11 +12,15 @@ import { CreateEstimateLineItemDto } from './dto/create-estimate-line-item.dto';
 import { UpdateEstimateLineItemDto } from './dto/update-estimate-line-item.dto';
 import { calculateEstimateTotals, calculateLineTotal } from './estimate-totals';
 
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
+const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
+
 @Injectable()
 export class EstimatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobCardsService: JobCardsService,
+    private readonly messaging: MessagingService,
   ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
@@ -132,7 +139,34 @@ export class EstimatesService {
   }
 
   async send(id: string) {
-    return this.transition(id, EstimateStatus.DRAFT, EstimateStatus.SENT, {});
+    const estimate = await this.transition(id, EstimateStatus.DRAFT, EstimateStatus.SENT, {});
+
+    const tenantId = TenantContext.requireTenantId();
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const content = estimateReadyMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: estimate.customer.name,
+      vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,
+      estimateNumber: `EST-${id.slice(0, 8).toUpperCase()}`,
+      grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
+    });
+
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'estimate.ready',
+      { email: estimate.customer.email, mobile: estimate.customer.mobile },
+      content,
+      { type: 'Estimate', id },
+    );
+
+    await this.messaging.notifyOps(
+      tenantId,
+      'estimate.ready',
+      `Estimate sent: ${estimate.customer.name} — ${estimate.vehicle.registrationNo} — ₹${Number(estimate.total).toFixed(2)}`,
+      { type: 'Estimate', id },
+    );
+
+    return estimate;
   }
 
   async approve(id: string) {
@@ -199,7 +233,11 @@ export class EstimatesService {
     return this.prisma.forTenant().estimate.update({
       where: { id },
       data: { status: toStatus, ...extra },
-      include: { lineItems: true },
+      include: {
+        lineItems: true,
+        customer: { select: CUSTOMER_SUMMARY_SELECT },
+        vehicle: { select: VEHICLE_SUMMARY_SELECT },
+      },
     });
   }
 
