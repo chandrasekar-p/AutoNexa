@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // we actually know whether there's a valid session.
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-graphite-50">
+      <div className="flex h-screen items-center justify-center bg-canvas">
         <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-accent-500" aria-hidden />
       </div>
     );
@@ -38,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto bg-graphite-50 p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-canvas p-6">{children}</main>
       </div>
     </div>
   );

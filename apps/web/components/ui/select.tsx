@@ -1,13 +1,13 @@
-import { forwardRef, useId, type InputHTMLAttributes } from 'react';
+import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, id, ...props }, ref) => {
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ className, label, error, id, children, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
     const errorId = error ? `${inputId}-error` : undefined;
@@ -19,20 +19,21 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         ) : null}
-        <input
+        <select
           ref={ref}
           id={inputId}
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId}
           className={cn(
             'h-10 rounded border border-line bg-surface px-3 text-sm text-ink',
-            'placeholder:text-ink-muted',
             'focus:border-accent-400',
             error && 'border-danger-500 dark:border-danger-400',
             className,
           )}
           {...props}
-        />
+        >
+          {children}
+        </select>
         {error ? (
           <p id={errorId} className="text-xs text-danger-600 dark:text-danger-400">
             {error}
@@ -42,4 +43,4 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     );
   },
 );
-Input.displayName = 'Input';
+Select.displayName = 'Select';

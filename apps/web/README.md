@@ -124,10 +124,14 @@ counter — "instrument-cluster precision," not a generic admin template.
 Concretely, that turned into:
 
 - **Two-tone chrome/workspace split**: a dark graphite sidebar + topbar
-  (`graphite-900`/`950`) against a light workspace surface for content —
-  the same pattern tools like Linear and VS Code use to make the persistent
+  bar (`graphite-900`) against a workspace surface for content — the same
+  pattern tools like Linear and VS Code use to make the persistent
   navigation feel like fixed instrumentation around a bright, scannable
   work surface, rather than everything competing for attention at once.
+  The sidebar and the login screen are a fixed dark instrument bezel in
+  **both** themes — they don't participate in the light/dark toggle below,
+  by design, the same way a dashboard's physical bezel doesn't change
+  color with the display behind it.
 - **A single signature accent** — a burnished copper/amber (`accent-*` in
   `tailwind.config.ts`), deliberately not Tailwind's/shadcn's default
   indigo-blue, and deliberately a different hue from the semantic
@@ -142,14 +146,61 @@ Concretely, that turned into:
   `app/globals.css` and the `font-mono tabular-nums` usage in
   `components/domain/kpi-card.tsx`.
 - **A real type scale and spacing rhythm** defined in `tailwind.config.ts`
-  rather than ad hoc utility classes, and a single considered theme (no
-  dark/light toggle this phase — the chrome is dark, the workspace is
-  light, by design, not by a switchable mode).
+  rather than ad hoc utility classes.
 
 `Geist`/`Geist Mono` were the original intent but aren't in this Next.js
 version's (`14.2.35`) `next/font/google` catalogue, so `Inter` +
 `JetBrains Mono` were used instead — same CSS variable contract
 (`--font-sans`/`--font-mono`), so nothing downstream had to change.
+
+### Light theme: a "milky white" workspace
+
+The light-mode workspace canvas is a warm off-white (`#faf8f3`), not a
+stark `#fff` or the cooler `graphite-50` the neutral scale would otherwise
+default to — deliberately closer to milk/ivory than to clinical white, so
+long stretches of table/card content don't read as sterile. Cards sit on
+pure white (`--color-surface`) so they read as physically raised a shade
+above the milky canvas rather than blending into it.
+
+### Dark mode
+
+Toggled from the sun/moon control in the topbar (`components/ui/theme-toggle.tsx`),
+persisted to `localStorage` (`autonexa-theme`), and — on first visit, before
+any explicit choice — seeded from the OS `prefers-color-scheme`.
+
+The whole theme is implemented as **CSS custom properties**, not `dark:`
+variants sprinkled through every component: `app/globals.css` defines
+`--color-canvas`, `--color-surface`, `--color-surface-hover`,
+`--color-line`(`-subtle`), and `--color-ink`(`-secondary`/`-muted`) under
+`:root` (light) and again under `.dark` (dark), and `tailwind.config.ts`
+maps them to Tailwind color tokens (`bg-canvas`, `bg-surface`,
+`border-line`, `text-ink`, etc). Components are written once against those
+token names — `<Card>`, `<Table>`, `<Input>`, the dashboard's KPI cards —
+and get both themes for free, since the underlying CSS variable is what
+changes, not the class name. `dark:` variants only appear where a component
+uses a *raw* palette color on purpose (status badges, error banners,
+alert-list text) rather than a semantic token, so those still needed an
+explicit lighter shade for legibility against a dark surface.
+
+Dark mode's palette isn't a separate set of colors — it reuses the existing
+cool-toned `graphite` scale that the sidebar/topbar chrome was already
+built from, so the workspace surface and the chrome read as one continuous
+dark instrument panel instead of two mismatched dark tones once the toggle
+is on.
+
+**Avoiding a flash of the wrong theme**: a small inline `<script>` in
+`app/layout.tsx`'s `<head>` runs before React hydrates and sets the `dark`
+class on `<html>` synchronously from `localStorage`/`prefers-color-scheme`
+— this can't be done in a `useEffect` (that would run after first paint,
+causing a visible flash). `lib/theme/theme-context.tsx`'s `ThemeProvider`
+then reads that already-applied class back as its initial state rather than
+defaulting to `'light'` and re-deciding. Both `<html>` (in `app/layout.tsx`)
+and the toggle's icon (in `theme-toggle.tsx`) carry `suppressHydrationWarning`
+for the same reason: the server can't know a returning visitor's stored
+preference, so its markup always assumes light, and the script's dark-mode
+correction (applied before React ever hydrates) would otherwise trip
+React's hydration-mismatch warning over a difference that was never
+actually visible on screen.
 
 ## What's scaffolded but not built yet
 

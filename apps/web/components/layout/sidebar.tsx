@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { useHasResourceAccess } from '@/lib/hooks/use-permission';
-import { NAV_ITEMS } from './nav-items';
+import { NAV_ITEMS, type NavItem } from './nav-items';
 
-function NavLink({ href, label }: { href: string; label: string }) {
+function NavLink({ href, label, icon: Icon }: NavItem) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(`${href}/`);
 
@@ -14,28 +14,25 @@ function NavLink({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       className={cn(
-        'flex h-9 items-center rounded px-3 text-sm transition-colors',
+        'flex h-9 items-center gap-2.5 rounded px-3 text-sm transition-colors',
         isActive
           ? 'bg-graphite-800 font-medium text-white'
-          : 'text-graphite-400 hover:bg-graphite-850 hover:text-graphite-100',
+          : 'text-white/80 hover:bg-graphite-850 hover:text-white',
       )}
     >
-      <span
-        aria-hidden
-        className={cn('mr-2.5 h-1.5 w-1.5 rounded-full', isActive ? 'bg-accent-400' : 'bg-transparent')}
-      />
+      <Icon aria-hidden className={cn('h-4 w-4 shrink-0', isActive ? 'text-accent-400' : 'text-graphite-300')} />
       {label}
     </Link>
   );
 }
 
-function NavItemGated({ href, label, resource }: { href: string; label: string; resource: string | null }) {
+function NavItemGated(item: NavItem) {
   // Hooks can't be called conditionally, but a resource of `null` always
   // passes — this small wrapper keeps that decision colocated per item
   // rather than filtering the whole list with a hook called in a loop.
-  const hasAccess = useHasResourceAccess(resource ?? '__always__');
-  if (resource !== null && !hasAccess) return null;
-  return <NavLink href={href} label={label} />;
+  const hasAccess = useHasResourceAccess(item.resource ?? '__always__');
+  if (item.resource !== null && !hasAccess) return null;
+  return <NavLink {...item} />;
 }
 
 export function Sidebar() {

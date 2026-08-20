@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiGet } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { CurrentTenant } from '@/lib/api-types';
 
 /**
@@ -55,12 +56,13 @@ export function Topbar() {
   const displayName = user?.name ?? user?.email ?? '';
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-graphite-100 bg-white px-6">
-      <div className="text-sm font-medium text-graphite-800">
-        {workshopName ?? <span className="text-graphite-300">&nbsp;</span>}
+    <header className="flex h-14 items-center justify-between border-b border-line bg-surface px-6">
+      <div className="text-sm font-medium text-ink">
+        {workshopName ?? <span className="text-ink-muted">&nbsp;</span>}
       </div>
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-graphite-600">{displayName}</span>
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
+        <span className="text-sm text-ink-secondary">{displayName}</span>
         <Button variant="ghost" size="sm" onClick={handleLogout} isLoading={isLoggingOut}>
           Log out
         </Button>

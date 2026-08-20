@@ -80,3 +80,66 @@ export interface CurrentTenant {
   planTier: string;
   isActive: boolean;
 }
+
+/** Shape returned by every paginated list endpoint (GET /customers, etc.) — see ListCustomersQueryDto and its siblings on the backend. */
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export type CustomerType = 'individual' | 'business';
+
+export interface Customer {
+  id: string;
+  name: string;
+  mobile: string;
+  altMobile: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  gstin: string | null;
+  customerType: CustomerType;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A customer's vehicle as embedded in GET /customers/:id — see CustomersService.findOne. */
+export interface CustomerVehicle {
+  id: string;
+  registrationNo: string;
+  vin: string | null;
+  brand: string;
+  model: string;
+  variant: string | null;
+  manufactureYear: number | null;
+  fuelType: string | null;
+  transmission: string | null;
+  colour: string | null;
+  odometerReading: number | null;
+  insuranceExpiry: string | null;
+  pucExpiry: string | null;
+  createdAt: string;
+}
+
+export type InvoiceStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'REFUNDED';
+
+/** An invoice as embedded in GET /customers/:id, with the server-computed `outstanding` (grandTotal minus payments) — never recompute this client-side. */
+export interface CustomerInvoice {
+  id: string;
+  invoiceNumber: string;
+  grandTotal: string;
+  status: InvoiceStatus;
+  outstanding: string;
+  createdAt: string;
+}
+
+export interface CustomerDetail extends Customer {
+  vehicles: CustomerVehicle[];
+  invoices: CustomerInvoice[];
+  totalOutstanding: string;
+}

@@ -10,22 +10,22 @@ export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>)
 }
 
 export function TableHead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn('border-b border-graphite-100', className)} {...props} />;
+  return <thead className={cn('border-b border-line', className)} {...props} />;
 }
 
 export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn('divide-y divide-graphite-100', className)} {...props} />;
+  return <tbody className={cn('divide-y divide-line', className)} {...props} />;
 }
 
 export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn('hover:bg-graphite-50', className)} {...props} />;
+  return <tr className={cn('hover:bg-surface-hover', className)} {...props} />;
 }
 
 export function TableHeaderCell({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       className={cn(
-        'px-3 py-2 text-micro font-semibold uppercase tracking-wide text-graphite-500',
+        'px-3 py-2 text-micro font-semibold uppercase tracking-wide text-ink-secondary',
         className,
       )}
       {...props}
@@ -34,5 +34,5 @@ export function TableHeaderCell({ className, ...props }: ThHTMLAttributes<HTMLTa
 }
 
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn('px-3 py-2.5 text-graphite-800', className)} {...props} />;
+  return <td className={cn('px-3 py-2.5 text-ink', className)} {...props} />;
 }

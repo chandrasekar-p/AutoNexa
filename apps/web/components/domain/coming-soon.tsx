@@ -13,12 +13,12 @@ interface ComingSoonProps {
 export function ComingSoon({ title, phaseNote }: ComingSoonProps) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-graphite-900">{title}</h1>
+      <h1 className="text-2xl font-semibold text-ink">{title}</h1>
       <Card>
         <CardBody className="flex flex-col items-center gap-2 py-16 text-center">
           <span className="h-2 w-2 rounded-full bg-accent-300" aria-hidden />
-          <p className="text-sm font-medium text-graphite-600">This module isn&rsquo;t built yet.</p>
-          <p className="max-w-sm text-xs text-graphite-400">
+          <p className="text-sm font-medium text-ink-secondary">This module isn&rsquo;t built yet.</p>
+          <p className="max-w-sm text-xs text-ink-muted">
             {phaseNote ?? 'Coming in a later frontend phase, same cadence as the backend phases it depends on.'}
           </p>
         </CardBody>

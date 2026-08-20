@@ -26,15 +26,15 @@ export function TechnicianWorkloadCard({ workload, isLoading, error, onRetry }: 
         ) : null}
         {error ? <ErrorState message={error} onRetry={onRetry} /> : null}
         {workload && workload.length === 0 ? (
-          <p className="text-sm text-graphite-400">No technicians on file yet.</p>
+          <p className="text-sm text-ink-muted">No technicians on file yet.</p>
         ) : null}
         {workload && workload.length > 0 ? (
-          <ul className="flex flex-col divide-y divide-graphite-100">
+          <ul className="flex flex-col divide-y divide-line">
             {workload.map((t) => (
               <li key={t.technicianId} className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-graphite-800">{t.name}</span>
-                <span className="num text-sm font-semibold text-graphite-900">
-                  {t.jobsOpen} <span className="font-normal text-graphite-400">open</span>
+                <span className="text-sm text-ink">{t.name}</span>
+                <span className="num text-sm font-semibold text-ink">
+                  {t.jobsOpen} <span className="font-normal text-ink-muted">open</span>
                 </span>
               </li>
             ))}

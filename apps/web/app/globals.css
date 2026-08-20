@@ -3,6 +3,40 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Light theme — a warm "milky white" workspace surface, deliberately
+       not a stark/cool #fff or the cool-toned graphite-50, per the design
+       brief. Cards sit on pure white so they read as raised above the
+       milky canvas. */
+    --color-canvas: #faf8f3;
+    --color-surface: #ffffff;
+    --color-surface-hover: #f1eee6;
+    --color-line: #e7e2d6;
+    --color-line-subtle: #efebe0;
+    --color-ink: #1a1815;
+    --color-ink-secondary: #6b6558;
+    --color-ink-muted: #9c9686;
+    color-scheme: light;
+  }
+
+  /* Dark theme reuses the existing cool `graphite` scale (the same one the
+     sidebar/topbar chrome is built from) so the workspace surface and the
+     chrome read as one continuous dark instrument panel instead of two
+     mismatched dark tones. Toggled via a `.dark` class on <html>, set by
+     an inline script in app/layout.tsx before hydration (no flash) and
+     kept in sync by lib/theme/theme-context.tsx thereafter. */
+  .dark {
+    --color-canvas: #101317;
+    --color-surface: #181d24;
+    --color-surface-hover: #1f252d;
+    --color-line: #2b323c;
+    --color-line-subtle: #232830;
+    --color-ink: #f4f6f7;
+    --color-ink-secondary: #a8b0b9;
+    --color-ink-muted: #818b96;
+    color-scheme: dark;
+  }
+
   html {
     /* Tabular figures everywhere by default — the "instrument cluster"
        signature. Individual numeric displays (KPI values, money, job card
@@ -15,7 +49,7 @@
   }
 
   body {
-    @apply bg-graphite-50 text-graphite-900 antialiased;
+    @apply bg-canvas text-ink antialiased transition-colors duration-150;
   }
 
   /* A visible, on-brand focus ring — never suppressed. Keyboard users at a

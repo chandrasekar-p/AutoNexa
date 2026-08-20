@@ -34,27 +34,27 @@ export function DashboardAlertsCard({ alerts, isLoading, error, onRetry }: Props
         ) : null}
         {error ? <ErrorState message={error} onRetry={onRetry} /> : null}
         {alerts && totalAlerts === 0 ? (
-          <p className="text-sm text-graphite-400">Nothing needs attention right now.</p>
+          <p className="text-sm text-ink-muted">Nothing needs attention right now.</p>
         ) : null}
         {alerts && totalAlerts > 0 ? (
-          <ul className="flex flex-col divide-y divide-graphite-100">
+          <ul className="flex flex-col divide-y divide-line">
             {alerts.lowStockParts.map((part) => (
               <li key={`part-${part.id}`} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="text-sm text-graphite-800">
-                  {part.name} <span className="text-graphite-400">({part.partNumber})</span>
+                <span className="text-sm text-ink">
+                  {part.name} <span className="text-ink-muted">({part.partNumber})</span>
                 </span>
-                <span className="num shrink-0 text-xs font-medium text-warning-600">
+                <span className="num shrink-0 text-xs font-medium text-warning-600 dark:text-warning-400">
                   {part.currentStock} / {part.minStock} left
                 </span>
               </li>
             ))}
             {alerts.expiringDocuments.map((doc) => (
               <li key={`doc-${doc.vehicleId}`} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="text-sm text-graphite-800">
+                <span className="text-sm text-ink">
                   {doc.registrationNo}
-                  {doc.customer ? <span className="text-graphite-400"> — {doc.customer.name}</span> : null}
+                  {doc.customer ? <span className="text-ink-muted"> — {doc.customer.name}</span> : null}
                 </span>
-                <span className="shrink-0 text-xs font-medium text-warning-600">
+                <span className="shrink-0 text-xs font-medium text-warning-600 dark:text-warning-400">
                   {doc.insuranceExpiry ? `Insurance ${formatDate(doc.insuranceExpiry)}` : null}
                   {doc.insuranceExpiry && doc.pucExpiry ? ' · ' : null}
                   {doc.pucExpiry ? `PUC ${formatDate(doc.pucExpiry)}` : null}
@@ -63,13 +63,13 @@ export function DashboardAlertsCard({ alerts, isLoading, error, onRetry }: Props
             ))}
             {alerts.delayedJobCards.map((jc) => (
               <li key={`jc-${jc.jobCardId}`} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="text-sm text-graphite-800">
+                <span className="text-sm text-ink">
                   {jc.jobCardNumber}
-                  {jc.vehicle ? <span className="text-graphite-400"> — {jc.vehicle.registrationNo}</span> : null}
+                  {jc.vehicle ? <span className="text-ink-muted"> — {jc.vehicle.registrationNo}</span> : null}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {jc.expectedDelivery ? (
-                    <span className="text-xs font-medium text-danger-600">
+                    <span className="text-xs font-medium text-danger-600 dark:text-danger-400">
                       {Math.abs(daysUntil(jc.expectedDelivery))}d overdue
                     </span>
                   ) : null}

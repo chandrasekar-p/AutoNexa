@@ -6,10 +6,30 @@ import type { Config } from 'tailwindcss';
 // tabular monospace numerals for every data value as the one distinctive,
 // consistently-applied signature element ("instrument cluster precision").
 const config: Config = {
+  darkMode: 'class',
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
+        // Theme-aware semantic tokens — backed by CSS custom properties
+        // (see app/globals.css :root / .dark) so a component written once
+        // against these names gets dark mode for free, with no `dark:`
+        // variant needed at the call site. The sidebar/topbar "chrome" and
+        // the login screen intentionally stay on the raw `graphite` scale
+        // below instead of these tokens — they're a fixed dark instrument
+        // bezel in both themes, not part of the light/dark surface.
+        canvas: 'var(--color-canvas)',
+        surface: 'var(--color-surface)',
+        'surface-hover': 'var(--color-surface-hover)',
+        line: {
+          DEFAULT: 'var(--color-line)',
+          subtle: 'var(--color-line-subtle)',
+        },
+        ink: {
+          DEFAULT: 'var(--color-ink)',
+          secondary: 'var(--color-ink-secondary)',
+          muted: 'var(--color-ink-muted)',
+        },
         // Cool-shifted neutral scale — the app's chrome (sidebar/topbar)
         // sits at the dark end, the workspace surface at the light end.
         graphite: {
@@ -44,6 +64,7 @@ const config: Config = {
         success: {
           50: '#ecfdf5',
           100: '#d1fae5',
+          400: '#34b483',
           500: '#0f9d68',
           600: '#0c7f54',
           700: '#0a6644',
@@ -51,6 +72,7 @@ const config: Config = {
         danger: {
           50: '#fef2f2',
           100: '#fee2e2',
+          400: '#e35d5d',
           500: '#dc3b3b',
           600: '#b82e2e',
           700: '#932424',
@@ -58,6 +80,7 @@ const config: Config = {
         warning: {
           50: '#fffbeb',
           100: '#fef3c7',
+          400: '#e0ac3f',
           500: '#d69a1f',
           600: '#b17f17',
           700: '#8a6212',

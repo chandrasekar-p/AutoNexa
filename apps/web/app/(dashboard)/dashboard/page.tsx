@@ -17,8 +17,8 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-graphite-900">Dashboard</h1>
-        <p className="text-sm text-graphite-500">Today&rsquo;s shop-floor snapshot.</p>
+        <h1 className="text-2xl font-semibold text-ink">Dashboard</h1>
+        <p className="text-sm text-ink-secondary">Today&rsquo;s shop-floor snapshot.</p>
       </div>
 
       {summary.isLoading ? <KpiGridSkeleton /> : null}
