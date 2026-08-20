@@ -17,6 +17,7 @@ const core_1 = require("@nestjs/core");
 const throttler_2 = require("@nestjs/throttler");
 const configuration_1 = __importDefault(require("./config/configuration"));
 const prisma_module_1 = require("./prisma/prisma.module");
+const audit_log_interceptor_1 = require("./common/interceptors/audit-log.interceptor");
 const auth_module_1 = require("./modules/auth/auth.module");
 const tenants_module_1 = require("./modules/tenants/tenants.module");
 const branches_module_1 = require("./modules/branches/branches.module");
@@ -40,6 +41,9 @@ const invoices_module_1 = require("./modules/invoices/invoices.module");
 const reports_module_1 = require("./modules/reports/reports.module");
 const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
 const notifications_module_1 = require("./modules/notifications/notifications.module");
+const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
+const search_module_1 = require("./modules/search/search.module");
+const uploads_module_1 = require("./modules/uploads/uploads.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -72,8 +76,14 @@ exports.AppModule = AppModule = __decorate([
             reports_module_1.ReportsModule,
             dashboard_module_1.DashboardModule,
             notifications_module_1.NotificationsModule,
+            audit_logs_module_1.AuditLogsModule,
+            search_module_1.SearchModule,
+            uploads_module_1.UploadsModule,
         ],
-        providers: [{ provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard }],
+        providers: [
+            { provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard },
+            { provide: core_1.APP_INTERCEPTOR, useClass: audit_log_interceptor_1.AuditLogInterceptor },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

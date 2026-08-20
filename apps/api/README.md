@@ -320,13 +320,65 @@ two small notification-creation side effects (below).
 > phase's pattern) or an external send. Not built here — same spirit as
 > every other deferred-TODO note in this codebase.
 
+## SRS gap-fix pass (audit trail, search, HSN/SAC, uploads)
+
+Done after auditing the codebase against `AutoNexa_SRS.pdf` section by
+section. Everything else in the SRS's MVP scope (§30) was already built by
+Phases 2–8 above; these four were genuine gaps, not new features:
+
+- **Audit trail was completely inert, not just unread.** Every controller
+  already tags its mutating routes with `@Audit('action', 'Entity')` (see
+  `common/interceptors/audit-log.interceptor.ts`), going back to Phase 3 —
+  but `AuditLogInterceptor` itself was never registered anywhere. No
+  `AuditLog` row had ever been written by any of it. Fixed by registering it
+  as a global `APP_INTERCEPTOR` in `app.module.ts`, same pattern as
+  `JwtAuthGuard`/`PermissionsGuard` in `auth.module.ts`. **This changes
+  runtime behavior for the whole app** — every already-tagged mutation now
+  actually writes an audit row, not just new code. Also added the read side
+  that never existed: `audit-logs` module, `GET /audit-logs` (filterable by
+  `entity`/`entityId`/`action`/`userId`/date range, paginated), gated on the
+  `audit-log:read` permission that was already in the catalogue and already
+  granted to Workshop Owner/Manager — no seed/role changes needed.
+- **No global search** (SRS §24). New `search` module, `GET /search?q=...`
+  — no blanket `@Permissions()`; each of the five result categories
+  (customers, vehicles, job cards, invoices, parts) is independently gated
+  inside `SearchService` against the caller's own `resource:read` grant.
+  This is a **real** permission boundary (unlike the frontend's UX-only
+  `usePermission` convention) — a Technician with no `invoice:read` must
+  never see an invoice number surface here just because it matched.
+- **HSN/SAC codes were missing entirely** (SRS §19 explicitly requires them
+  on GST invoices). Added `Part.hsnCode` and `LabourItem.sacCode`, and
+  threaded a `hsnSac` snapshot through the same chain `gstRate` already
+  follows: `Part`/`LabourItem` → `JobCardPart`/`JobCardLabour` (snapshotted
+  at add-to-job-card time) → `InvoiceLineItem` (final snapshot at invoice
+  generation). Same snapshot discipline as pricing — an invoice must keep
+  printing the HSN/SAC that was true when it was generated, not
+  live-re-read the catalogue.
+- **No real file upload endpoint** (SRS §9/§26) — `InspectionPhoto` already
+  had a `fileUrl` column and `POST /inspections/:id/photos` already accepted
+  one as a string, but nothing produced that URL from an actual file.
+  New generic `uploads` module, `POST /uploads` (multipart, `FileInterceptor`),
+  validates image mime-type + 5MB limit, writes to local disk under
+  `uploads/<tenantId>/<uuid>.<ext>` (never trusts the original filename for
+  the path), served back via `app.useStaticAssets` at `/uploads/...`. No
+  `@Permissions()` on the upload itself — same reasoning as `notifications`:
+  uploading bytes isn't a business mutation; the *business* write that
+  references the resulting URL (`POST /inspections/:id/photos`) is what
+  enforces `inspection:update`. **Local disk, not S3** — the right call for
+  a single-server pilot deployment; migrating later only touches
+  `uploads/upload-storage.ts` and the static route in `main.ts`, since every
+  caller only ever sees the returned relative URL, never a filesystem path.
+  Access control on a served file is obscurity-based (an unguessable UUID
+  path), not authenticated — acceptable for MVP, worth revisiting if a
+  stronger per-file access boundary is ever needed.
+
 ## Modules
 
 `auth`, `tenants`, `branches`, `users`, `roles`, `permissions`, `customers`,
 `vehicles`, `appointments`, `inspections`, `estimates`, `labour-items`,
 `technicians`, `job-cards`, `parts`, `suppliers`, `purchase-orders`,
 `purchase-invoices`, `supplier-payments`, `invoices`, `reports`, `dashboard`,
-`notifications`
+`notifications`, `audit-logs`, `search`, `uploads`
 
 ## Setup
 

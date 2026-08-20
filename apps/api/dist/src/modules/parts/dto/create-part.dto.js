@@ -77,6 +77,12 @@ __decorate([
     __metadata("design:type", Number)
 ], CreatePartDto.prototype, "gstRate", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'GST HSN code for this part', example: '8708' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreatePartDto.prototype, "hsnCode", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 0 }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),

@@ -509,6 +509,7 @@ model LabourItem {
   standardHours      Decimal   @db.Decimal(6, 2)
   labourRate         Decimal   @db.Decimal(10, 2)
   gstRate            Decimal   @default(18) @db.Decimal(5, 2)
+  sacCode            String? // GST Services Accounting Code — printed per line item on invoices (see JobCardLabour.hsnSac/InvoiceLineItem.hsnSac)
   technicianCategory String?
   isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now())
@@ -640,6 +641,7 @@ model JobCardLabour {
   hours        Decimal     @db.Decimal(6, 2)
   rate         Decimal     @db.Decimal(10, 2)
   gstRate      Decimal     @db.Decimal(5, 2)
+  hsnSac       String? // snapshotted from LabourItem.sacCode at add-labour/convert time, same discipline as gstRate above
   lineTotal    Decimal     @db.Decimal(12, 2)
 
   @@index([tenantId, jobCardId])
@@ -710,6 +712,7 @@ model Part {
   purchasePrice        Decimal       @db.Decimal(12, 2)
   sellingPrice         Decimal       @db.Decimal(12, 2)
   gstRate              Decimal       @default(18) @db.Decimal(5, 2)
+  hsnCode              String? // GST HSN code for goods — printed per line item on invoices (see JobCardPart.hsnSac/InvoiceLineItem.hsnSac)
   currentStock         Int           @default(0)
   minStock             Int           @default(0)
   maxStock             Int?
@@ -931,6 +934,7 @@ model JobCardPart {
   quantity  Int
   unitPrice Decimal @db.Decimal(12, 2)
   gstRate   Decimal @db.Decimal(5, 2)
+  hsnSac    String? // snapshotted from Part.hsnCode at add-part time, same discipline as gstRate above
   lineTotal Decimal @db.Decimal(12, 2)
 
   @@index([tenantId, jobCardId])
@@ -995,6 +999,7 @@ model InvoiceLineItem {
   quantity    Decimal @db.Decimal(10, 2)
   unitPrice   Decimal @db.Decimal(12, 2)
   gstRate     Decimal @db.Decimal(5, 2)
+  hsnSac      String? // final snapshot, carried from JobCardPart.hsnSac/JobCardLabour.hsnSac — printed per line on the GST invoice
   lineTotal   Decimal @db.Decimal(12, 2)
 
   @@index([tenantId, invoiceId])

@@ -47,6 +47,12 @@ __decorate([
     __metadata("design:type", Number)
 ], CreateLabourItemDto.prototype, "gstRate", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'GST Services Accounting Code', example: '998714' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateLabourItemDto.prototype, "sacCode", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ example: 'AC Specialist' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

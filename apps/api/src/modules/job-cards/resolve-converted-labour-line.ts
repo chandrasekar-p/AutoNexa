@@ -9,12 +9,14 @@ export interface EstimateLabourLineInput {
 
 export interface MatchedLabourItem {
   id: string;
+  sacCode: string | null;
 }
 
 export interface ConvertedLabourLine {
   labourItemId: string | undefined;
   rate: Decimalish;
   gstRate: Decimalish;
+  hsnSac: string | null;
 }
 
 /**
@@ -38,5 +40,6 @@ export function resolveConvertedLabourLine(
     labourItemId: matchedLabourItem?.id,
     rate: line.unitPrice,
     gstRate: line.gstRate,
+    hsnSac: matchedLabourItem?.sacCode ?? null,
   };
 }

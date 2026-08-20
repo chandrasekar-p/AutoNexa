@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { BranchesModule } from './modules/branches/branches.module';
@@ -28,6 +29,9 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { SearchModule } from './modules/search/search.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -57,7 +61,18 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ReportsModule,
     DashboardModule,
     NotificationsModule,
+    AuditLogsModule,
+    SearchModule,
+    UploadsModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Every controller across the app already tags its mutating routes
+    // with @Audit('action', 'Entity') (see common/interceptors/audit-log.interceptor.ts)
+    // — this is the actual wiring that makes those tags do anything.
+    // Registered globally, same pattern as JwtAuthGuard/PermissionsGuard
+    // in auth.module.ts, so no per-controller opt-in is needed anywhere.
+    { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
+  ],
 })
 export class AppModule {}

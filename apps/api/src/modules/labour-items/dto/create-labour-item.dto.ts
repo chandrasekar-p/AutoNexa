@@ -28,6 +28,11 @@ export class CreateLabourItemDto {
   @Min(0)
   gstRate?: number;
 
+  @ApiPropertyOptional({ description: 'GST Services Accounting Code', example: '998714' })
+  @IsOptional()
+  @IsString()
+  sacCode?: string;
+
   @ApiPropertyOptional({ example: 'AC Specialist' })
   @IsOptional()
   @IsString()

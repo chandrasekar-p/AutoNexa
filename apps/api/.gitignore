@@ -15,6 +15,9 @@
 # production
 /build
 
+# local file uploads (see src/modules/uploads/upload-storage.ts)
+/uploads
+
 # misc
 .DS_Store
 *.pem

@@ -57,6 +57,11 @@ export class CreatePartDto {
   @Min(0)
   gstRate?: number;
 
+  @ApiPropertyOptional({ description: 'GST HSN code for this part', example: '8708' })
+  @IsOptional()
+  @IsString()
+  hsnCode?: string;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsInt()

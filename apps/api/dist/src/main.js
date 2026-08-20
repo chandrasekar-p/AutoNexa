@@ -9,10 +9,12 @@ const swagger_1 = require("@nestjs/swagger");
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const app_module_1 = require("./app.module");
 const http_exception_filter_1 = require("./common/filters/http-exception.filter");
+const upload_storage_1 = require("./modules/uploads/upload-storage");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.use((0, cookie_parser_1.default)());
     app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });
+    app.useStaticAssets(upload_storage_1.UPLOAD_ROOT, { prefix: '/uploads' });
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,

@@ -27,6 +27,7 @@ interface InvoiceLineItemInput extends GstSplitLineItem {
   description: string;
   quantity: Prisma.Decimal;
   unitPrice: Prisma.Decimal;
+  hsnSac: string | null;
 }
 
 @Injectable()
@@ -71,6 +72,7 @@ export class InvoicesService {
         quantity: l.hours,
         unitPrice: l.rate,
         gstRate: l.gstRate,
+        hsnSac: l.hsnSac,
         lineTotal: l.lineTotal,
       })),
       ...partLines.map((p) => ({
@@ -78,6 +80,7 @@ export class InvoicesService {
         quantity: new Prisma.Decimal(p.quantity),
         unitPrice: p.unitPrice,
         gstRate: p.gstRate,
+        hsnSac: p.hsnSac,
         lineTotal: p.lineTotal,
       })),
     ];
@@ -128,6 +131,7 @@ export class InvoicesService {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           gstRate: item.gstRate,
+          hsnSac: item.hsnSac,
           lineTotal: item.lineTotal,
         })) as unknown as Prisma.InvoiceLineItemCreateManyInput[],
       });

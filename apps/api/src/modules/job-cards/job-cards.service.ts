@@ -154,7 +154,7 @@ export class JobCardsService {
         const matched = await tx.labourItem.findFirst({
           where: { description: line.description, isActive: true },
         });
-        const { labourItemId, rate, gstRate } = resolveConvertedLabourLine(line, matched);
+        const { labourItemId, rate, gstRate, hsnSac } = resolveConvertedLabourLine(line, matched);
         const hours = line.quantity;
 
         await tx.jobCardLabour.create({
@@ -165,6 +165,7 @@ export class JobCardsService {
             hours,
             rate,
             gstRate,
+            hsnSac,
             lineTotal: new Prisma.Decimal(hours).mul(rate).toDecimalPlaces(2),
           } as unknown as Prisma.JobCardLabourUncheckedCreateInput,
         });
@@ -302,6 +303,7 @@ export class JobCardsService {
         hours,
         rate,
         gstRate,
+        hsnSac: labourItem.sacCode,
         lineTotal: new Prisma.Decimal(hours).mul(rate).toDecimalPlaces(2),
       } as unknown as Prisma.JobCardLabourUncheckedCreateInput,
     });
@@ -355,6 +357,7 @@ export class JobCardsService {
           quantity: dto.quantity,
           unitPrice: part.sellingPrice,
           gstRate: part.gstRate,
+          hsnSac: part.hsnCode,
           lineTotal: new Prisma.Decimal(dto.quantity).mul(part.sellingPrice).toDecimalPlaces(2),
         } as unknown as Prisma.JobCardPartUncheckedCreateInput,
       });

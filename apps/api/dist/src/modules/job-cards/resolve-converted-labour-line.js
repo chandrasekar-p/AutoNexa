@@ -6,6 +6,7 @@ function resolveConvertedLabourLine(line, matchedLabourItem) {
         labourItemId: matchedLabourItem?.id,
         rate: line.unitPrice,
         gstRate: line.gstRate,
+        hsnSac: matchedLabourItem?.sacCode ?? null,
     };
 }
 //# sourceMappingURL=resolve-converted-labour-line.js.map

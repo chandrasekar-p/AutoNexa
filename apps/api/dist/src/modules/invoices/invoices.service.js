@@ -59,6 +59,7 @@ let InvoicesService = class InvoicesService {
                 quantity: l.hours,
                 unitPrice: l.rate,
                 gstRate: l.gstRate,
+                hsnSac: l.hsnSac,
                 lineTotal: l.lineTotal,
             })),
             ...partLines.map((p) => ({
@@ -66,6 +67,7 @@ let InvoicesService = class InvoicesService {
                 quantity: new client_1.Prisma.Decimal(p.quantity),
                 unitPrice: p.unitPrice,
                 gstRate: p.gstRate,
+                hsnSac: p.hsnSac,
                 lineTotal: p.lineTotal,
             })),
         ];
@@ -98,6 +100,7 @@ let InvoicesService = class InvoicesService {
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
                     gstRate: item.gstRate,
+                    hsnSac: item.hsnSac,
                     lineTotal: item.lineTotal,
                 })),
             });
