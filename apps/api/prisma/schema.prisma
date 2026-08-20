@@ -25,28 +25,29 @@ model Tenant {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  settings         TenantSettings?
-  branches         Branch[]
-  users            User[]
-  roles            Role[]
-  auditLogs        AuditLog[]
-  customers        Customer[]
-  vehicles         Vehicle[]
-  appointments     Appointment[]
-  inspections      Inspection[]
-  estimates        Estimate[]
-  labourItems      LabourItem[]
-  technicians      Technician[]
-  jobCards         JobCard[]
-  partCategories   PartCategory[]
-  parts            Part[]
-  suppliers        Supplier[]
-  purchaseOrders   PurchaseOrder[]
-  purchaseInvoices PurchaseInvoice[]
-  supplierPayments SupplierPayment[]
-  invoices         Invoice[]
-  notifications    Notification[]
-  deliveryLogs     DeliveryLog[]
+  settings          TenantSettings?
+  branches          Branch[]
+  users             User[]
+  roles             Role[]
+  auditLogs         AuditLog[]
+  customers         Customer[]
+  vehicles          Vehicle[]
+  appointments      Appointment[]
+  inspections       Inspection[]
+  estimates         Estimate[]
+  labourItems       LabourItem[]
+  technicians       Technician[]
+  jobCards          JobCard[]
+  partCategories    PartCategory[]
+  parts             Part[]
+  suppliers         Supplier[]
+  purchaseOrders    PurchaseOrder[]
+  purchaseInvoices  PurchaseInvoice[]
+  supplierPayments  SupplierPayment[]
+  invoices          Invoice[]
+  notifications     Notification[]
+  deliveryLogs      DeliveryLog[]
+  attendanceRecords AttendanceRecord[]
 
   @@map("tenants")
 }
@@ -146,6 +147,9 @@ model User {
   inventoryTransactions InventoryTransaction[]
   goodsReceiptsReceived GoodsReceipt[]
   notifications         Notification[]
+
+  attendanceRecords       AttendanceRecord[] @relation("AttendanceOwner")
+  attendanceRecordsMarked AttendanceRecord[] @relation("AttendanceMarkedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1113,4 +1117,44 @@ model DeliveryLog {
   @@index([tenantId, createdAt])
   @@index([tenantId, status])
   @@map("delivery_logs")
+}
+
+// ─────────────── EMPLOYEE ATTENDANCE (Phase 10) ───────────────
+// Every login account (User), not just Technicians — a Receptionist or
+// Accountant clocks in the same way a Technician does. One record per
+// (user, calendar day): self clock-in/out is the everyday path (no
+// permission gate, like changeOwnPassword — see attendance.controller.ts),
+// and Owner/Manager can additionally create/correct any user's record for
+// forgotten clock-ins or manual register-style marking.
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  ON_LEAVE
+}
+
+model AttendanceRecord {
+  id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  userId         String
+  user           User             @relation("AttendanceOwner", fields: [userId], references: [id])
+  date           DateTime         @db.Date
+  status         AttendanceStatus @default(PRESENT)
+  checkInAt      DateTime?
+  checkOutAt     DateTime?
+  notes          String?
+  // Null when self-marked via clock-in/out; set to the admin's user id when
+  // created/corrected through the admin endpoints — lets the UI show "marked
+  // by Demo Owner" instead of implying the employee entered it themselves.
+  markedByUserId String?
+  markedBy       User?            @relation("AttendanceMarkedBy", fields: [markedByUserId], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([tenantId, userId, date])
+  @@index([tenantId, date])
+  @@index([tenantId, userId])
+  @@map("attendance_records")
 }

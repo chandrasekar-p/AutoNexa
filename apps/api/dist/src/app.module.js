@@ -46,6 +46,7 @@ const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
 const search_module_1 = require("./modules/search/search.module");
 const uploads_module_1 = require("./modules/uploads/uploads.module");
 const messaging_module_1 = require("./modules/messaging/messaging.module");
+const attendance_module_1 = require("./modules/attendance/attendance.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -83,6 +84,7 @@ exports.AppModule = AppModule = __decorate([
             search_module_1.SearchModule,
             uploads_module_1.UploadsModule,
             messaging_module_1.MessagingModule,
+            attendance_module_1.AttendanceModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard },

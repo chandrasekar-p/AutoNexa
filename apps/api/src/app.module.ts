@@ -34,6 +34,7 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SearchModule } from './modules/search/search.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
     SearchModule,
     UploadsModule,
     MessagingModule,
+    AttendanceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

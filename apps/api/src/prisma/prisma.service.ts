@@ -48,6 +48,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'Payment',
   'Notification',
   'DeliveryLog',
+  'AttendanceRecord',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows

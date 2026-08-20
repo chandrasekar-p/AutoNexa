@@ -23,6 +23,11 @@ export function formatDate(value: string | Date): string {
   return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
 }
 
+export function formatTime(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).format(d);
+}
+
 export function daysUntil(value: string | Date): number {
   const d = typeof value === 'string' ? new Date(value) : value;
   const now = new Date();

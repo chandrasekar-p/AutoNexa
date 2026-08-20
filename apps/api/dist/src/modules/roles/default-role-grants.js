@@ -23,6 +23,7 @@ exports.RESOURCES = [
     'report',
     'audit-log',
     'settings',
+    'attendance',
 ];
 exports.ACTIONS = ['create', 'read', 'update', 'delete'];
 exports.DEFAULT_ROLE_GRANTS = {
@@ -47,6 +48,7 @@ exports.DEFAULT_ROLE_GRANTS = {
         report: '*',
         'audit-log': ['read'],
         settings: ['read', 'update'],
+        attendance: '*',
     },
     'Service Advisor': {
         customer: '*',

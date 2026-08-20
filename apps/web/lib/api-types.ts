@@ -734,3 +734,19 @@ export interface SearchResults {
   invoices: Array<{ id: string; invoiceNumber: string; status: InvoiceStatus; grandTotal: string }>;
   parts: Array<{ id: string; partNumber: string; sku: string; name: string }>;
 }
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'ON_LEAVE';
+
+/** One row per (user, calendar day) — GET /attendance (admin) includes user/markedBy; GET /attendance/me (self) doesn't need them. */
+export interface AttendanceRecord {
+  id: string;
+  date: string;
+  status: AttendanceStatus;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; name: string };
+  markedBy?: { id: string; name: string } | null;
+}

@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { GlobalSearch } from '@/components/domain/global-search';
+import { AttendanceClockWidget } from '@/components/domain/attendance-clock-widget';
 import { UserMenu } from './user-menu';
 import type { CurrentTenant } from '@/lib/api-types';
 
@@ -59,6 +60,7 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
         <GlobalSearch />
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <AttendanceClockWidget />
         <ThemeToggle />
         <UserMenu />
       </div>

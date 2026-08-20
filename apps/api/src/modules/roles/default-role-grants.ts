@@ -28,6 +28,7 @@ export const RESOURCES = [
   'report',
   'audit-log',
   'settings',
+  'attendance',
 ] as const;
 
 export const ACTIONS = ['create', 'read', 'update', 'delete'] as const;
@@ -54,6 +55,7 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     report: '*',
     'audit-log': ['read'],
     settings: ['read', 'update'],
+    attendance: '*',
   },
   'Service Advisor': {
     customer: '*',
