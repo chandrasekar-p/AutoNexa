@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* Tabular figures everywhere by default — the "instrument cluster"
+       signature. Individual numeric displays (KPI values, money, job card
+       numbers) additionally switch to font-mono; this alone keeps every
+       digit column-aligned even in body text (tables, list counts). */
+    font-feature-settings:
+      'tnum' 1,
+      'cv11' 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  body {
+    @apply bg-graphite-50 text-graphite-900 antialiased;
+  }
+
+  /* A visible, on-brand focus ring — never suppressed. Keyboard users at a
+     workshop counter (gloved hands, shared terminals) need this at least
+     as much as a mouse-driven user needs it to look clean. */
+  :focus-visible {
+    outline: 2px solid theme('colors.accent.500');
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer utilities {
+  .num {
+    @apply font-mono tabular-nums;
+  }
+}
