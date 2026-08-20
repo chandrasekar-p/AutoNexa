@@ -46,6 +46,9 @@ let InspectionsController = class InspectionsController {
     updateItem(id, itemId, dto) {
         return this.inspectionsService.updateItem(id, itemId, dto);
     }
+    removeItem(id, itemId) {
+        return this.inspectionsService.removeItem(id, itemId);
+    }
     addPhoto(id, dto) {
         return this.inspectionsService.addPhoto(id, dto);
     }
@@ -107,6 +110,16 @@ __decorate([
     __metadata("design:paramtypes", [String, String, update_inspection_item_dto_1.UpdateInspectionItemDto]),
     __metadata("design:returntype", void 0)
 ], InspectionsController.prototype, "updateItem", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('inspection:update'),
+    (0, common_1.Delete)(':id/items/:itemId'),
+    (0, audit_log_interceptor_1.Audit)('inspection.item.remove', 'InspectionItem'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('itemId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], InspectionsController.prototype, "removeItem", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('inspection:update'),
     (0, common_1.Post)(':id/photos'),

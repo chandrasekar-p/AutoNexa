@@ -81,6 +81,11 @@ let InspectionsService = class InspectionsService {
         await this.prisma.forTenant().inspectionItem.update({ where: { id: itemId }, data: dto });
         return this.findOne(inspectionId);
     }
+    async removeItem(inspectionId, itemId) {
+        await this.assertItemExists(inspectionId, itemId);
+        await this.prisma.forTenant().inspectionItem.delete({ where: { id: itemId } });
+        return this.findOne(inspectionId);
+    }
     async addPhoto(inspectionId, dto) {
         await this.assertExists(inspectionId);
         await this.prisma.forTenant().inspectionPhoto.create({

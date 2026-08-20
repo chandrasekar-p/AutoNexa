@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { apiPatch, apiPost, ApiError } from '@/lib/api-client';
+import { apiDelete, apiPatch, apiPost, ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/cn';
 import type { InspectionCategory, InspectionItem, InspectionResult } from '@/lib/api-types';
 import { Select } from '@/components/ui/select';
@@ -24,6 +24,17 @@ const RESULT_BORDER: Record<InspectionResult, string> = {
   PASS: 'border-success-500',
   NEEDS_ATTENTION: 'border-warning-500',
   FAIL: 'border-danger-500',
+};
+// Cool hues (blue/violet/teal) deliberately, so a category tag never reads
+// as a result status — those already own green/amber/red on every row's
+// Select border (see RESULT_BORDER above).
+const CATEGORY_STYLE: Record<InspectionCategory, { badge: string; rail: string }> = {
+  EXTERIOR: { badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400', rail: 'border-blue-300 dark:border-blue-500/40' },
+  INTERIOR: {
+    badge: 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400',
+    rail: 'border-violet-300 dark:border-violet-500/40',
+  },
+  MECHANICAL: { badge: 'bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400', rail: 'border-teal-300 dark:border-teal-500/40' },
 };
 
 function ItemRow({
@@ -54,6 +65,20 @@ function ItemRow({
     }
   }
 
+  async function handleRemove() {
+    if (!window.confirm(`Remove "${item.itemName}" from this checklist?`)) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await apiDelete(`/inspections/${inspectionId}/items/${item.id}`);
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not remove.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:gap-3">
       <span className="flex-1 text-sm text-ink">{item.itemName}</span>
@@ -77,6 +102,16 @@ function ItemRow({
         disabled={readOnly || isSaving}
         className="h-9 w-full sm:w-56"
       />
+      {!readOnly ? (
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={isSaving}
+          className="shrink-0 text-xs text-danger-600 hover:underline disabled:opacity-60 dark:text-danger-400"
+        >
+          Remove
+        </button>
+      ) : null}
       {error ? <span className="text-xs text-danger-600 dark:text-danger-400">{error}</span> : null}
     </div>
   );
@@ -104,7 +139,7 @@ function AddItemForm({ inspectionId, onAdded }: { inspectionId: string; onAdded:
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <Select value={category} onChange={(e) => setCategory(e.target.value as InspectionCategory)} className="h-9 sm:w-40">
         {(Object.keys(CATEGORY_LABEL) as InspectionCategory[]).map((c) => (
           <option key={c} value={c}>
@@ -143,10 +178,15 @@ export function InspectionChecklist({ inspectionId, items, readOnly, onUpdated }
         const categoryItems = items.filter((i) => i.category === category);
         if (categoryItems.length === 0) return null;
         return (
-          <div key={category}>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+          <div key={category} className={cn('border-l-4 pl-3', CATEGORY_STYLE[category].rail)}>
+            <span
+              className={cn(
+                'mb-1 inline-block rounded-full px-2 py-0.5 text-micro font-semibold uppercase tracking-wide',
+                CATEGORY_STYLE[category].badge,
+              )}
+            >
               {CATEGORY_LABEL[category]}
-            </h3>
+            </span>
             <div className="flex flex-col divide-y divide-line">
               {categoryItems.map((item) => (
                 <ItemRow key={item.id} inspectionId={inspectionId} item={item} readOnly={readOnly} onUpdated={onUpdated} />
@@ -155,7 +195,16 @@ export function InspectionChecklist({ inspectionId, items, readOnly, onUpdated }
           </div>
         );
       })}
-      {!readOnly ? <AddItemForm inspectionId={inspectionId} onAdded={onUpdated} /> : null}
+      {!readOnly ? (
+        // Sticky so it stays reachable at the bottom of the viewport while
+        // scrolling a long checklist, instead of only appearing once
+        // scrolled all the way past every category — and tinted so it
+        // reads as a persistent action bar rather than blending into the
+        // plain checklist rows above it.
+        <div className="sticky bottom-0 -mx-5 -mb-5 rounded-b-lg border-t border-accent-200 bg-accent-50 px-5 py-3 dark:border-accent-500/30 dark:bg-accent-500/10">
+          <AddItemForm inspectionId={inspectionId} onAdded={onUpdated} />
+        </div>
+      ) : null}
     </div>
   );
 }

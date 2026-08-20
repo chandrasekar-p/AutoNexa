@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InspectionsService } from './inspections.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
@@ -54,6 +54,13 @@ export class InspectionsController {
   @Audit('inspection.item.update', 'InspectionItem')
   updateItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateInspectionItemDto) {
     return this.inspectionsService.updateItem(id, itemId, dto);
+  }
+
+  @Permissions('inspection:update')
+  @Delete(':id/items/:itemId')
+  @Audit('inspection.item.remove', 'InspectionItem')
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.inspectionsService.removeItem(id, itemId);
   }
 
   @Permissions('inspection:update')

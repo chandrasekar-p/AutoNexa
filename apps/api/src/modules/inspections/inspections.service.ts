@@ -93,6 +93,16 @@ export class InspectionsService {
     return this.findOne(inspectionId);
   }
 
+  // Hard delete, unlike most other tenant-owned records — InspectionItem
+  // has no downstream financial/audit dependency (nothing references it by
+  // id the way an InvoiceLineItem or JobCardPart does), so there's nothing
+  // a soft-delete would need to preserve.
+  async removeItem(inspectionId: string, itemId: string) {
+    await this.assertItemExists(inspectionId, itemId);
+    await this.prisma.forTenant().inspectionItem.delete({ where: { id: itemId } });
+    return this.findOne(inspectionId);
+  }
+
   async addPhoto(inspectionId: string, dto: AddInspectionPhotoDto) {
     await this.assertExists(inspectionId);
     await this.prisma.forTenant().inspectionPhoto.create({
