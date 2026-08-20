@@ -7,6 +7,7 @@ import { apiGet } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { GlobalSearch } from '@/components/domain/global-search';
 import type { CurrentTenant } from '@/lib/api-types';
 
 /**
@@ -58,8 +59,11 @@ export function Topbar() {
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-line bg-surface px-6">
-      <div className="text-sm font-medium text-ink">
-        {workshopName ?? <span className="text-ink-muted">&nbsp;</span>}
+      <div className="flex items-center gap-6">
+        <span className="shrink-0 text-sm font-medium text-ink">
+          {workshopName ?? <span className="text-ink-muted">&nbsp;</span>}
+        </span>
+        <GlobalSearch />
       </div>
       <div className="flex items-center gap-3">
         <ThemeToggle />

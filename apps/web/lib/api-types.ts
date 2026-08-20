@@ -72,6 +72,27 @@ export interface NotificationAlerts {
   delayedJobCards: AlertsDelayedJobCard[];
 }
 
+/** GET/PATCH /tenants/me/settings — jobCard/invoice/estimate/poPrefix seed each module's sequence numbers (JC-0001, INV-0001, ...); `state` determines CGST+SGST vs IGST on generated invoices. */
+export interface TenantSettings {
+  id: string;
+  jobCardPrefix: string;
+  invoicePrefix: string;
+  estimatePrefix: string;
+  poPrefix: string;
+  defaultGstRate: string;
+  timezone: string;
+  currency: string;
+  state: string | null;
+  updatedAt: string;
+}
+
+export interface BranchRef {
+  id: string;
+  name: string;
+  city: string | null;
+}
+
+/** GET /tenants/me — requires tenant:read, which only Workshop Owner gets by default. */
 export interface CurrentTenant {
   id: string;
   name: string;
@@ -79,6 +100,8 @@ export interface CurrentTenant {
   gstin: string | null;
   planTier: string;
   isActive: boolean;
+  settings: TenantSettings;
+  branches: BranchRef[];
 }
 
 /** Shape returned by every paginated list endpoint (GET /customers, etc.) — see ListCustomersQueryDto and its siblings on the backend. */
@@ -634,7 +657,14 @@ export interface InvoiceDetail extends InvoiceFields {
   payments: Payment[];
 }
 
-/** GET/PATCH /users/me — email/roles/isActive are read-only from this endpoint (see UpdateOwnProfileDto on the backend); only name/phone are self-editable. */
+/**
+ * GET/PATCH /users/me and GET/POST/PATCH /users(/:id) all share this exact
+ * shape (the backend's SAFE_SELECT) — the admin-facing User type and the
+ * self-profile type are the same thing, just reached via different
+ * routes/permissions. On GET/PATCH /users/me, email/roles/isActive are
+ * read-only (see UpdateOwnProfileDto) — only name/phone are self-editable;
+ * an admin using PATCH /users/:id (user:update) can change more.
+ */
 export interface UserProfile {
   id: string;
   name: string;
@@ -645,4 +675,42 @@ export interface UserProfile {
   lastLoginAt: string | null;
   createdAt: string;
   roles: Array<{ role: { id: string; name: string } }>;
+}
+
+export type AppUser = UserProfile;
+
+export interface Permission {
+  id: string;
+  resource: string;
+  action: string;
+}
+
+/** GET /roles / GET /roles/:id — see ROLE_SELECT. System roles (isSystem) can't be edited (backend throws ForbiddenException on PATCH). */
+export interface Role {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  permissions: Array<{ permission: Permission }>;
+}
+
+/** One row of GET /audit-logs — see AuditLogsService, built to close the "audit trail is write-only" SRS gap. */
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  oldValue: unknown;
+  newValue: unknown;
+  ipAddress: string | null;
+  createdAt: string;
+  user: { id: string; name: string; email: string } | null;
+}
+
+/** GET /search?q=... — each category is independently permission-gated server-side (see SearchService), so two users can get different result shapes for the same query. */
+export interface SearchResults {
+  customers: Array<{ id: string; name: string; mobile: string }>;
+  vehicles: Array<{ id: string; registrationNo: string; brand: string; model: string }>;
+  jobCards: Array<{ id: string; jobCardNumber: string; status: JobCardStatus }>;
+  invoices: Array<{ id: string; invoiceNumber: string; status: InvoiceStatus; grandTotal: string }>;
+  parts: Array<{ id: string; partNumber: string; sku: string; name: string }>;
 }

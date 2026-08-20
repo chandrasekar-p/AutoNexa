@@ -13,6 +13,8 @@ import {
   Receipt,
   BarChart3,
   Settings,
+  UserCog,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -43,5 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Purchase Orders', href: '/purchases', resource: 'purchase', icon: ShoppingCart },
   { label: 'Invoices', href: '/invoices', resource: 'invoice', icon: Receipt },
   { label: 'Reports', href: '/reports', resource: 'report', icon: BarChart3 },
+  { label: 'Users', href: '/users', resource: 'user', icon: UserCog },
+  { label: 'Roles', href: '/roles', resource: 'role', icon: ShieldCheck },
   { label: 'Settings', href: '/settings', resource: 'settings', icon: Settings },
 ];
