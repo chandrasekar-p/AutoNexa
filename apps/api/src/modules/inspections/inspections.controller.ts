@@ -69,4 +69,11 @@ export class InspectionsController {
   addPhoto(@Param('id') id: string, @Body() dto: AddInspectionPhotoDto) {
     return this.inspectionsService.addPhoto(id, dto);
   }
+
+  @Permissions('inspection:update')
+  @Delete(':id/photos/:photoId')
+  @Audit('inspection.photo.remove', 'InspectionPhoto')
+  removePhoto(@Param('id') id: string, @Param('photoId') photoId: string) {
+    return this.inspectionsService.removePhoto(id, photoId);
+  }
 }

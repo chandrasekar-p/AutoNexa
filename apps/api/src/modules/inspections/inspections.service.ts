@@ -111,6 +111,19 @@ export class InspectionsService {
     return this.findOne(inspectionId);
   }
 
+  /**
+   * Unreferences a wrongly-uploaded photo from the inspection — deletes
+   * the InspectionPhoto row only, not the underlying file on disk. This
+   * codebase has no upload lifecycle/cleanup anywhere yet (local-disk MVP
+   * storage, see upload-storage.ts and README's deployment notes), so an
+   * orphaned file left behind here is consistent with that, not a new gap.
+   */
+  async removePhoto(inspectionId: string, photoId: string) {
+    await this.assertPhotoExists(inspectionId, photoId);
+    await this.prisma.forTenant().inspectionPhoto.delete({ where: { id: photoId } });
+    return this.findOne(inspectionId);
+  }
+
   private async assertExists(id: string) {
     const inspection = await this.prisma.forTenant().inspection.findFirst({ where: { id } });
     if (!inspection) throw new NotFoundException('Inspection not found');
@@ -121,6 +134,12 @@ export class InspectionsService {
     const item = await this.prisma.forTenant().inspectionItem.findFirst({ where: { id: itemId, inspectionId } });
     if (!item) throw new NotFoundException('Inspection item not found');
     return item;
+  }
+
+  private async assertPhotoExists(inspectionId: string, photoId: string) {
+    const photo = await this.prisma.forTenant().inspectionPhoto.findFirst({ where: { id: photoId, inspectionId } });
+    if (!photo) throw new NotFoundException('Inspection photo not found');
+    return photo;
   }
 
   private async assertVehicleExists(vehicleId: string) {

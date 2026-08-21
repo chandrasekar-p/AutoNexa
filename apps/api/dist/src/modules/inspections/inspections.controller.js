@@ -52,6 +52,9 @@ let InspectionsController = class InspectionsController {
     addPhoto(id, dto) {
         return this.inspectionsService.addPhoto(id, dto);
     }
+    removePhoto(id, photoId) {
+        return this.inspectionsService.removePhoto(id, photoId);
+    }
 };
 exports.InspectionsController = InspectionsController;
 __decorate([
@@ -130,6 +133,16 @@ __decorate([
     __metadata("design:paramtypes", [String, add_inspection_photo_dto_1.AddInspectionPhotoDto]),
     __metadata("design:returntype", void 0)
 ], InspectionsController.prototype, "addPhoto", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('inspection:update'),
+    (0, common_1.Delete)(':id/photos/:photoId'),
+    (0, audit_log_interceptor_1.Audit)('inspection.photo.remove', 'InspectionPhoto'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('photoId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], InspectionsController.prototype, "removePhoto", null);
 exports.InspectionsController = InspectionsController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiTags)('inspections'),

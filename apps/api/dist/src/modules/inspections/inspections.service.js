@@ -93,6 +93,11 @@ let InspectionsService = class InspectionsService {
         });
         return this.findOne(inspectionId);
     }
+    async removePhoto(inspectionId, photoId) {
+        await this.assertPhotoExists(inspectionId, photoId);
+        await this.prisma.forTenant().inspectionPhoto.delete({ where: { id: photoId } });
+        return this.findOne(inspectionId);
+    }
     async assertExists(id) {
         const inspection = await this.prisma.forTenant().inspection.findFirst({ where: { id } });
         if (!inspection)
@@ -104,6 +109,12 @@ let InspectionsService = class InspectionsService {
         if (!item)
             throw new common_1.NotFoundException('Inspection item not found');
         return item;
+    }
+    async assertPhotoExists(inspectionId, photoId) {
+        const photo = await this.prisma.forTenant().inspectionPhoto.findFirst({ where: { id: photoId, inspectionId } });
+        if (!photo)
+            throw new common_1.NotFoundException('Inspection photo not found');
+        return photo;
     }
     async assertVehicleExists(vehicleId) {
         const vehicle = await this.prisma.forTenant().vehicle.findFirst({ where: { id: vehicleId, deletedAt: null } });
