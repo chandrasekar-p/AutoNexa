@@ -1,7 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { EstimateStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
+import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validators/uuid-like';
 
 export class ListEstimatesQueryDto {
   @ApiPropertyOptional({ description: 'Free-text search across job description' })
@@ -16,7 +17,7 @@ export class ListEstimatesQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   vehicleId?: string;
 
   @ApiPropertyOptional({ enum: EstimateStatus })
