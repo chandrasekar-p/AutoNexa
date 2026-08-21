@@ -6,6 +6,7 @@ import { validateAppointmentForm, type AppointmentFormErrors, type AppointmentFo
 import { useStaffOptions } from '@/lib/hooks/use-staff-options';
 import type { Appointment, CustomerRef } from '@/lib/api-types';
 import { Input } from '@/components/ui/input';
+import { TimePicker } from '@/components/ui/time-picker';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -102,11 +103,10 @@ export function AppointmentForm({ customer, vehicle, initial, submitLabel, onSub
           error={errors.appointmentDate}
           required
         />
-        <Input
+        <TimePicker
           label="Time"
           value={values.appointmentTime}
-          onChange={(e) => set('appointmentTime', e.target.value)}
-          placeholder="10:30 AM"
+          onChange={(time) => set('appointmentTime', time)}
           error={errors.appointmentTime}
           required
         />

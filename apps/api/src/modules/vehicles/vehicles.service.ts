@@ -15,7 +15,12 @@ export class VehiclesService {
   async create(dto: CreateVehicleDto) {
     await this.assertCustomerExists(dto.customerId);
     return this.prisma.forTenant().vehicle.create({
-      data: dto as unknown as Prisma.VehicleUncheckedCreateInput,
+      data: {
+        ...dto,
+        ...(dto.insuranceExpiry ? { insuranceExpiry: new Date(dto.insuranceExpiry) } : {}),
+        ...(dto.pucExpiry ? { pucExpiry: new Date(dto.pucExpiry) } : {}),
+        ...(dto.purchaseDate ? { purchaseDate: new Date(dto.purchaseDate) } : {}),
+      } as unknown as Prisma.VehicleUncheckedCreateInput,
     });
   }
 
@@ -131,7 +136,15 @@ export class VehiclesService {
 
   async update(id: string, dto: UpdateVehicleDto) {
     await this.assertExists(id);
-    return this.prisma.forTenant().vehicle.update({ where: { id }, data: dto });
+    return this.prisma.forTenant().vehicle.update({
+      where: { id },
+      data: {
+        ...dto,
+        ...(dto.insuranceExpiry ? { insuranceExpiry: new Date(dto.insuranceExpiry) } : {}),
+        ...(dto.pucExpiry ? { pucExpiry: new Date(dto.pucExpiry) } : {}),
+        ...(dto.purchaseDate ? { purchaseDate: new Date(dto.purchaseDate) } : {}),
+      },
+    });
   }
 
   async remove(id: string) {

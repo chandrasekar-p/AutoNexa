@@ -19,7 +19,12 @@ let VehiclesService = class VehiclesService {
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
         return this.prisma.forTenant().vehicle.create({
-            data: dto,
+            data: {
+                ...dto,
+                ...(dto.insuranceExpiry ? { insuranceExpiry: new Date(dto.insuranceExpiry) } : {}),
+                ...(dto.pucExpiry ? { pucExpiry: new Date(dto.pucExpiry) } : {}),
+                ...(dto.purchaseDate ? { purchaseDate: new Date(dto.purchaseDate) } : {}),
+            },
         });
     }
     async findAll(query) {
@@ -111,7 +116,15 @@ let VehiclesService = class VehiclesService {
     }
     async update(id, dto) {
         await this.assertExists(id);
-        return this.prisma.forTenant().vehicle.update({ where: { id }, data: dto });
+        return this.prisma.forTenant().vehicle.update({
+            where: { id },
+            data: {
+                ...dto,
+                ...(dto.insuranceExpiry ? { insuranceExpiry: new Date(dto.insuranceExpiry) } : {}),
+                ...(dto.pucExpiry ? { pucExpiry: new Date(dto.pucExpiry) } : {}),
+                ...(dto.purchaseDate ? { purchaseDate: new Date(dto.purchaseDate) } : {}),
+            },
+        });
     }
     async remove(id) {
         await this.assertExists(id);
