@@ -79,12 +79,13 @@ function KpiGrid({ data }: { data: DashboardSummary }) {
       <KpiCard
         label="Today's Appointments"
         value={formatNumber(data.todaysAppointments)}
+        tone="blue"
         icon={<CalendarCheck className={ICON_SIZE} />}
       />
       <KpiCard
         label="Vehicles In Service"
         value={formatNumber(data.vehiclesInService)}
-        tone="accent"
+        tone="fuchsia"
         icon={<Car className={ICON_SIZE} />}
       />
       <KpiCard
@@ -102,6 +103,7 @@ function KpiGrid({ data }: { data: DashboardSummary }) {
       <KpiCard
         label="Pending Estimates"
         value={formatNumber(data.pendingEstimates)}
+        tone="teal"
         icon={<FileText className={ICON_SIZE} />}
       />
       <KpiCard
@@ -114,23 +116,25 @@ function KpiGrid({ data }: { data: DashboardSummary }) {
       <KpiCard
         label="Today's Sales"
         value={formatMoney(data.todaysSales)}
-        tone="accent"
+        tone="blue"
         icon={<TrendingUp className={ICON_SIZE} />}
       />
       <KpiCard
         label="Monthly Sales"
         value={formatMoney(data.monthlySales)}
-        tone="accent"
+        tone="fuchsia"
         icon={<TrendingUp className={ICON_SIZE} />}
       />
       <KpiCard
         label="Labour Revenue (MTD)"
         value={formatMoney(data.labourRevenueMonthly)}
+        tone="accent"
         icon={<Wrench className={ICON_SIZE} />}
       />
       <KpiCard
         label="Parts Revenue (MTD)"
         value={formatMoney(data.partsRevenueMonthly)}
+        tone="teal"
         icon={<Package className={ICON_SIZE} />}
       />
       <KpiCard

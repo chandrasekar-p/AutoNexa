@@ -5,7 +5,7 @@ interface KpiCardProps {
   label: string;
   value: string | number;
   sublabel?: string;
-  tone?: 'neutral' | 'accent' | 'warning' | 'danger';
+  tone?: 'neutral' | 'accent' | 'warning' | 'danger' | 'blue' | 'fuchsia' | 'teal';
   icon?: ReactNode;
 }
 
@@ -14,13 +14,30 @@ const toneBar: Record<NonNullable<KpiCardProps['tone']>, string> = {
   accent: 'bg-accent-500',
   warning: 'bg-warning-500',
   danger: 'bg-danger-500',
+  blue: 'bg-blue-600',
+  fuchsia: 'bg-fuchsia-600',
+  teal: 'bg-teal-600',
 };
 
+// Solid-fill badges (a white icon on a saturated circle), not the soft
+// tinted-background style used elsewhere in the app (Badge, etc.) —
+// deliberately bolder for the dashboard specifically. blue/fuchsia/teal
+// extend the brand's accent/success/warning/danger set for per-card
+// variety; validated as a set (scripts/validate_palette.js, the dataviz
+// skill) at #c07333,#2563eb,#0f9d68,#c026d3,#0d9488,#d69a1f — every
+// adjacent pair clears the CVD/normal-vision floors. Reused unmodified in
+// dark mode, same precedent as lib/chart-colors.ts's own doc comment: a
+// solid opaque badge with a white glyph reads fine on either surface, so
+// splitting per-theme steps (like Badge.tsx's tinted-background tones do)
+// isn't needed here.
 const toneIconBg: Record<NonNullable<KpiCardProps['tone']>, string> = {
-  neutral: 'bg-graphite-100 text-graphite-500 dark:bg-graphite-700/40 dark:text-graphite-300',
-  accent: 'bg-accent-50 text-accent-600 dark:bg-accent-500/15 dark:text-accent-400',
-  warning: 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-400',
-  danger: 'bg-danger-50 text-danger-600 dark:bg-danger-500/15 dark:text-danger-400',
+  neutral: 'bg-graphite-400 text-white',
+  accent: 'bg-accent-500 text-white',
+  warning: 'bg-warning-500 text-white',
+  danger: 'bg-danger-500 text-white',
+  blue: 'bg-blue-600 text-white',
+  fuchsia: 'bg-fuchsia-600 text-white',
+  teal: 'bg-teal-600 text-white',
 };
 
 /**
@@ -42,7 +59,7 @@ export function KpiCard({ label, value, sublabel, tone = 'neutral', icon }: KpiC
           {sublabel ? <span className="text-xs text-ink-secondary">{sublabel}</span> : null}
         </div>
         {icon ? (
-          <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', toneIconBg[tone])} aria-hidden>
+          <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', toneIconBg[tone])} aria-hidden>
             {icon}
           </div>
         ) : null}
