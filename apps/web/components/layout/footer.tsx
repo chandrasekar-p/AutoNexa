@@ -6,12 +6,20 @@
  * (see (auth)/layout.tsx), just styled to sit in the app shell instead of
  * floating over a photo backdrop.
  */
+// Keep in sync with package.json's "version" — no build-time plumbing for
+// a single footer string, just a manual mirror.
+const APP_VERSION = '0.1.0';
+
 export function AppFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="flex h-9 shrink-0 items-center justify-center border-t border-line bg-surface px-4 text-center text-xs text-ink-muted">
-      &copy; {year} AutoNexa. All rights reserved. &middot; Powered by ec2cloud IT Solutions
+    <footer className="flex h-9 shrink-0 items-center justify-between gap-3 border-t border-line bg-surface px-4 text-xs text-ink-muted">
+      <span />
+      <span className="text-center">
+        &copy; {year} AutoNexa. All rights reserved. &middot; Powered by ec2cloud IT Solutions
+      </span>
+      <span className="num shrink-0">Version {APP_VERSION}</span>
     </footer>
   );
 }

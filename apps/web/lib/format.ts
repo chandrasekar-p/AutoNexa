@@ -23,6 +23,12 @@ export function formatDate(value: string | Date): string {
   return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
 }
 
+/** Weekday + full date, e.g. "Saturday, 22 August 2026" — for headers/greetings, not table cells (use formatDate there). */
+export function formatFullDate(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+}
+
 export function formatTime(value: string | Date): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).format(d);
@@ -33,4 +39,12 @@ export function daysUntil(value: string | Date): number {
   const now = new Date();
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.ceil((d.getTime() - now.getTime()) / msPerDay);
+}
+
+/** "Ravi Tech" -> "RT", "Madonna" -> "MA" — same rule UserMenu's own avatar circle uses. */
+export function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase();
 }

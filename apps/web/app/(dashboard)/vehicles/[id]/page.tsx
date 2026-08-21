@@ -1,19 +1,61 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { apiDelete, apiGet, ApiError } from '@/lib/api-client';
+import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate, formatMoney } from '@/lib/format';
 import type { EstimateListItem, InspectionListItem, PaginatedResult, VehicleDetail } from '@/lib/api-types';
 import { InspectionStatusBadge } from '@/components/domain/inspection-status-badge';
 import { EstimateStatusBadge } from '@/components/domain/estimate-status-badge';
+import { VehicleThumbnail } from '@/components/domain/vehicle-thumbnail';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
+
+function VehiclePhotoUpload({ vehicle, canUpdate, onUpdated }: { vehicle: VehicleDetail; canUpdate: boolean; onUpdated: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploaded = await apiPost<{ url: string }>('/uploads', formData);
+      await apiPatch(`/vehicles/${vehicle.id}`, { photoUrl: uploaded.url });
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload photo.');
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <VehicleThumbnail photoUrl={vehicle.photoUrl} alt={`${vehicle.brand} ${vehicle.model}`} className="h-16 w-16 rounded-xl" />
+      {canUpdate ? (
+        <>
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={isUploading} className="text-xs font-medium text-accent-600 hover:underline dark:text-accent-400">
+            {isUploading ? 'Uploading…' : vehicle.photoUrl ? 'Change Photo' : 'Upload Photo'}
+          </button>
+          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+        </>
+      ) : null}
+      {error ? <span className="text-xs text-danger-600 dark:text-danger-400">{error}</span> : null}
+    </div>
+  );
+}
 
 function Field({ label, value }: { label: string; value: string | number | null }) {
   return (
@@ -97,13 +139,16 @@ export default function VehicleDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="num text-2xl font-semibold text-ink">{vehicle.registrationNo}</h1>
-          <p className="text-sm text-ink-secondary">
-            {vehicle.brand} {vehicle.model}
-            {vehicle.variant ? ` ${vehicle.variant}` : ''}
-            {vehicle.manufactureYear ? ` · ${vehicle.manufactureYear}` : ''}
-          </p>
+        <div className="flex items-center gap-4">
+          <VehiclePhotoUpload vehicle={vehicle} canUpdate={canUpdate} onUpdated={query.refetch} />
+          <div>
+            <h1 className="num text-2xl font-semibold text-ink">{vehicle.registrationNo}</h1>
+            <p className="text-sm text-ink-secondary">
+              {vehicle.brand} {vehicle.model}
+              {vehicle.variant ? ` ${vehicle.variant}` : ''}
+              {vehicle.manufactureYear ? ` · ${vehicle.manufactureYear}` : ''}
+            </p>
+          </div>
         </div>
         <div className="flex gap-3">
           <Link href="/vehicles" className="self-center text-sm text-ink-secondary hover:text-ink">

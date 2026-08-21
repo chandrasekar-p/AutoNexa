@@ -77,6 +77,14 @@ model TenantSettings {
   // pings only (new appointment, invoice issued, etc.), never customer-facing.
   // Sent via POST to the URL with a plain {"text": "..."} body.
   slackWebhookUrl String?
+  // "HH:mm" 24h, e.g. "09:00"/"19:00" — both null (the default) means the
+  // workshop hasn't set business hours, and the dashboard/sidebar simply
+  // don't show an Open/Closed indicator at all rather than guessing.
+  // Compared against the server's local time via is-workshop-open.ts, same
+  // documented "no per-tenant timezone-aware date math" simplification as
+  // dashboard.service.ts's todayRange().
+  businessHoursOpen  String?
+  businessHoursClose String?
   updatedAt       DateTime @updatedAt
 
   @@map("tenant_settings")
@@ -295,6 +303,10 @@ model Vehicle {
   warrantyInfo    String?
   purchaseDate    DateTime?
   notes           String?
+  // Bare /uploads/... path from POST /uploads (see resolveUploadUrl on the
+  // frontend) — null means no photo has been uploaded yet, in which case
+  // callers show a generic placeholder rather than treating it as an error.
+  photoUrl        String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?

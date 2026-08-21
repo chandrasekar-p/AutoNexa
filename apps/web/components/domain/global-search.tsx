@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
@@ -54,6 +54,7 @@ const EMPTY_RESULTS: SearchResults = { customers: [], vehicles: [], jobCards: []
 /** Global search box — GET /search?q=..., each category independently permission-gated server-side (see SearchService), so results naturally vary by role without any client-side filtering. */
 export function GlobalSearch() {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query);
@@ -71,11 +72,26 @@ export function GlobalSearch() {
     router.push(href);
   }
 
+  // Ctrl+K (Cmd+K on Mac) jumps straight to the search box from anywhere
+  // in the app shell — a global listener, not a focus-trap/command palette;
+  // this is the same input already on screen, just given a keyboard shortcut.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="relative w-full min-w-0 max-w-sm">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden />
         <input
+          ref={inputRef}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -84,9 +100,14 @@ export function GlobalSearch() {
           onFocus={() => setIsOpen(true)}
           onBlur={() => setTimeout(() => setIsOpen(false), 150)}
           placeholder="Search customers, vehicles, job cards…"
-          className="h-9 w-full rounded border border-line bg-surface-hover pl-9 pr-3 text-sm text-ink placeholder:text-ink-muted focus:border-accent-400"
+          className="h-9 w-full rounded border border-line bg-surface-hover pl-9 pr-14 text-sm text-ink placeholder:text-ink-muted focus:border-accent-400"
           aria-label="Global search"
         />
+        {!query ? (
+          <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-line bg-surface px-1.5 py-0.5 text-micro font-medium text-ink-muted sm:block">
+            Ctrl K
+          </kbd>
+        ) : null}
       </div>
 
       {isOpen && debouncedQuery.length >= 2 ? (

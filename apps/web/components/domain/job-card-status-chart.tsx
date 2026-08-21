@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
@@ -10,23 +12,22 @@ import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { CHART_COLORS } from '@/lib/chart-colors';
 import type { JobCardStatus, JobCardStatusCount } from '@/lib/api-types';
 
-// Coarse lifecycle buckets, not all 10 raw statuses — several already share
-// one color under JobCardStatusBadge's own tone mapping (e.g. DIAGNOSIS and
-// APPROVED are both "accent"), so a 10-slice donut would just show same-hue
-// slices sitting next to each other. Fixed order/colors regardless of which
-// buckets actually have job cards, so a slice's color never depends on what
-// else is present this time (see the dataviz skill's "color follows the
-// entity, never its rank").
+// Five lifecycle buckets, not all 10 raw statuses (CANCELLED is excluded —
+// it's a dead end, not a pipeline stage). Fixed order/colors regardless of
+// which buckets actually have job cards, so a slice's color never depends
+// on what else is present this time (see the dataviz skill's "color
+// follows the entity, never its rank").
 const BUCKETS: { key: string; label: string; statuses: JobCardStatus[]; color: string }[] = [
-  { key: 'open', label: 'Open', statuses: ['OPEN'], color: CHART_COLORS.neutral },
+  { key: 'open', label: 'Open', statuses: ['OPEN'], color: '#4f46e5' },
+  { key: 'inspection', label: 'Inspection', statuses: ['DIAGNOSIS'], color: '#c026d3' },
   {
     key: 'in_progress',
     label: 'In Progress',
-    statuses: ['DIAGNOSIS', 'WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS', 'WAITING_PARTS', 'QUALITY_CHECK'],
-    color: CHART_COLORS.accent,
+    statuses: ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS', 'WAITING_PARTS', 'QUALITY_CHECK'],
+    color: '#f97316',
   },
-  { key: 'ready', label: 'Ready / Delivered', statuses: ['READY_FOR_DELIVERY', 'DELIVERED'], color: CHART_COLORS.success },
-  { key: 'cancelled', label: 'Cancelled', statuses: ['CANCELLED'], color: CHART_COLORS.danger },
+  { key: 'ready', label: 'Ready', statuses: ['READY_FOR_DELIVERY'], color: CHART_COLORS.success },
+  { key: 'delivered', label: 'Delivered', statuses: ['DELIVERED'], color: CHART_COLORS.neutral },
 ];
 
 function StatusTooltip({ active, payload }: TooltipContentProps) {
@@ -41,7 +42,7 @@ function StatusTooltip({ active, payload }: TooltipContentProps) {
   );
 }
 
-/** All-time job card pipeline distribution — GET /reports/job-card-status, grouped into 4 lifecycle buckets and rendered as a donut with a center total, matching JobCardStatusBadge's tone colors. */
+/** All-time job card pipeline distribution — GET /reports/job-card-status, grouped into 5 lifecycle buckets and rendered as a donut with a center total. Its own fixed palette (BUCKETS above), independent of JobCardStatusBadge's tones — five distinct pipeline stages need five distinct hues, which the badge's smaller status-tone set doesn't have. */
 export function JobCardStatusChart() {
   const query = useApiQuery<JobCardStatusCount[]>(() => apiGet('/reports/job-card-status'), []);
 
@@ -56,8 +57,11 @@ export function JobCardStatusChart() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Job Card Pipeline</CardTitle>
+      <CardHeader className="items-start">
+        <div>
+          <CardTitle className="text-base normal-case tracking-normal text-ink">Job Card Pipeline</CardTitle>
+          <p className="text-xs text-ink-secondary">Current status of all job cards</p>
+        </div>
       </CardHeader>
       <CardBody>
         {query.isLoading ? <Skeleton className="h-56 w-full" /> : null}
@@ -90,17 +94,26 @@ export function JobCardStatusChart() {
                 <span className="text-micro font-semibold uppercase tracking-wide text-ink-muted">Total</span>
               </div>
             </div>
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2.5">
               {data.map((bucket) => (
                 <li key={bucket.key} className="flex items-center gap-2 text-sm">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: bucket.color }} aria-hidden />
-                  <span className="text-ink-secondary">{bucket.label}</span>
-                  <span className="num font-medium text-ink">{bucket.count}</span>
-                  <span className="text-xs text-ink-muted">({Math.round((bucket.count / total) * 100)}%)</span>
+                  <span className="w-24 text-ink-secondary">{bucket.label}</span>
+                  <span className="num w-6 text-right font-medium text-ink">{bucket.count}</span>
+                  <span className="num w-12 text-right text-xs text-ink-muted">({Math.round((bucket.count / total) * 100)}%)</span>
                 </li>
               ))}
             </ul>
           </div>
+        ) : null}
+        {query.data && data.length > 0 ? (
+          <Link
+            href="/job-cards"
+            className="mt-4 flex items-center gap-1.5 border-t border-line pt-3 text-sm font-medium text-accent-600 hover:underline dark:text-accent-400"
+          >
+            View All Job Cards
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
         ) : null}
       </CardBody>
     </Card>

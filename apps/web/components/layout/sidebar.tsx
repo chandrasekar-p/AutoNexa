@@ -8,6 +8,8 @@ import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/lib/auth/auth-context';
 import { hasResourceAccess } from '@/lib/hooks/use-permission';
+import { useCurrentTenant } from '@/lib/hooks/use-current-tenant';
+import { getWorkshopHoursStatus } from '@/lib/workshop-hours';
 import { NAV_SECTIONS, type NavItem } from './nav-items';
 
 const STORAGE_KEY = 'autonexa-sidebar-collapsed';
@@ -52,6 +54,8 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
+  const tenant = useCurrentTenant();
+  const hours = tenant ? getWorkshopHoursStatus(tenant.settings.businessHoursOpen, tenant.settings.businessHoursClose) : null;
 
   // The desktop density preference is irrelevant to the mobile drawer — a
   // collapsed icon-only rail would be nearly useless inside a full-screen
@@ -128,6 +132,21 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             </div>
           ))}
         </nav>
+        {hours ? (
+          <div className={cn('border-t border-graphite-800 px-3 py-3', !showLabels && 'flex justify-center px-0')} title={!showLabels ? `${hours.isOpen ? 'Open' : 'Closed'} · ${hours.hoursLabel}` : undefined}>
+            {showLabels ? (
+              <div className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-white/80">
+                  <span className={cn('h-1.5 w-1.5 rounded-full', hours.isOpen ? 'bg-success-400' : 'bg-white/30')} aria-hidden />
+                  {hours.isOpen ? 'Open' : 'Closed'}
+                </span>
+                <span className="text-micro text-white/45">{hours.hoursLabel}</span>
+              </div>
+            ) : (
+              <span className={cn('h-2 w-2 rounded-full', hours.isOpen ? 'bg-success-400' : 'bg-white/30')} aria-hidden />
+            )}
+          </div>
+        ) : null}
       </aside>
     </>
   );

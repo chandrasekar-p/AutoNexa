@@ -1,47 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
-import { apiGet } from '@/lib/api-client';
+import { useCurrentTenant } from '@/lib/hooks/use-current-tenant';
+import { getWorkshopHoursStatus } from '@/lib/workshop-hours';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { GlobalSearch } from '@/components/domain/global-search';
 import { AttendanceClockWidget } from '@/components/domain/attendance-clock-widget';
+import { NotificationBell } from '@/components/domain/notification-bell';
 import { UserMenu } from './user-menu';
-import type { CurrentTenant } from '@/lib/api-types';
-
-/**
- * GET /tenants/me requires `tenant:read`, which only Workshop Owner (and
- * Super Admin) get by default (see default-role-grants.ts) — most other
- * roles will 403 here. That's expected, not a bug: this fetch fails
- * silently and the workshop name is simply omitted, rather than breaking
- * the whole shell over a permission most roles don't have.
- */
-function useWorkshopName(): string | null {
-  const [name, setName] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiGet<CurrentTenant>('/tenants/me')
-      .then((tenant) => {
-        if (!cancelled) setName(tenant.name);
-      })
-      .catch(() => {
-        // Expected for most roles — see doc comment above.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return name;
-}
 
 interface TopbarProps {
   onOpenMobileNav: () => void;
 }
 
 export function Topbar({ onOpenMobileNav }: TopbarProps) {
-  const workshopName = useWorkshopName();
+  const tenant = useCurrentTenant();
+  const hours = tenant ? getWorkshopHoursStatus(tenant.settings.businessHoursOpen, tenant.settings.businessHoursClose) : null;
 
   return (
     <header className="flex h-14 items-center justify-between gap-3 border-b border-line bg-surface px-4 sm:px-6">
@@ -54,13 +28,27 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
         >
           <Menu aria-hidden className="h-5 w-5" />
         </button>
-        <span className="hidden shrink-0 text-sm font-medium text-ink md:block">
-          {workshopName ?? <span className="text-ink-muted">&nbsp;</span>}
-        </span>
+        {tenant ? (
+          <span className="hidden shrink-0 flex-col md:flex">
+            <span className="text-sm font-medium leading-tight text-ink">{tenant.name}</span>
+            {hours ? (
+              <span className="flex items-center gap-1 text-micro leading-tight text-ink-secondary">
+                <span
+                  className={hours.isOpen ? 'h-1.5 w-1.5 rounded-full bg-success-500' : 'h-1.5 w-1.5 rounded-full bg-ink-muted'}
+                  aria-hidden
+                />
+                {hours.isOpen ? 'Workshop Open' : 'Workshop Closed'}
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          <span className="hidden shrink-0 text-sm font-medium text-ink md:block">&nbsp;</span>
+        )}
         <GlobalSearch />
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <AttendanceClockWidget />
+        <NotificationBell />
         <ThemeToggle />
         <UserMenu />
       </div>

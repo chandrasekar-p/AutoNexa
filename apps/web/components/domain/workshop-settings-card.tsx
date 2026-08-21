@@ -113,6 +113,8 @@ export function WorkshopSettingsCard() {
         timezone: values.timezone ?? query.data.settings.timezone,
         state: values.state ?? query.data.settings.state ?? undefined,
         slackWebhookUrl: values.slackWebhookUrl ?? query.data.settings.slackWebhookUrl ?? undefined,
+        businessHoursOpen: values.businessHoursOpen ?? query.data.settings.businessHoursOpen ?? undefined,
+        businessHoursClose: values.businessHoursClose ?? query.data.settings.businessHoursClose ?? undefined,
       });
       setValues({});
       query.refetch();
@@ -185,6 +187,20 @@ export function WorkshopSettingsCard() {
                 value={values.state ?? query.data.settings.state ?? ''}
                 onChange={(e) => set('state', e.target.value)}
                 placeholder="Tamil Nadu"
+                disabled={!canUpdate}
+              />
+              <Input
+                label="Opens At"
+                type="time"
+                value={values.businessHoursOpen ?? query.data.settings.businessHoursOpen ?? ''}
+                onChange={(e) => set('businessHoursOpen', e.target.value)}
+                disabled={!canUpdate}
+              />
+              <Input
+                label="Closes At"
+                type="time"
+                value={values.businessHoursClose ?? query.data.settings.businessHoursClose ?? ''}
+                onChange={(e) => set('businessHoursClose', e.target.value)}
                 disabled={!canUpdate}
               />
               <div className="flex flex-col gap-1.5">

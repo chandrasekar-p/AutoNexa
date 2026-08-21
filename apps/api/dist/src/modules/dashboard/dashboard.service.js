@@ -25,6 +25,9 @@ const IN_BAY_STATUSES = [
 ];
 const TERMINAL_JOB_CARD_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 const OUTSTANDING_STATUSES = [client_1.InvoiceStatus.UNPAID, client_1.InvoiceStatus.PARTIALLY_PAID];
+const TODAYS_WORKSHOP_LIMIT = 5;
+const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true, photoUrl: true };
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true };
 function todayRange() {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -34,6 +37,14 @@ function monthRange() {
     const now = new Date();
     return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
 }
+function last7DaysRange() {
+    const today = todayRange();
+    return { start: new Date(today.end.getTime() - 7 * 24 * 60 * 60 * 1000), end: today.end };
+}
+function yesterdayRange() {
+    const today = todayRange();
+    return { start: new Date(today.start.getTime() - 24 * 60 * 60 * 1000), end: today.start };
+}
 let DashboardService = class DashboardService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -42,8 +53,10 @@ let DashboardService = class DashboardService {
         const db = this.prisma.forTenant();
         const today = todayRange();
         const month = monthRange();
-        const [totalCustomers, todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians, currentTechnician,] = await Promise.all([
+        const week = last7DaysRange();
+        const [totalCustomers, newCustomersThisWeek, todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians, currentTechnician,] = await Promise.all([
             db.customer.count({ where: { deletedAt: null } }),
+            db.customer.count({ where: { deletedAt: null, createdAt: { gte: week.start, lt: week.end } } }),
             db.appointment.count({
                 where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
             }),
@@ -66,8 +79,36 @@ let DashboardService = class DashboardService {
             const performance = await (0, technician_performance_1.computeTechnicianPerformance)(db, t.id);
             return { technicianId: t.id, name: t.user.name, jobsOpen: performance.jobsOpen };
         }));
+        const todaysWorkshopRows = await db.jobCard.findMany({
+            where: {
+                deletedAt: null,
+                status: { notIn: TERMINAL_JOB_CARD_STATUSES },
+                ...(currentTechnician ? { technicianId: currentTechnician.id } : {}),
+            },
+            select: {
+                id: true,
+                status: true,
+                complaint: true,
+                vehicle: { select: VEHICLE_SUMMARY_SELECT },
+                customer: { select: CUSTOMER_SUMMARY_SELECT },
+                technician: { select: { user: { select: { name: true } } } },
+            },
+            orderBy: { updatedAt: 'desc' },
+            take: TODAYS_WORKSHOP_LIMIT,
+        });
+        const todaysWorkshop = todaysWorkshopRows.map((jc) => ({
+            id: jc.id,
+            status: jc.status,
+            complaint: jc.complaint,
+            vehicle: jc.vehicle,
+            customerId: jc.customer.id,
+            customerName: jc.customer.name,
+            technicianName: jc.technician?.user.name ?? null,
+        }));
         const base = {
+            todaysWorkshop,
             totalCustomers,
+            newCustomersThisWeek,
             todaysAppointments,
             vehiclesInService,
             openJobCards,
@@ -79,10 +120,15 @@ let DashboardService = class DashboardService {
         };
         if (!canViewFinancials)
             return base;
-        const [unpaidInvoices, todaysSalesAgg, monthlySalesAgg, labourRevenueAgg, partsRevenueAgg] = await Promise.all([
+        const yesterday = yesterdayRange();
+        const [unpaidInvoices, todaysSalesAgg, yesterdaysSalesAgg, monthlySalesAgg, labourRevenueAgg, partsRevenueAgg] = await Promise.all([
             db.invoice.findMany({ where: { status: { in: OUTSTANDING_STATUSES } }, include: { payments: true } }),
             db.invoice.aggregate({
                 where: { createdAt: { gte: today.start, lt: today.end } },
+                _sum: { grandTotal: true },
+            }),
+            db.invoice.aggregate({
+                where: { createdAt: { gte: yesterday.start, lt: yesterday.end } },
                 _sum: { grandTotal: true },
             }),
             db.invoice.aggregate({
@@ -106,10 +152,16 @@ let DashboardService = class DashboardService {
             count: invoicesWithOutstanding.length,
             totalOutstanding: (0, outstanding_1.sumOutstanding)(invoicesWithOutstanding),
         };
+        const todaysSales = todaysSalesAgg._sum.grandTotal ?? new client_1.Prisma.Decimal(0);
+        const yesterdaysSales = yesterdaysSalesAgg._sum.grandTotal ?? new client_1.Prisma.Decimal(0);
+        const salesChangeVsYesterdayPct = yesterdaysSales.greaterThan(0)
+            ? todaysSales.minus(yesterdaysSales).dividedBy(yesterdaysSales).times(100).toDecimalPlaces(1).toNumber()
+            : null;
         return {
             ...base,
             pendingPayments,
-            todaysSales: todaysSalesAgg._sum.grandTotal ?? new client_1.Prisma.Decimal(0),
+            todaysSales,
+            salesChangeVsYesterdayPct,
             monthlySales: monthlySalesAgg._sum.grandTotal ?? new client_1.Prisma.Decimal(0),
             labourRevenueMonthly: labourRevenueAgg._sum.lineTotal ?? new client_1.Prisma.Decimal(0),
             partsRevenueMonthly: partsRevenueAgg._sum.lineTotal ?? new client_1.Prisma.Decimal(0),

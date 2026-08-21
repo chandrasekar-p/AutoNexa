@@ -12,6 +12,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateTenantSettingsDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const HH_MM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+const INVALID_TIME_MESSAGE = 'Must be a 24-hour time in HH:mm format, e.g. 09:00';
 class UpdateTenantSettingsDto {
 }
 exports.UpdateTenantSettingsDto = UpdateTenantSettingsDto;
@@ -76,4 +78,16 @@ __decorate([
     (0, class_validator_1.IsUrl)(),
     __metadata("design:type", String)
 ], UpdateTenantSettingsDto.prototype, "slackWebhookUrl", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: '24-hour opening time, e.g. "09:00"', example: '09:00' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(HH_MM_REGEX, { message: INVALID_TIME_MESSAGE }),
+    __metadata("design:type", String)
+], UpdateTenantSettingsDto.prototype, "businessHoursOpen", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: '24-hour closing time, e.g. "19:00"', example: '19:00' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(HH_MM_REGEX, { message: INVALID_TIME_MESSAGE }),
+    __metadata("design:type", String)
+], UpdateTenantSettingsDto.prototype, "businessHoursClose", void 0);
 //# sourceMappingURL=update-tenant-settings.dto.js.map

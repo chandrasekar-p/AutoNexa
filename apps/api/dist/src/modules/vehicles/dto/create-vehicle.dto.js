@@ -113,4 +113,10 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateVehicleDto.prototype, "notes", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Bare path returned by POST /uploads, e.g. "/uploads/<tenant>/<file>.jpg"' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateVehicleDto.prototype, "photoUrl", void 0);
 //# sourceMappingURL=create-vehicle.dto.js.map

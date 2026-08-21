@@ -14,6 +14,9 @@ const IN_BAY_STATUSES: JobCardStatus[] = [
 ];
 const TERMINAL_JOB_CARD_STATUSES: JobCardStatus[] = [JobCardStatus.DELIVERED, JobCardStatus.CANCELLED];
 const OUTSTANDING_STATUSES: InvoiceStatus[] = [InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID];
+const TODAYS_WORKSHOP_LIMIT = 5;
+const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true, photoUrl: true } as const;
+const CUSTOMER_SUMMARY_SELECT = { id: true, name: true } as const;
 
 function todayRange(): { start: Date; end: Date } {
   const now = new Date();
@@ -24,6 +27,19 @@ function todayRange(): { start: Date; end: Date } {
 function monthRange(): { start: Date; end: Date } {
   const now = new Date();
   return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
+}
+
+// Rolling 7-day window, not calendar-week-to-date — simpler and avoids a
+// "+0 this week" on a Monday morning. Same server-local-time simplification
+// as todayRange()/monthRange() above.
+function last7DaysRange(): { start: Date; end: Date } {
+  const today = todayRange();
+  return { start: new Date(today.end.getTime() - 7 * 24 * 60 * 60 * 1000), end: today.end };
+}
+
+function yesterdayRange(): { start: Date; end: Date } {
+  const today = todayRange();
+  return { start: new Date(today.start.getTime() - 24 * 60 * 60 * 1000), end: today.start };
 }
 
 @Injectable()
@@ -55,9 +71,11 @@ export class DashboardService {
     const db = this.prisma.forTenant();
     const today = todayRange();
     const month = monthRange();
+    const week = last7DaysRange();
 
     const [
       totalCustomers,
+      newCustomersThisWeek,
       todaysAppointments,
       vehiclesInService,
       openJobCards,
@@ -68,6 +86,7 @@ export class DashboardService {
       currentTechnician,
     ] = await Promise.all([
       db.customer.count({ where: { deletedAt: null } }),
+      db.customer.count({ where: { deletedAt: null, createdAt: { gte: week.start, lt: week.end } } }),
       db.appointment.count({
         where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
       }),
@@ -99,8 +118,40 @@ export class DashboardService {
       }),
     );
 
+    // Same scoping call as Technician Workload above: a technician's own
+    // dashboard shows only their own active job cards, not the whole
+    // shop-floor — that broader view is for Owner/Manager/Receptionist.
+    const todaysWorkshopRows = await db.jobCard.findMany({
+      where: {
+        deletedAt: null,
+        status: { notIn: TERMINAL_JOB_CARD_STATUSES },
+        ...(currentTechnician ? { technicianId: currentTechnician.id } : {}),
+      },
+      select: {
+        id: true,
+        status: true,
+        complaint: true,
+        vehicle: { select: VEHICLE_SUMMARY_SELECT },
+        customer: { select: CUSTOMER_SUMMARY_SELECT },
+        technician: { select: { user: { select: { name: true } } } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: TODAYS_WORKSHOP_LIMIT,
+    });
+    const todaysWorkshop = todaysWorkshopRows.map((jc) => ({
+      id: jc.id,
+      status: jc.status,
+      complaint: jc.complaint,
+      vehicle: jc.vehicle,
+      customerId: jc.customer.id,
+      customerName: jc.customer.name,
+      technicianName: jc.technician?.user.name ?? null,
+    }));
+
     const base = {
+      todaysWorkshop,
       totalCustomers,
+      newCustomersThisWeek,
       todaysAppointments,
       vehiclesInService,
       openJobCards,
@@ -113,10 +164,15 @@ export class DashboardService {
 
     if (!canViewFinancials) return base;
 
-    const [unpaidInvoices, todaysSalesAgg, monthlySalesAgg, labourRevenueAgg, partsRevenueAgg] = await Promise.all([
+    const yesterday = yesterdayRange();
+    const [unpaidInvoices, todaysSalesAgg, yesterdaysSalesAgg, monthlySalesAgg, labourRevenueAgg, partsRevenueAgg] = await Promise.all([
       db.invoice.findMany({ where: { status: { in: OUTSTANDING_STATUSES } }, include: { payments: true } }),
       db.invoice.aggregate({
         where: { createdAt: { gte: today.start, lt: today.end } },
+        _sum: { grandTotal: true },
+      }),
+      db.invoice.aggregate({
+        where: { createdAt: { gte: yesterday.start, lt: yesterday.end } },
         _sum: { grandTotal: true },
       }),
       db.invoice.aggregate({
@@ -142,10 +198,20 @@ export class DashboardService {
       totalOutstanding: sumOutstanding(invoicesWithOutstanding),
     };
 
+    const todaysSales = todaysSalesAgg._sum.grandTotal ?? new Prisma.Decimal(0);
+    const yesterdaysSales = yesterdaysSalesAgg._sum.grandTotal ?? new Prisma.Decimal(0);
+    // null (not 0) when yesterday had no sales at all — "+100%" or similar
+    // off a zero base is meaningless, so the frontend just omits the
+    // comparison subtext in that case rather than showing a misleading figure.
+    const salesChangeVsYesterdayPct = yesterdaysSales.greaterThan(0)
+      ? todaysSales.minus(yesterdaysSales).dividedBy(yesterdaysSales).times(100).toDecimalPlaces(1).toNumber()
+      : null;
+
     return {
       ...base,
       pendingPayments,
-      todaysSales: todaysSalesAgg._sum.grandTotal ?? new Prisma.Decimal(0),
+      todaysSales,
+      salesChangeVsYesterdayPct,
       monthlySales: monthlySalesAgg._sum.grandTotal ?? new Prisma.Decimal(0),
       labourRevenueMonthly: labourRevenueAgg._sum.lineTotal ?? new Prisma.Decimal(0),
       partsRevenueMonthly: partsRevenueAgg._sum.lineTotal ?? new Prisma.Decimal(0),

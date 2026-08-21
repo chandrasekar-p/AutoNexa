@@ -28,6 +28,7 @@ export type JobCardStatus =
 /** The money fields are omitted entirely (not present, not null) unless the caller has report:read — see DashboardService.summary's canViewFinancials gate. Render each one conditionally, not with a fallback value. */
 export interface DashboardSummary {
   totalCustomers: number;
+  newCustomersThisWeek: number;
   todaysAppointments: number;
   vehiclesInService: number;
   openJobCards: number;
@@ -35,12 +36,35 @@ export interface DashboardSummary {
   pendingEstimates: number;
   pendingPayments?: { count: number; totalOutstanding: string };
   todaysSales?: string;
+  /** null when yesterday had zero sales — see DashboardService.summary, showing a % off a zero base is meaningless. */
+  salesChangeVsYesterdayPct?: number | null;
   monthlySales?: string;
   labourRevenueMonthly?: string;
   partsRevenueMonthly?: string;
   lowStockCount: number;
   technicianWorkload: Array<{ technicianId: string; name: string; jobsOpen: number }>;
   technicianWorkloadScope: 'mine' | 'all';
+  todaysWorkshop: Array<{
+    id: string;
+    status: JobCardStatus;
+    complaint: string | null;
+    vehicle: { id: string; registrationNo: string; brand: string; model: string; photoUrl: string | null };
+    customerId: string;
+    customerName: string;
+    technicianName: string | null;
+  }>;
+}
+
+/** GET /notifications — the in-app staff bell, not the outbound customer messaging DeliveryLog. `relatedEntityType`/`Id` are set for most triggers (JobCard/Invoice/Estimate/...) but not guaranteed — NotificationBell only links through when it recognizes the type. */
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  isRead: boolean;
+  createdAt: string;
 }
 
 export interface AlertsLowStockPart {
@@ -90,6 +114,9 @@ export interface TenantSettings {
   logoUrl: string | null;
   /** Incoming webhook URL for this workshop's own Slack — internal ops pings only (new appointment, invoice issued, ...), never customer-facing. */
   slackWebhookUrl: string | null;
+  /** "HH:mm" 24h, e.g. "09:00" — both null means business hours were never set; see lib/workshop-hours.ts for the derived Open/Closed status. */
+  businessHoursOpen: string | null;
+  businessHoursClose: string | null;
   updatedAt: string;
 }
 
@@ -230,6 +257,8 @@ interface VehicleFields {
   warrantyInfo: string | null;
   purchaseDate: string | null;
   notes: string | null;
+  /** Bare /uploads/... path — resolve with lib/uploads.ts's resolveUploadUrl. Null until someone uploads one; VehicleThumbnail falls back to a generic placeholder rather than treating that as an error. */
+  photoUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }

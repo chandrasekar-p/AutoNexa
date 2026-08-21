@@ -83,4 +83,9 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Bare path returned by POST /uploads, e.g. "/uploads/<tenant>/<file>.jpg"' })
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
 }
