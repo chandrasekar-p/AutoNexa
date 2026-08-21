@@ -5,6 +5,7 @@ import {
   jobCardReadyMessage,
   invoiceIssuedMessage,
   paymentReceivedMessage,
+  paymentLinkMessage,
 } from '../src/modules/messaging/templates';
 
 describe('messaging templates', () => {
@@ -78,5 +79,18 @@ describe('messaging templates', () => {
     });
     expect(msg.body).toContain('₹2,000.00');
     expect(msg.body).toContain('INV-0001');
+  });
+
+  it('builds a payment-link message with the amount, invoice number, and URL', () => {
+    const msg = paymentLinkMessage({
+      workshopName: 'Demo Workshop',
+      customerName: 'Arun',
+      invoiceNumber: 'INV-0001',
+      amount: '₹2,000.00',
+      paymentUrl: 'https://rzp.io/l/abc123',
+    });
+    expect(msg.body).toContain('₹2,000.00');
+    expect(msg.body).toContain('INV-0001');
+    expect(msg.body).toContain('https://rzp.io/l/abc123');
   });
 });

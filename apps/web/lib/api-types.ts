@@ -633,7 +633,10 @@ export interface JobCardDetail extends JobCardFields {
   invoice: { id: string; invoiceNumber: string; status: InvoiceStatus; grandTotal: string } | null;
 }
 
-export type PaymentMethod = 'cash' | 'upi' | 'card' | 'bank_transfer' | 'credit';
+// 'razorpay' is never staff-selectable (not in CreateInvoicePaymentDto's
+// allowed values) — it only ever appears on a Payment the gateway webhook
+// created itself, never one entered through the manual "Record Payment" form.
+export type PaymentMethod = 'cash' | 'upi' | 'card' | 'bank_transfer' | 'credit' | 'razorpay';
 
 export interface Payment {
   id: string;

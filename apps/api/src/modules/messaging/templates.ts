@@ -47,6 +47,14 @@ export interface PaymentTemplateContext {
   amount: string;
 }
 
+export interface PaymentLinkTemplateContext {
+  workshopName: string;
+  customerName: string;
+  invoiceNumber: string;
+  amount: string;
+  paymentUrl: string;
+}
+
 export function appointmentConfirmedMessage(ctx: AppointmentTemplateContext): MessageContent {
   return {
     subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -86,5 +94,12 @@ export function paymentReceivedMessage(ctx: PaymentTemplateContext): MessageCont
   return {
     subject: `Payment received — ${ctx.workshopName}`,
     body: `Hi ${ctx.customerName}, we've received your payment of ${ctx.amount} against invoice ${ctx.invoiceNumber}. Thank you! — ${ctx.workshopName}`,
+  };
+}
+
+export function paymentLinkMessage(ctx: PaymentLinkTemplateContext): MessageContent {
+  return {
+    subject: `Pay invoice ${ctx.invoiceNumber} online — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, pay ${ctx.amount} for invoice ${ctx.invoiceNumber} online: ${ctx.paymentUrl} — ${ctx.workshopName}`,
   };
 }

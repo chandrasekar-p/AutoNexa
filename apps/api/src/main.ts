@@ -9,7 +9,16 @@ import { UPLOAD_ROOT } from './modules/uploads/upload-storage';
 import { API_PREFIX } from './common/api-prefix';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: true attaches the untouched request bytes as req.rawBody
+  // alongside the normal parsed req.body, for every JSON/urlencoded
+  // request — needed by exactly one route so far
+  // (POST /payments/webhooks/razorpay), which must verify Razorpay's HMAC
+  // signature against the exact bytes sent, not a re-serialized copy of
+  // the parsed body (JSON.stringify isn't guaranteed byte-identical to
+  // what was received — different key order, whitespace — which would
+  // make a genuine signature fail verification). See
+  // razorpay-webhook.controller.ts and verify-razorpay-signature.ts.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
 
   // Matches the production reverse proxy's path-based routing (nginx
   // forwards the full, unstripped request path to this process — see the

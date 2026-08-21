@@ -2,13 +2,19 @@
 
 import { useState, type FormEvent } from 'react';
 import { apiPost, ApiError } from '@/lib/api-client';
-import { validatePaymentForm, type PaymentFormErrors } from '@/lib/validation/payment';
-import type { InvoiceDetail, PaymentMethod } from '@/lib/api-types';
+import { validatePaymentForm, type PaymentFormErrors, type PaymentFormValues } from '@/lib/validation/payment';
+import type { InvoiceDetail } from '@/lib/api-types';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
-const METHOD_LABEL: Record<PaymentMethod, string> = {
+// Deliberately NOT api-types.ts's broader PaymentMethod — 'razorpay' is
+// never staff-selectable here (a gateway payment is only ever created by
+// the webhook, never through this form), so this stays scoped to exactly
+// what CreateInvoicePaymentDto (and the zod schema mirroring it) accepts.
+type ManualPaymentMethod = PaymentFormValues['method'];
+
+const METHOD_LABEL: Record<ManualPaymentMethod, string> = {
   cash: 'Cash',
   upi: 'UPI',
   card: 'Card',
@@ -24,7 +30,7 @@ interface RecordPaymentFormProps {
 export function RecordPaymentForm({ invoiceId, onRecorded }: RecordPaymentFormProps) {
   const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
-  const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [method, setMethod] = useState<ManualPaymentMethod>('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [errors, setErrors] = useState<PaymentFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -70,8 +76,8 @@ export function RecordPaymentForm({ invoiceId, onRecorded }: RecordPaymentFormPr
           placeholder="Amount"
           error={errors.amount}
         />
-        <Select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} error={errors.method}>
-          {(Object.keys(METHOD_LABEL) as PaymentMethod[]).map((m) => (
+        <Select value={method} onChange={(e) => setMethod(e.target.value as ManualPaymentMethod)} error={errors.method}>
+          {(Object.keys(METHOD_LABEL) as ManualPaymentMethod[]).map((m) => (
             <option key={m} value={m}>
               {METHOD_LABEL[m]}
             </option>

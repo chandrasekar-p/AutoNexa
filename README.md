@@ -105,9 +105,15 @@ The app listens on `:3000` by default and expects the API from
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | no | Outbound email — unset skips email delivery (logged as `SKIPPED`, not an error) |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | no | Outbound SMS via Twilio — unset skips SMS |
 | `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | no | Outbound WhatsApp via Meta's Cloud API — unset skips WhatsApp |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | no | Razorpay API key pair — unset hides/disables "Send Payment Link" on an invoice, same "quietly unavailable" posture as the messaging providers above |
+| `RAZORPAY_WEBHOOK_SECRET` | no (required if the above are set) | Verifies the HMAC signature Razorpay sends on every webhook delivery — configure it in the Razorpay dashboard's webhook settings to match |
+| `FRONTEND_URL` | no | Where Razorpay's Payment Link redirects the customer's browser after paying (`{FRONTEND_URL}/invoices/:id`) — unset just skips the redirect, Razorpay shows its own default confirmation page instead |
 
 Slack is configured per-workshop, not via `.env` — each tenant sets its own
 incoming webhook URL under Settings → Workshop → Slack Webhook URL.
+Razorpay is platform-level like SMTP/Twilio/WhatsApp above, not
+per-tenant — one shared merchant account across every workshop on this
+deployment.
 
 ### `apps/web/.env.local`
 
@@ -180,13 +186,43 @@ not just at runtime). Put this behind the same reverse-proxy/TLS setup as
 the API, on a subdomain of the same registrable domain (see the cookie note
 above).
 
-### 4. Smoke-test before declaring it live
+### 4. Payment Gateway (Razorpay) — optional
+
+1. Create a Razorpay account (or use an existing one) and grab the API
+   key pair from Settings → API Keys — set `RAZORPAY_KEY_ID` /
+   `RAZORPAY_KEY_SECRET`.
+2. In Razorpay's dashboard, Settings → Webhooks → add a webhook pointing
+   at `https://<your-api-domain>/api/v1/payments/webhooks/razorpay`
+   (must be a real, publicly reachable HTTPS URL — Razorpay calls this
+   directly, it can't reach `localhost` or an internal address). Enable
+   at minimum the `payment_link.paid`, `payment_link.expired`,
+   `payment_link.cancelled`, and `payment.failed` events.
+3. Razorpay shows the webhook secret once, at creation — set it as
+   `RAZORPAY_WEBHOOK_SECRET`. If you ever need to rotate it, update both
+   sides (Razorpay's dashboard and this env var) together — a mismatch
+   fails every webhook's signature check silently (logged to
+   `payment_gateway_events` with `signatureValid: false`, not a 500).
+4. Optionally set `FRONTEND_URL` so a customer lands back on the invoice
+   page after paying, instead of Razorpay's own generic confirmation page.
+5. Restart the API so the new env vars take effect.
+
+Until this is configured, "Send Payment Link" simply doesn't appear/errors
+clearly (`payment gateway is not configured`) — nothing else in the app
+depends on it.
+
+### 5. Smoke-test before declaring it live
 
 - `POST /auth/login` against the deployed API with a real account
 - Confirm the frontend can reach it (no CORS errors in the browser console)
 - Upload a file (e.g. a workshop logo) and confirm it's fetchable back
 - If messaging env vars are set, trigger one event (e.g. book an appointment)
   and check `/deliveries` in the app for a `SENT` row, not `FAILED`
+- If Razorpay env vars are set: click "Send Payment Link" on an invoice
+  with an outstanding balance, pay it via Razorpay's test mode, and
+  confirm the invoice flips to `PAID` (or `PARTIALLY_PAID`) within a few
+  seconds without any manual action — that's the webhook round-trip
+  working end-to-end. Check `payment_gateway_events` in the database if it
+  doesn't; every delivery Razorpay makes is logged there, processed or not
 
 ## Seeded accounts (local dev only)
 

@@ -216,24 +216,36 @@ let InvoicesService = class InvoicesService {
         }
     }
     async recordPayment(invoiceId, dto) {
+        return this.applyPayment(invoiceId, {
+            amount: dto.amount,
+            paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
+            method: dto.method,
+            referenceNumber: dto.referenceNumber,
+        });
+    }
+    async applyCapturedPayment(invoiceId, gateway) {
+        return this.applyPayment(invoiceId, {
+            amount: gateway.amount,
+            method: 'razorpay',
+            provider: 'razorpay',
+            providerOrderId: gateway.providerOrderId,
+            providerPaymentId: gateway.providerPaymentId,
+            providerSignature: gateway.providerSignature,
+        });
+    }
+    async applyPayment(invoiceId, data) {
         const invoice = await this.assertExists(invoiceId);
         const db = this.prisma.forTenant();
         const existingPayments = await db.payment.findMany({ where: { invoiceId } });
         const totalPaidSoFar = existingPayments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
-        if ((0, payment_guard_1.isOverpayment)(totalPaidSoFar, invoice.grandTotal, dto.amount)) {
+        if ((0, payment_guard_1.isOverpayment)(totalPaidSoFar, invoice.grandTotal, data.amount)) {
             throw new common_1.BadRequestException('Payment would exceed the invoice grand total');
         }
         await db.payment.create({
-            data: {
-                invoiceId,
-                amount: dto.amount,
-                paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
-                method: dto.method,
-                referenceNumber: dto.referenceNumber,
-            },
+            data: { invoiceId, ...data },
         });
         const updated = await this.recalculateStatus(invoiceId);
-        await this.sendPaymentReceived(updated, dto.amount);
+        await this.sendPaymentReceived(updated, Number(data.amount));
         return updated;
     }
     async sendPaymentReceived(invoice, amount) {

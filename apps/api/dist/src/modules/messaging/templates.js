@@ -6,6 +6,7 @@ exports.estimateReadyMessage = estimateReadyMessage;
 exports.jobCardReadyMessage = jobCardReadyMessage;
 exports.invoiceIssuedMessage = invoiceIssuedMessage;
 exports.paymentReceivedMessage = paymentReceivedMessage;
+exports.paymentLinkMessage = paymentLinkMessage;
 function appointmentConfirmedMessage(ctx) {
     return {
         subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -40,6 +41,12 @@ function paymentReceivedMessage(ctx) {
     return {
         subject: `Payment received — ${ctx.workshopName}`,
         body: `Hi ${ctx.customerName}, we've received your payment of ${ctx.amount} against invoice ${ctx.invoiceNumber}. Thank you! — ${ctx.workshopName}`,
+    };
+}
+function paymentLinkMessage(ctx) {
+    return {
+        subject: `Pay invoice ${ctx.invoiceNumber} online — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, pay ${ctx.amount} for invoice ${ctx.invoiceNumber} online: ${ctx.paymentUrl} — ${ctx.workshopName}`,
     };
 }
 //# sourceMappingURL=templates.js.map

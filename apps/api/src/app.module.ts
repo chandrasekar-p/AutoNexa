@@ -27,6 +27,7 @@ import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.
 import { PurchaseInvoicesModule } from './modules/purchase-invoices/purchase-invoices.module';
 import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsGatewayModule } from './modules/payments-gateway/payments-gateway.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -62,6 +63,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     PurchaseInvoicesModule,
     SupplierPaymentsModule,
     InvoicesModule,
+    PaymentsGatewayModule,
     ReportsModule,
     DashboardModule,
     NotificationsModule,

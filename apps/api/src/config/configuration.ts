@@ -29,4 +29,17 @@ export default () => ({
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     },
   },
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID,
+    keySecret: process.env.RAZORPAY_KEY_SECRET,
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
+    // Only needed for the Payment Link's callback_url (where Razorpay
+    // redirects the customer's browser after paying) — nothing else in
+    // this backend has previously needed to construct a frontend-facing
+    // URL. If unset, RazorpayProvider still works but the callback_url is
+    // omitted rather than the whole feature failing to boot — same
+    // "don't crash over an optional integration" posture as the other
+    // messaging providers.
+    frontendUrl: process.env.FRONTEND_URL,
+  },
 });

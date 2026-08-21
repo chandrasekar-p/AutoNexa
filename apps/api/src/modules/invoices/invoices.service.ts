@@ -318,28 +318,67 @@ export class InvoicesService {
   }
 
   async recordPayment(invoiceId: string, dto: CreateInvoicePaymentDto) {
+    return this.applyPayment(invoiceId, {
+      amount: dto.amount,
+      paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
+      method: dto.method,
+      referenceNumber: dto.referenceNumber,
+    });
+  }
+
+  /**
+   * Called only from PaymentsGatewayService, inside a TenantContext.run()
+   * block it establishes itself after resolving the tenant from
+   * Invoice.pendingGatewayOrderId (a webhook has no tenant context of its
+   * own — see the payment gateway architecture doc §3.2). Everything below
+   * this point — applyPayment, recalculateStatus, sendPaymentReceived — is
+   * identical to the manual recordPayment path; a gateway-captured payment
+   * gets the exact same overpayment guard and status rollup, not a
+   * parallel implementation.
+   */
+  async applyCapturedPayment(
+    invoiceId: string,
+    gateway: { amount: number; providerOrderId: string; providerPaymentId: string; providerSignature: string },
+  ) {
+    return this.applyPayment(invoiceId, {
+      amount: gateway.amount,
+      method: 'razorpay',
+      provider: 'razorpay',
+      providerOrderId: gateway.providerOrderId,
+      providerPaymentId: gateway.providerPaymentId,
+      providerSignature: gateway.providerSignature,
+    });
+  }
+
+  private async applyPayment(
+    invoiceId: string,
+    data: {
+      amount: Prisma.Decimal | number;
+      method: string;
+      paymentDate?: Date;
+      referenceNumber?: string;
+      provider?: string;
+      providerOrderId?: string;
+      providerPaymentId?: string;
+      providerSignature?: string;
+    },
+  ) {
     const invoice = await this.assertExists(invoiceId);
     const db = this.prisma.forTenant();
 
     const existingPayments = await db.payment.findMany({ where: { invoiceId } });
     const totalPaidSoFar = existingPayments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
 
-    if (isOverpayment(totalPaidSoFar, invoice.grandTotal, dto.amount)) {
+    if (isOverpayment(totalPaidSoFar, invoice.grandTotal, data.amount)) {
       throw new BadRequestException('Payment would exceed the invoice grand total');
     }
 
     await db.payment.create({
-      data: {
-        invoiceId,
-        amount: dto.amount,
-        paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
-        method: dto.method,
-        referenceNumber: dto.referenceNumber,
-      } as unknown as Prisma.PaymentUncheckedCreateInput,
+      data: { invoiceId, ...data } as unknown as Prisma.PaymentUncheckedCreateInput,
     });
 
     const updated = await this.recalculateStatus(invoiceId);
-    await this.sendPaymentReceived(updated, dto.amount);
+    await this.sendPaymentReceived(updated, Number(data.amount));
     return updated;
   }
 

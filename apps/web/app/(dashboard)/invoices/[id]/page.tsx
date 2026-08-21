@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Download, Send } from 'lucide-react';
+import { Download, Link2, Send } from 'lucide-react';
 import { apiGet, apiGetBlob, apiPost, ApiError } from '@/lib/api-client';
 import { downloadBlob } from '@/lib/export/csv';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
@@ -54,6 +54,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   card: 'Card',
   bank_transfer: 'Bank Transfer',
   credit: 'Credit',
+  razorpay: 'Razorpay',
 };
 
 function SummaryRow({ label, value, emphasized }: { label: string; value: string; emphasized?: boolean }) {
@@ -69,6 +70,10 @@ export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
   const canRecordPayment = usePermission('payment:create');
   const canSend = usePermission('invoice:read');
+  // Same permission as manual payment recording, matching the backend's
+  // POST /invoices/:id/payment-link gate — anyone who can record a payment
+  // can also generate/send a link for one.
+  const canSendPaymentLink = usePermission('payment:create');
 
   const query = useApiQuery<InvoiceDetail>(() => apiGet(`/invoices/${params.id}`), [params.id]);
   const [isSending, setIsSending] = useState(false);
@@ -76,6 +81,9 @@ export default function InvoiceDetailPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [linkResult, setLinkResult] = useState<{ tone: 'success' | 'warning' | 'danger'; message: string } | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   async function handleSend() {
     setIsSending(true);
@@ -106,6 +114,23 @@ export default function InvoiceDetailPage() {
       setDownloadError(err instanceof ApiError ? err.message : 'Could not download the invoice.');
     } finally {
       setIsDownloading(false);
+    }
+  }
+
+  async function handleSendPaymentLink() {
+    setIsSendingLink(true);
+    setLinkError(null);
+    setLinkResult(null);
+    try {
+      const result = await apiPost<{ attempts: { channel: DeliveryChannel; status: DeliveryStatus }[] }>(
+        `/invoices/${params.id}/payment-link`,
+      );
+      setLinkResult(summarizeSendAttempts(result.attempts));
+      query.refetch(); // picks up the invoice's new pendingGatewayOrderId, if that ever needs surfacing later
+    } catch (err) {
+      setLinkError(err instanceof ApiError ? err.message : 'Could not send the payment link.');
+    } finally {
+      setIsSendingLink(false);
     }
   }
 
@@ -151,6 +176,12 @@ export default function InvoiceDetailPage() {
               Send Invoice
             </Button>
           ) : null}
+          {canSendPaymentLink && outstanding > 0 ? (
+            <Button variant="secondary" size="sm" onClick={handleSendPaymentLink} isLoading={isSendingLink}>
+              <Link2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Send Payment Link
+            </Button>
+          ) : null}
           <Link href="/invoices" className="text-sm text-ink-secondary hover:text-ink">
             &larr; Back to invoices
           </Link>
@@ -159,6 +190,20 @@ export default function InvoiceDetailPage() {
 
       {downloadError ? <ErrorState message={downloadError} /> : null}
       {sendError ? <ErrorState message={sendError} /> : null}
+      {linkError ? <ErrorState message={linkError} /> : null}
+      {linkResult ? (
+        <p
+          className={
+            linkResult.tone === 'success'
+              ? 'rounded border border-success-100 bg-success-50 px-3 py-2 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
+              : linkResult.tone === 'warning'
+                ? 'rounded border border-warning-100 bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400'
+                : 'rounded border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-400'
+          }
+        >
+          {linkResult.message}
+        </p>
+      ) : null}
       {sendResult ? (
         <p
           className={

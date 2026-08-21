@@ -990,6 +990,18 @@ model Invoice {
 
   status InvoiceStatus @default(UNPAID)
 
+  // Set when a Razorpay Payment Link is generated for this invoice, cleared
+  // once the link resolves (paid/expired/cancelled) — see the payment
+  // gateway architecture doc §3.2/§4.1. This is the ONLY link between a
+  // pending gateway order and its tenant: a webhook arrives with no tenant
+  // context at all, so the webhook handler resolves tenantId by looking
+  // this field up via the unscoped `prisma.platform` client (same "no
+  // request context" precedent as ReminderCronService/MessagingService.log),
+  // then explicitly enters TenantContext.run() before touching anything
+  // else. No Payment row exists yet at this point — see Payment's own
+  // gateway fields below for why.
+  pendingGatewayOrderId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1000,6 +1012,7 @@ model Invoice {
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, customerId])
+  @@index([pendingGatewayOrderId])
   @@map("invoices")
 }
 
@@ -1037,12 +1050,54 @@ model Payment {
   invoice         Invoice  @relation(fields: [invoiceId], references: [id])
   amount          Decimal  @db.Decimal(12, 2)
   paymentDate     DateTime @default(now())
-  method          String // "cash" | "upi" | "card" | "bank_transfer" | "credit"
+  method          String // "cash" | "upi" | "card" | "bank_transfer" | "credit" | "razorpay"
   referenceNumber String?
   createdAt       DateTime @default(now())
 
+  // Gateway fields — all null for a manual payment (the only path today;
+  // unchanged). Populated only when method = "razorpay". A Payment row for
+  // a gateway transaction is only ever created once Razorpay confirms
+  // `payment.captured` — never at Payment Link creation time — so every
+  // row here, gateway or manual, already represents money that actually
+  // arrived. That's deliberate: it means InvoicesService.recalculateStatus()
+  // (which sums every Payment row unconditionally) needs no changes at all
+  // to support this feature. See the payment gateway architecture doc §2.2.
+  provider          String? // "razorpay" — free string like `method`, not an enum, so a second provider later needs no migration
+  providerOrderId   String? // Razorpay Order id ("order_...")
+  providerPaymentId String? // Razorpay Payment id ("pay_..."), set once captured
+  providerSignature String? // The signature Razorpay sent on this event — kept for audit/dispute reference, never re-verified from storage
+
   @@index([tenantId, invoiceId])
+  @@index([providerOrderId])
   @@map("payments")
+}
+
+// Raw webhook audit trail for the payment gateway — every delivery
+// Razorpay makes, verified or not, processed or not. Deliberately NOT in
+// TENANT_SCOPED_MODELS (prisma.service.ts): a webhook has no tenant
+// context until the handler resolves one mid-request (via
+// Invoice.pendingGatewayOrderId above), so this is always written through
+// the unscoped `prisma.platform` client, same as ReminderCronService.
+// `tenantId` is genuinely nullable here — unlike every other table in
+// TENANT_SCOPED_MODELS — because a signature failure or an event for an
+// unrecognized order never learns a tenant at all.
+model PaymentGatewayEvent {
+  id              String   @id @default(uuid())
+  tenantId        String?
+  provider        String   @default("razorpay")
+  eventId         String // Razorpay's own event id — the idempotency key (Razorpay retries webhook delivery)
+  eventType       String // "payment.captured" | "payment.failed" | "payment_link.expired" | "payment_link.cancelled" | ...
+  providerOrderId String?
+  signatureValid  Boolean
+  processedAt     DateTime? // null = received but not (yet, or ever) applied — see processingError
+  processingError String?
+  rawPayload      Json
+  createdAt       DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([tenantId, createdAt])
+  @@index([providerOrderId])
+  @@map("payment_gateway_events")
 }
 
 // ─────────────── NOTIFICATIONS (Phase 8) ───────────────

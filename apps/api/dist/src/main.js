@@ -12,7 +12,7 @@ const http_exception_filter_1 = require("./common/filters/http-exception.filter"
 const upload_storage_1 = require("./modules/uploads/upload-storage");
 const api_prefix_1 = require("./common/api-prefix");
 async function bootstrap() {
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
     app.setGlobalPrefix(api_prefix_1.API_PREFIX);
     app.use((0, cookie_parser_1.default)());
     app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });

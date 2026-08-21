@@ -39,6 +39,7 @@ const purchase_orders_module_1 = require("./modules/purchase-orders/purchase-ord
 const purchase_invoices_module_1 = require("./modules/purchase-invoices/purchase-invoices.module");
 const supplier_payments_module_1 = require("./modules/supplier-payments/supplier-payments.module");
 const invoices_module_1 = require("./modules/invoices/invoices.module");
+const payments_gateway_module_1 = require("./modules/payments-gateway/payments-gateway.module");
 const reports_module_1 = require("./modules/reports/reports.module");
 const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
 const notifications_module_1 = require("./modules/notifications/notifications.module");
@@ -77,6 +78,7 @@ exports.AppModule = AppModule = __decorate([
             purchase_invoices_module_1.PurchaseInvoicesModule,
             supplier_payments_module_1.SupplierPaymentsModule,
             invoices_module_1.InvoicesModule,
+            payments_gateway_module_1.PaymentsGatewayModule,
             reports_module_1.ReportsModule,
             dashboard_module_1.DashboardModule,
             notifications_module_1.NotificationsModule,
