@@ -80,6 +80,16 @@ export class EstimatesController {
     return this.estimatesService.send(id);
   }
 
+  // For when the original link's 7-day token expired (or the message was
+  // lost) but the estimate is still SENT — mints a fresh token and
+  // re-sends, same shape as InvoicesController's resend-invoice-PDF action.
+  @Permissions('estimate:update')
+  @Post(':id/resend-approval-link')
+  @Audit('estimate.resend-approval-link', 'Estimate')
+  resendApprovalLink(@Param('id') id: string) {
+    return this.estimatesService.resendApprovalLink(id);
+  }
+
   @Permissions('estimate:update')
   @Post(':id/approve')
   @Audit('estimate.approve', 'Estimate')

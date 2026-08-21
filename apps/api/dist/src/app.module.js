@@ -30,6 +30,7 @@ const vehicles_module_1 = require("./modules/vehicles/vehicles.module");
 const appointments_module_1 = require("./modules/appointments/appointments.module");
 const inspections_module_1 = require("./modules/inspections/inspections.module");
 const estimates_module_1 = require("./modules/estimates/estimates.module");
+const estimate_approval_module_1 = require("./modules/estimate-approval/estimate-approval.module");
 const labour_items_module_1 = require("./modules/labour-items/labour-items.module");
 const technicians_module_1 = require("./modules/technicians/technicians.module");
 const job_cards_module_1 = require("./modules/job-cards/job-cards.module");
@@ -69,6 +70,7 @@ exports.AppModule = AppModule = __decorate([
             appointments_module_1.AppointmentsModule,
             inspections_module_1.InspectionsModule,
             estimates_module_1.EstimatesModule,
+            estimate_approval_module_1.EstimateApprovalModule,
             labour_items_module_1.LabourItemsModule,
             technicians_module_1.TechniciansModule,
             job_cards_module_1.JobCardsModule,

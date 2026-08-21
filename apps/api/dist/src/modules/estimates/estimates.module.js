@@ -10,6 +10,7 @@ exports.EstimatesModule = void 0;
 const common_1 = require("@nestjs/common");
 const job_cards_module_1 = require("../job-cards/job-cards.module");
 const messaging_module_1 = require("../messaging/messaging.module");
+const estimate_approval_token_module_1 = require("../estimate-approval/estimate-approval-token.module");
 const estimates_service_1 = require("./estimates.service");
 const estimates_controller_1 = require("./estimates.controller");
 let EstimatesModule = class EstimatesModule {
@@ -17,7 +18,7 @@ let EstimatesModule = class EstimatesModule {
 exports.EstimatesModule = EstimatesModule;
 exports.EstimatesModule = EstimatesModule = __decorate([
     (0, common_1.Module)({
-        imports: [job_cards_module_1.JobCardsModule, messaging_module_1.MessagingModule],
+        imports: [job_cards_module_1.JobCardsModule, messaging_module_1.MessagingModule, estimate_approval_token_module_1.EstimateApprovalTokenModule],
         controllers: [estimates_controller_1.EstimatesController],
         providers: [estimates_service_1.EstimatesService],
         exports: [estimates_service_1.EstimatesService],

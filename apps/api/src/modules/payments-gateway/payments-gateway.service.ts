@@ -56,7 +56,7 @@ export class PaymentsGatewayService {
     }
 
     const tenantId = TenantContext.requireTenantId();
-    const frontendUrl = this.config.get<string>('razorpay.frontendUrl');
+    const frontendUrl = this.config.get<string>('frontendUrl');
 
     const link = await this.razorpay.createPaymentLink({
       amount: outstanding.toNumber(),

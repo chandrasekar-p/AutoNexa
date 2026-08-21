@@ -6,6 +6,7 @@ exports.default = () => ({
     database: {
         url: process.env.DATABASE_URL,
     },
+    frontendUrl: process.env.FRONTEND_URL,
     jwt: {
         accessSecret: process.env.JWT_ACCESS_SECRET,
         accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
@@ -31,11 +32,13 @@ exports.default = () => ({
             phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
         },
     },
+    estimateApproval: {
+        secret: process.env.ESTIMATE_APPROVAL_SECRET,
+    },
     razorpay: {
         keyId: process.env.RAZORPAY_KEY_ID,
         keySecret: process.env.RAZORPAY_KEY_SECRET,
         webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
-        frontendUrl: process.env.FRONTEND_URL,
     },
 });
 //# sourceMappingURL=configuration.js.map

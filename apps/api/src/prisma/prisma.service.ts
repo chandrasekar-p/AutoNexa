@@ -26,6 +26,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'InspectionPhoto',
   'Estimate',
   'EstimateLineItem',
+  'EstimateApprovalEvent', // tenantId nullable in the schema only for the TOKEN_EXPIRED/TOKEN_INVALID rows written via prisma.platform directly — see estimate-approval.service.ts
   'LabourItem',
   'Technician',
   'JobCard',

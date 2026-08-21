@@ -22,7 +22,7 @@ function appointmentReminderMessage(ctx) {
 function estimateReadyMessage(ctx) {
     return {
         subject: `Estimate ${ctx.estimateNumber} ready for approval — ${ctx.workshopName}`,
-        body: `Hi ${ctx.customerName}, estimate ${ctx.estimateNumber} for ${ctx.vehicleLabel} (${ctx.grandTotal}) is ready for your approval. Please contact us to confirm. — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, estimate ${ctx.estimateNumber} for ${ctx.vehicleLabel} (${ctx.grandTotal}) is ready for your approval: ${ctx.approvalUrl} — ${ctx.workshopName}`,
     };
 }
 function jobCardReadyMessage(ctx) {

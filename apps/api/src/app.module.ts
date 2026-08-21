@@ -18,6 +18,7 @@ import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { InspectionsModule } from './modules/inspections/inspections.module';
 import { EstimatesModule } from './modules/estimates/estimates.module';
+import { EstimateApprovalModule } from './modules/estimate-approval/estimate-approval.module';
 import { LabourItemsModule } from './modules/labour-items/labour-items.module';
 import { TechniciansModule } from './modules/technicians/technicians.module';
 import { JobCardsModule } from './modules/job-cards/job-cards.module';
@@ -54,6 +55,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     AppointmentsModule,
     InspectionsModule,
     EstimatesModule,
+    EstimateApprovalModule,
     LabourItemsModule,
     TechniciansModule,
     JobCardsModule,

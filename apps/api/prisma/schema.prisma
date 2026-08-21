@@ -481,12 +481,37 @@ model Estimate {
 
   lineItems EstimateLineItem[]
   jobCard   JobCard?
+  approvalEvents EstimateApprovalEvent[]
 
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, customerId])
   @@index([tenantId, vehicleId])
   @@map("estimates")
+}
+
+// Append-only audit trail for the customer self-approval link — same
+// "written, never updated/deleted" discipline as JobCardStatusHistory/
+// JobCardNote/InventoryTransaction/PaymentGatewayEvent. Unlike
+// PaymentGatewayEvent, tenantId here is NOT nullable: the customer
+// approval token is a JWT AutoNexa itself signs, so by the time any row is
+// written the token has already verified and tenantId is a trusted claim
+// — no unscoped lookup needed to discover it (see the architecture doc
+// §3.1). The two failure cases where a token never verifies at all
+// (TOKEN_EXPIRED/TOKEN_INVALID) are the one exception — see
+// estimate-approval.service.ts.
+model EstimateApprovalEvent {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id])
+  action     String // "VIEWED" | "APPROVED" | "REJECTED" | "TOKEN_EXPIRED" | "TOKEN_INVALID" | "ALREADY_DECIDED"
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, estimateId])
+  @@map("estimate_approval_events")
 }
 
 enum EstimateLineItemType {

@@ -107,7 +107,8 @@ The app listens on `:3000` by default and expects the API from
 | `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | no | Outbound WhatsApp via Meta's Cloud API — unset skips WhatsApp |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | no | Razorpay API key pair — unset hides/disables "Send Payment Link" on an invoice, same "quietly unavailable" posture as the messaging providers above |
 | `RAZORPAY_WEBHOOK_SECRET` | no (required if the above are set) | Verifies the HMAC signature Razorpay sends on every webhook delivery — configure it in the Razorpay dashboard's webhook settings to match |
-| `FRONTEND_URL` | no | Where Razorpay's Payment Link redirects the customer's browser after paying (`{FRONTEND_URL}/invoices/:id`) — unset just skips the redirect, Razorpay shows its own default confirmation page instead |
+| `FRONTEND_URL` | recommended | Where a customer-facing link should point the browser — Razorpay's Payment Link `callback_url` after paying, and the estimate self-approval link (`{FRONTEND_URL}/estimates/approve/:token}`). Unset: the Razorpay redirect is just skipped (Razorpay shows its own confirmation page instead), but the estimate approval link becomes a relative path with no host — only actually usable once a real `FRONTEND_URL` is set, so treat this as required in practice once either feature is in use |
+| `ESTIMATE_APPROVAL_SECRET` | **yes**, once this feature is deployed | Signs/verifies the customer estimate-approval link's token — a dedicated secret, not shared with `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` or `RAZORPAY_WEBHOOK_SECRET`. Unlike the messaging/Razorpay providers, this one is **not** optional-with-graceful-degradation: `EstimatesService.send()` (the pre-existing "send to customer" action) now mints a token on every call, so an unset secret breaks `send()` outright, not just a new feature — set it before deploying this phase |
 
 Slack is configured per-workshop, not via `.env` — each tenant sets its own
 incoming webhook URL under Settings → Workshop → Slack Webhook URL.
@@ -210,7 +211,38 @@ Until this is configured, "Send Payment Link" simply doesn't appear/errors
 clearly (`payment gateway is not configured`) — nothing else in the app
 depends on it.
 
-### 5. Smoke-test before declaring it live
+### 5. Customer Communication — self-service estimate approval
+
+Set `ESTIMATE_APPROVAL_SECRET` (a long random string — treat it like a JWT
+signing secret, because it is one) and `FRONTEND_URL` (see the env var
+table above). Once both are set, `POST /estimates/:id/send` automatically
+includes an approval link in the customer's WhatsApp/SMS/Email —
+`{FRONTEND_URL}/estimates/approve/:token` — no other configuration needed;
+this doesn't call out to a third-party API the way Razorpay does.
+
+The link:
+
+- Lets the customer view the estimate (line items, total, job description)
+  and tap Approve/Reject with **no login**.
+- Is a signed, time-limited token — **7 days** by default — not a row
+  looked up in the database. If it expires (or the customer lost the
+  message), staff click **Resend Approval Link** on the estimate detail
+  page (visible whenever status is still `SENT`) to mint a fresh one and
+  re-send — this never changes the estimate's status, only the delivery.
+- Can only ever be used **once**: approving or rejecting moves the
+  estimate out of `SENT`, and a second click of the same (or a resent)
+  link is rejected the same way a staff member double-clicking Approve
+  would be.
+- Every open, approval, rejection, and failed/expired attempt is logged to
+  `estimate_approval_events` — a defensible record of what the customer
+  (or whoever had the link) actually did, separate from the normal staff
+  audit log.
+
+Staff's existing "Mark Approved"/"Mark Rejected" buttons (for phone-based
+approvals) are unaffected — both paths update the same estimate through
+the same guard, just tagged with who made the call.
+
+### 6. Smoke-test before declaring it live
 
 - `POST /auth/login` against the deployed API with a real account
 - Confirm the frontend can reach it (no CORS errors in the browser console)
@@ -223,6 +255,9 @@ depends on it.
   seconds without any manual action — that's the webhook round-trip
   working end-to-end. Check `payment_gateway_events` in the database if it
   doesn't; every delivery Razorpay makes is logged there, processed or not
+- Send an estimate to a test customer, open the approval link it produces
+  in an incognito window (no session), and confirm you can approve it and
+  that a second click of the same link is rejected as already-decided
 
 ## Seeded accounts (local dev only)
 

@@ -17,14 +17,16 @@ const tenant_context_1 = require("../../prisma/tenant-context");
 const job_cards_service_1 = require("../job-cards/job-cards.service");
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
+const estimate_approval_token_service_1 = require("../estimate-approval/estimate-approval-token.service");
 const estimate_totals_1 = require("./estimate-totals");
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
 let EstimatesService = class EstimatesService {
-    constructor(prisma, jobCardsService, messaging) {
+    constructor(prisma, jobCardsService, messaging, approvalToken) {
         this.prisma = prisma;
         this.jobCardsService = jobCardsService;
         this.messaging = messaging;
+        this.approvalToken = approvalToken;
     }
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
@@ -123,37 +125,59 @@ let EstimatesService = class EstimatesService {
     }
     async send(id) {
         const estimate = await this.transition(id, client_1.EstimateStatus.DRAFT, client_1.EstimateStatus.SENT, {});
+        await this.sendApprovalLinkMessage(id, estimate, 'estimate.ready');
+        return estimate;
+    }
+    async resendApprovalLink(id) {
+        const estimate = await this.assertExists(id);
+        if (estimate.status !== client_1.EstimateStatus.SENT) {
+            throw new common_1.BadRequestException('Estimate must be in SENT status to resend the approval link');
+        }
+        const full = await this.prisma.forTenant().estimate.findFirstOrThrow({
+            where: { id },
+            include: { lineItems: true, customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+        });
+        await this.sendApprovalLinkMessage(id, full, 'estimate.resend');
+        return full;
+    }
+    async sendApprovalLinkMessage(id, estimate, event) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
         const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const approvalUrl = this.approvalToken.buildUrl(this.approvalToken.sign({ estimateId: id, tenantId }));
         const content = (0, templates_1.estimateReadyMessage)({
             workshopName: tenant?.name ?? 'AutoNexa',
             customerName: estimate.customer.name,
             vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,
             estimateNumber: `EST-${id.slice(0, 8).toUpperCase()}`,
             grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
+            approvalUrl,
         });
-        await this.messaging.notifyCustomer(tenantId, 'estimate.ready', { email: estimate.customer.email, mobile: estimate.customer.mobile }, content, { type: 'Estimate', id });
-        await this.messaging.notifyOps(tenantId, 'estimate.ready', `Estimate sent: ${estimate.customer.name} — ${estimate.vehicle.registrationNo} — ₹${Number(estimate.total).toFixed(2)}`, { type: 'Estimate', id });
-        return estimate;
+        await this.messaging.notifyCustomer(tenantId, event, { email: estimate.customer.email, mobile: estimate.customer.mobile }, content, { type: 'Estimate', id });
+        await this.messaging.notifyOps(tenantId, event, `Estimate sent: ${estimate.customer.name} — ${estimate.vehicle.registrationNo} — ₹${Number(estimate.total).toFixed(2)}`, { type: 'Estimate', id });
     }
     async approve(id) {
-        const estimate = await this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.APPROVED, {
-            approvedAt: new Date(),
-        });
-        await this.prisma.forTenant().notification.create({
-            data: {
-                userId: null,
-                type: 'estimate_approved',
-                title: 'Estimate approved',
-                message: `Estimate for ${estimate.jobDescription ?? 'a vehicle'} has been approved.`,
-                relatedEntityType: 'Estimate',
-                relatedEntityId: id,
-            },
-        });
-        return estimate;
+        return this.applyDecision(id, 'APPROVED', 'staff');
     }
     async reject(id) {
-        return this.transition(id, client_1.EstimateStatus.SENT, client_1.EstimateStatus.REJECTED, { rejectedAt: new Date() });
+        return this.applyDecision(id, 'REJECTED', 'staff');
+    }
+    async applyDecision(id, decision, source) {
+        const toStatus = decision === 'APPROVED' ? client_1.EstimateStatus.APPROVED : client_1.EstimateStatus.REJECTED;
+        const extra = decision === 'APPROVED' ? { approvedAt: new Date() } : { rejectedAt: new Date() };
+        const estimate = await this.transition(id, client_1.EstimateStatus.SENT, toStatus, extra);
+        if (decision === 'APPROVED') {
+            await this.prisma.forTenant().notification.create({
+                data: {
+                    userId: null,
+                    type: 'estimate_approved',
+                    title: 'Estimate approved',
+                    message: `Estimate for ${estimate.jobDescription ?? 'a vehicle'} has been approved${source === 'customer' ? ' by the customer' : ''}.`,
+                    relatedEntityType: 'Estimate',
+                    relatedEntityId: id,
+                },
+            });
+        }
+        return estimate;
     }
     async convertToJobCard(id) {
         const estimate = await this.assertExists(id);
@@ -241,6 +265,7 @@ exports.EstimatesService = EstimatesService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         job_cards_service_1.JobCardsService,
-        messaging_service_1.MessagingService])
+        messaging_service_1.MessagingService,
+        estimate_approval_token_service_1.EstimateApprovalTokenService])
 ], EstimatesService);
 //# sourceMappingURL=estimates.service.js.map

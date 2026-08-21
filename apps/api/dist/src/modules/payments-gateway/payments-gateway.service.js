@@ -41,7 +41,7 @@ let PaymentsGatewayService = PaymentsGatewayService_1 = class PaymentsGatewaySer
             throw new common_1.BadRequestException('This invoice has no outstanding balance');
         }
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
-        const frontendUrl = this.config.get('razorpay.frontendUrl');
+        const frontendUrl = this.config.get('frontendUrl');
         const link = await this.razorpay.createPaymentLink({
             amount: outstanding.toNumber(),
             referenceId: invoice.invoiceNumber,

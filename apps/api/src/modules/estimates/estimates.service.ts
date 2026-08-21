@@ -5,6 +5,7 @@ import { TenantContext } from '../../prisma/tenant-context';
 import { JobCardsService } from '../job-cards/job-cards.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { estimateReadyMessage } from '../messaging/templates';
+import { EstimateApprovalTokenService } from '../estimate-approval/estimate-approval-token.service';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { ListEstimatesQueryDto } from './dto/list-estimates-query.dto';
@@ -21,6 +22,7 @@ export class EstimatesService {
     private readonly prisma: PrismaService,
     private readonly jobCardsService: JobCardsService,
     private readonly messaging: MessagingService,
+    private readonly approvalToken: EstimateApprovalTokenService,
   ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
@@ -140,20 +142,56 @@ export class EstimatesService {
 
   async send(id: string) {
     const estimate = await this.transition(id, EstimateStatus.DRAFT, EstimateStatus.SENT, {});
+    await this.sendApprovalLinkMessage(id, estimate, 'estimate.ready');
+    return estimate;
+  }
 
+  /**
+   * For when the original link's 7-day token has expired (or was just
+   * lost) but the estimate is still SENT — mints a fresh token and
+   * re-sends, same shape as InvoicesService.resend() for an invoice PDF.
+   * Deliberately does NOT touch Estimate.status — same reasoning as
+   * invoice resend never touching InvoiceStatus, this is delivery, not a
+   * business transition.
+   */
+  async resendApprovalLink(id: string) {
+    const estimate = await this.assertExists(id);
+    if (estimate.status !== EstimateStatus.SENT) {
+      throw new BadRequestException('Estimate must be in SENT status to resend the approval link');
+    }
+    const full = await this.prisma.forTenant().estimate.findFirstOrThrow({
+      where: { id },
+      include: { lineItems: true, customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+    });
+    await this.sendApprovalLinkMessage(id, full, 'estimate.resend');
+    return full;
+  }
+
+  private async sendApprovalLinkMessage(
+    id: string,
+    estimate: {
+      total: Prisma.Decimal;
+      jobDescription: string | null;
+      customer: { name: string; mobile: string; email: string | null };
+      vehicle: { registrationNo: string; brand: string; model: string };
+    },
+    event: string,
+  ) {
     const tenantId = TenantContext.requireTenantId();
     const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const approvalUrl = this.approvalToken.buildUrl(this.approvalToken.sign({ estimateId: id, tenantId }));
     const content = estimateReadyMessage({
       workshopName: tenant?.name ?? 'AutoNexa',
       customerName: estimate.customer.name,
       vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,
       estimateNumber: `EST-${id.slice(0, 8).toUpperCase()}`,
       grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
+      approvalUrl,
     });
 
     await this.messaging.notifyCustomer(
       tenantId,
-      'estimate.ready',
+      event,
       { email: estimate.customer.email, mobile: estimate.customer.mobile },
       content,
       { type: 'Estimate', id },
@@ -161,39 +199,54 @@ export class EstimatesService {
 
     await this.messaging.notifyOps(
       tenantId,
-      'estimate.ready',
+      event,
       `Estimate sent: ${estimate.customer.name} — ${estimate.vehicle.registrationNo} — ₹${Number(estimate.total).toFixed(2)}`,
       { type: 'Estimate', id },
     );
-
-    return estimate;
   }
 
   async approve(id: string) {
-    const estimate = await this.transition(id, EstimateStatus.SENT, EstimateStatus.APPROVED, {
-      approvedAt: new Date(),
-    });
-
-    // Estimates don't track a per-estimate owner/service advisor (no such
-    // field on the model), so this is broadcast-only (userId: null) for
-    // now — every tenant user sees it. Revisit once/if Estimate gains
-    // ownership tracking.
-    await this.prisma.forTenant().notification.create({
-      data: {
-        userId: null,
-        type: 'estimate_approved',
-        title: 'Estimate approved',
-        message: `Estimate for ${estimate.jobDescription ?? 'a vehicle'} has been approved.`,
-        relatedEntityType: 'Estimate',
-        relatedEntityId: id,
-      } as unknown as Prisma.NotificationUncheckedCreateInput,
-    });
-
-    return estimate;
+    return this.applyDecision(id, 'APPROVED', 'staff');
   }
 
   async reject(id: string) {
-    return this.transition(id, EstimateStatus.SENT, EstimateStatus.REJECTED, { rejectedAt: new Date() });
+    return this.applyDecision(id, 'REJECTED', 'staff');
+  }
+
+  /**
+   * Shared core for both the staff approve/reject endpoints above and the
+   * customer self-service approval path (EstimateApprovalService, which
+   * calls this after verifying the customer's link token and resolving
+   * tenant context — see the architecture doc §4.2). Same transition
+   * guard, same notification, regardless of who made the call; `source`
+   * only affects the notification's wording, so staff can tell which
+   * happened without checking EstimateApprovalEvent.
+   */
+  async applyDecision(id: string, decision: 'APPROVED' | 'REJECTED', source: 'staff' | 'customer') {
+    const toStatus = decision === 'APPROVED' ? EstimateStatus.APPROVED : EstimateStatus.REJECTED;
+    const extra = decision === 'APPROVED' ? { approvedAt: new Date() } : { rejectedAt: new Date() };
+    const estimate = await this.transition(id, EstimateStatus.SENT, toStatus, extra);
+
+    if (decision === 'APPROVED') {
+      // Estimates don't track a per-estimate owner/service advisor (no such
+      // field on the model), so this is broadcast-only (userId: null) for
+      // now — every tenant user sees it. Revisit once/if Estimate gains
+      // ownership tracking. Only APPROVED gets a notification — REJECTED
+      // never has, matching the pre-existing behavior this refactor must
+      // not change.
+      await this.prisma.forTenant().notification.create({
+        data: {
+          userId: null,
+          type: 'estimate_approved',
+          title: 'Estimate approved',
+          message: `Estimate for ${estimate.jobDescription ?? 'a vehicle'} has been approved${source === 'customer' ? ' by the customer' : ''}.`,
+          relatedEntityType: 'Estimate',
+          relatedEntityId: id,
+        } as unknown as Prisma.NotificationUncheckedCreateInput,
+      });
+    }
+
+    return estimate;
   }
 
   /**

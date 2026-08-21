@@ -28,6 +28,7 @@ const TENANT_SCOPED_MODELS = new Set([
     'InspectionPhoto',
     'Estimate',
     'EstimateLineItem',
+    'EstimateApprovalEvent',
     'LabourItem',
     'Technician',
     'JobCard',

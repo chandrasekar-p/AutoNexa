@@ -27,15 +27,17 @@ describe('messaging templates', () => {
         });
         expect(msg.body).toContain('tomorrow');
     });
-    it('builds an estimate-ready message with the estimate number and total', () => {
+    it('builds an estimate-ready message with the estimate number, total, and approval link', () => {
         const msg = (0, templates_1.estimateReadyMessage)({
             workshopName: 'Demo Workshop',
             customerName: 'Arun',
             vehicleLabel: 'KA01AB1234 Honda City',
             estimateNumber: 'EST-0001',
             grandTotal: '₹4,500.00',
+            approvalUrl: 'https://app.autonexa.test/estimates/approve/abc123',
         });
         expect(msg.body).toContain('EST-0001');
+        expect(msg.body).toContain('https://app.autonexa.test/estimates/approve/abc123');
         expect(msg.body).toContain('₹4,500.00');
     });
     it('builds a job-card-ready message with the job card number', () => {

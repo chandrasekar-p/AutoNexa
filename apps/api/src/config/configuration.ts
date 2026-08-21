@@ -4,6 +4,11 @@ export default () => ({
   database: {
     url: process.env.DATABASE_URL,
   },
+  // Where a customer-facing browser redirect/link should point —
+  // originally added for Razorpay's Payment Link callback_url, now also
+  // used by the estimate self-approval link, so it lives at the top level
+  // rather than nested under one specific integration's namespace.
+  frontendUrl: process.env.FRONTEND_URL,
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
@@ -29,17 +34,15 @@ export default () => ({
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     },
   },
+  estimateApproval: {
+    // Dedicated secret — not JWT_ACCESS_SECRET/JWT_REFRESH_SECRET — same
+    // "one secret per token purpose" reasoning as those two, and as
+    // RAZORPAY_WEBHOOK_SECRET being separate from the Razorpay API secret.
+    secret: process.env.ESTIMATE_APPROVAL_SECRET,
+  },
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID,
     keySecret: process.env.RAZORPAY_KEY_SECRET,
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
-    // Only needed for the Payment Link's callback_url (where Razorpay
-    // redirects the customer's browser after paying) — nothing else in
-    // this backend has previously needed to construct a frontend-facing
-    // URL. If unset, RazorpayProvider still works but the callback_url is
-    // omitted rather than the whole feature failing to boot — same
-    // "don't crash over an optional integration" posture as the other
-    // messaging providers.
-    frontendUrl: process.env.FRONTEND_URL,
   },
 });

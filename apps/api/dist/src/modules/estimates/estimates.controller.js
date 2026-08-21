@@ -54,6 +54,9 @@ let EstimatesController = class EstimatesController {
     send(id) {
         return this.estimatesService.send(id);
     }
+    resendApprovalLink(id) {
+        return this.estimatesService.resendApprovalLink(id);
+    }
     approve(id) {
         return this.estimatesService.approve(id);
     }
@@ -149,6 +152,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], EstimatesController.prototype, "send", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('estimate:update'),
+    (0, common_1.Post)(':id/resend-approval-link'),
+    (0, audit_log_interceptor_1.Audit)('estimate.resend-approval-link', 'Estimate'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EstimatesController.prototype, "resendApprovalLink", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('estimate:update'),
     (0, common_1.Post)(':id/approve'),

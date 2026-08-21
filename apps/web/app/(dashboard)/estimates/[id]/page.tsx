@@ -146,6 +146,14 @@ export default function EstimateDetailPage() {
               >
                 Mark Rejected
               </Button>
+              {/* For when the customer's original 7-day approval link expired, or they lost the message — mints a fresh link and re-sends, without touching status. */}
+              <Button
+                variant="secondary"
+                onClick={() => runAction(() => apiPost(`/estimates/${params.id}/resend-approval-link`))}
+                isLoading={isActing}
+              >
+                Resend Approval Link
+              </Button>
             </>
           ) : null}
           {estimate.status === 'APPROVED' ? (
