@@ -8,6 +8,7 @@ import { usePermission } from '@/lib/hooks/use-permission';
 import { formatMoney } from '@/lib/format';
 import { exportRowsAsCsv } from '@/lib/export/csv';
 import { exportRowsAsPdf } from '@/lib/export/pdf';
+import { computeColumnTotals } from '@/lib/reports/column-totals';
 import type { CurrentTenant } from '@/lib/api-types';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -124,10 +125,29 @@ function formatCell(key: string, value: unknown): string {
 }
 
 /**
+ * Server-computed when present (see apps/api's reports.service.ts
+ * paginate()/payments() — summed over the FULL dataset, not just the
+ * current page). Falls back to summing whatever rows are actually in the
+ * response, which is only accurate for a report that isn't paginated —
+ * currently just job-card-status, which must keep its bare-array shape
+ * for the dashboard's donut chart and so carries no columnTotals of its
+ * own.
+ */
+function getColumnTotals(data: unknown): Record<string, number> {
+  const serverTotals = (data as { columnTotals?: Record<string, number> })?.columnTotals;
+  if (serverTotals) return serverTotals;
+  const rows: Record<string, unknown>[] = Array.isArray(data)
+    ? data
+    : ((data as { items?: Record<string, unknown>[] })?.items ?? []);
+  return computeColumnTotals(rows);
+}
+
+/**
  * Normalizes any report's response — paginated `{items}`, a plain array,
  * or a flat summary object — into a uniform columns+rows shape. Shared by
  * the on-screen table/summary render AND the CSV/PDF export, so what you
- * export always matches exactly what you're looking at.
+ * export always matches exactly what you're looking at, Grand Total row
+ * included.
  */
 function toExportShape(report: ReportConfig, data: unknown): { columns: { key: string; label: string }[]; rows: Record<string, unknown>[] } {
   if (report.shape === 'object') {
@@ -143,10 +163,19 @@ function toExportShape(report: ReportConfig, data: unknown): { columns: { key: s
 
   const rawRows: Record<string, unknown>[] = Array.isArray(data) ? data : ((data as { items?: Record<string, unknown>[] })?.items ?? []);
   const keys = Object.keys(rawRows[0] ?? {}).filter((k) => k !== 'id');
-  return {
-    columns: keys.map((key) => ({ key, label: formatLabel(key) })),
-    rows: rawRows.map((row) => Object.fromEntries(keys.map((key) => [key, formatCell(key, row[key])]))),
-  };
+  const rows = rawRows.map((row) => Object.fromEntries(keys.map((key) => [key, formatCell(key, row[key])])));
+
+  const columnTotals = getColumnTotals(data);
+  if (Object.keys(columnTotals).length > 0) {
+    const labelKey = keys.find((k) => !(k in columnTotals)) ?? keys[0]!;
+    rows.push(
+      Object.fromEntries(
+        keys.map((key) => [key, key in columnTotals ? formatCell(key, columnTotals[key]) : key === labelKey ? 'Grand Total' : '']),
+      ),
+    );
+  }
+
+  return { columns: keys.map((key) => ({ key, label: formatLabel(key) })), rows };
 }
 
 function ReportTable({ data }: { data: unknown }) {
@@ -159,6 +188,9 @@ function ReportTable({ data }: { data: unknown }) {
   }
 
   const columns = Object.keys(rows[0] ?? {}).filter((k) => k !== 'id');
+  const columnTotals = getColumnTotals(data);
+  const hasTotals = Object.keys(columnTotals).length > 0;
+  const labelCol = columns.find((c) => !(c in columnTotals)) ?? columns[0];
 
   return (
     <Table>
@@ -179,6 +211,15 @@ function ReportTable({ data }: { data: unknown }) {
             ))}
           </TableRow>
         ))}
+        {hasTotals ? (
+          <TableRow className="border-t-2 border-line font-semibold text-ink">
+            {columns.map((col) => (
+              <TableCell key={col} className={col in columnTotals ? 'num' : ''}>
+                {col in columnTotals ? formatCell(col, columnTotals[col]) : col === labelCol ? 'Grand Total' : ''}
+              </TableCell>
+            ))}
+          </TableRow>
+        ) : null}
       </TableBody>
     </Table>
   );

@@ -1,6 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { InvoiceStatus, JobCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
@@ -8,7 +7,7 @@ import { generateSequenceNumber } from '../../common/sequence/generate-sequence-
 import { rollupPaymentStatus } from '../../common/billing/rollup-payment-status';
 import { MessagingService } from '../messaging/messaging.service';
 import { invoiceIssuedMessage, paymentReceivedMessage } from '../messaging/templates';
-import { UPLOAD_ROOT } from '../uploads/upload-storage';
+import { resolveUploadPath } from '../uploads/upload-storage';
 import { calculateGstSplit, computeRoundOff, GstSplitLineItem } from './gst-split';
 import { isOverpayment } from './payment-guard';
 import { buildInvoicePdf } from './invoice-pdf';
@@ -231,11 +230,7 @@ export class InvoicesService {
   async resend(id: string) {
     const invoice = await this.findOne(id);
     const tenantId = TenantContext.requireTenantId();
-    const [tenant, settings] = await Promise.all([
-      this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
-      this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } }),
-    ]);
-    const workshopName = tenant?.name ?? 'AutoNexa';
+    const { workshopName, pdfBuffer } = await this.buildInvoicePdfBuffer(invoice);
 
     const content = invoiceIssuedMessage({
       workshopName,
@@ -243,6 +238,48 @@ export class InvoicesService {
       invoiceNumber: invoice.invoiceNumber,
       grandTotal: `₹${Number(invoice.grandTotal).toFixed(2)}`,
     });
+
+    const attempts = await this.messaging.notifyCustomer(
+      tenantId,
+      'invoice.resent',
+      { email: invoice.customer.email, mobile: invoice.customer.mobile },
+      content,
+      { type: 'Invoice', id },
+      [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
+    );
+
+    // `id` in the response (not just `attempts`) is deliberate — the audit
+    // interceptor reads `.id` off every @Audit()-tagged response to fill
+    // `entityId` (see audit-log.interceptor.ts); without it every resend
+    // would log as entityId "unknown", the same bug fixed once already this
+    // build in adminSetPassword.
+    return { id, attempts };
+  }
+
+  /**
+   * Direct browser download — for the "no Email/SMS/WhatsApp configured,
+   * how does the owner actually get the invoice" gap: resend() only ever
+   * puts the PDF in an outbound message, with nothing to show if every
+   * channel is unconfigured or the customer has no email/mobile on file.
+   * This bypasses messaging entirely and just hands back the same PDF
+   * bytes resend() would have attached, for the controller to stream as
+   * a file response.
+   */
+  async downloadPdf(id: string): Promise<{ fileName: string; buffer: Buffer }> {
+    const invoice = await this.findOne(id);
+    const { pdfBuffer } = await this.buildInvoicePdfBuffer(invoice);
+    return { fileName: `${invoice.invoiceNumber}.pdf`, buffer: pdfBuffer };
+  }
+
+  private async buildInvoicePdfBuffer(
+    invoice: Awaited<ReturnType<InvoicesService['findOne']>>,
+  ): Promise<{ workshopName: string; pdfBuffer: Buffer }> {
+    const tenantId = TenantContext.requireTenantId();
+    const [tenant, settings] = await Promise.all([
+      this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+      this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } }),
+    ]);
+    const workshopName = tenant?.name ?? 'AutoNexa';
 
     const pdfBuffer = await buildInvoicePdf({
       workshopName,
@@ -267,28 +304,14 @@ export class InvoicesService {
       grandTotal: invoice.grandTotal.toString(),
     });
 
-    const attempts = await this.messaging.notifyCustomer(
-      tenantId,
-      'invoice.resent',
-      { email: invoice.customer.email, mobile: invoice.customer.mobile },
-      content,
-      { type: 'Invoice', id },
-      [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
-    );
-
-    // `id` in the response (not just `attempts`) is deliberate — the audit
-    // interceptor reads `.id` off every @Audit()-tagged response to fill
-    // `entityId` (see audit-log.interceptor.ts); without it every resend
-    // would log as entityId "unknown", the same bug fixed once already this
-    // build in adminSetPassword.
-    return { id, attempts };
+    return { workshopName, pdfBuffer };
   }
 
-  /** `logoUrl` is a relative `/uploads/<tenantId>/<uuid>.ext` path (see upload-storage.ts) — resolved straight off local disk, not over HTTP, since this runs in the same process that serves it. */
+  /** `logoUrl` is a relative upload URL (see upload-storage.ts's resolveUploadPath) — resolved straight off local disk, not over HTTP, since this runs in the same process that serves it. */
   private async readLogoBuffer(logoUrl: string | null): Promise<Buffer | null> {
     if (!logoUrl) return null;
     try {
-      return await readFile(join(UPLOAD_ROOT, logoUrl.replace(/^\/uploads\//, '')));
+      return await readFile(resolveUploadPath(logoUrl));
     } catch {
       return null;
     }

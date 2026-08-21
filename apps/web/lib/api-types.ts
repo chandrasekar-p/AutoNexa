@@ -39,6 +39,7 @@ export interface DashboardSummary {
   partsRevenueMonthly?: string;
   lowStockCount: number;
   technicianWorkload: Array<{ technicianId: string; name: string; jobsOpen: number }>;
+  technicianWorkloadScope: 'mine' | 'all';
 }
 
 export interface AlertsLowStockPart {

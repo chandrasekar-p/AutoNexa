@@ -174,6 +174,52 @@ export function apiGet<T>(path: string, options?: ApiFetchOptions): Promise<T> {
   return apiFetch<T>(path, { ...options, method: 'GET' });
 }
 
+/**
+ * Same auth/refresh handling as apiFetch, but for a binary response (PDF
+ * download, etc.) that isn't JSON — apiFetch always calls res.json() on
+ * success, which would throw on a PDF body.
+ */
+export async function apiGetBlob(path: string): Promise<Blob> {
+  return doFetchBlob(path, false);
+}
+
+async function doFetchBlob(path: string, alreadyRetried: boolean): Promise<Blob> {
+  const headers = new Headers();
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+
+  const res = await fetch(`${apiBaseUrl()}${path}`, { headers, credentials: 'include' });
+
+  const decision = decideOn401({
+    status: res.status,
+    alreadyRetried,
+    refreshInFlight: refreshPromise !== null,
+    isAuthEndpoint: false,
+  });
+
+  if (decision === 'start-refresh' || decision === 'await-inflight') {
+    const newToken = await refreshAccessToken();
+    if (newToken) return doFetchBlob(path, true);
+    onUnauthorized?.();
+    throw new ApiError(401, undefined, 'Session expired — please log in again.');
+  }
+
+  if (decision === 'fail' && res.status === 401) {
+    onUnauthorized?.();
+  }
+
+  if (!res.ok) {
+    let responseBody: unknown;
+    try {
+      responseBody = await res.json();
+    } catch {
+      // Non-JSON error body — leave undefined.
+    }
+    throw new ApiError(res.status, responseBody, extractMessage(responseBody, res.statusText));
+  }
+
+  return res.blob();
+}
+
 export function apiPost<T>(path: string, body?: unknown, options?: ApiFetchOptions): Promise<T> {
   return apiFetch<T>(path, { ...options, method: 'POST', body });
 }

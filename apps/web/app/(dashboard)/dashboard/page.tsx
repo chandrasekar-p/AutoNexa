@@ -56,6 +56,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <TechnicianWorkloadCard
           workload={summary.data?.technicianWorkload ?? null}
+          scope={summary.data?.technicianWorkloadScope ?? null}
           isLoading={summary.isLoading}
           error={summary.error}
           onRetry={summary.refetch}

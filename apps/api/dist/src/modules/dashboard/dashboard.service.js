@@ -38,11 +38,11 @@ let DashboardService = class DashboardService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async summary(canViewFinancials) {
+    async summary(canViewFinancials, currentUserId) {
         const db = this.prisma.forTenant();
         const today = todayRange();
         const month = monthRange();
-        const [todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians] = await Promise.all([
+        const [todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians, currentTechnician,] = await Promise.all([
             db.appointment.count({
                 where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
             }),
@@ -58,8 +58,10 @@ let DashboardService = class DashboardService {
             db.estimate.count({ where: { deletedAt: null, status: client_1.EstimateStatus.SENT } }),
             db.part.findMany({ where: { deletedAt: null, isActive: true } }),
             db.technician.findMany({ include: { user: { select: { name: true } } } }),
+            db.technician.findUnique({ where: { userId: currentUserId }, include: { user: { select: { name: true } } } }),
         ]);
-        const technicianWorkload = await Promise.all(technicians.map(async (t) => {
+        const techniciansForWorkload = currentTechnician ? [currentTechnician] : technicians;
+        const technicianWorkload = await Promise.all(techniciansForWorkload.map(async (t) => {
             const performance = await (0, technician_performance_1.computeTechnicianPerformance)(db, t.id);
             return { technicianId: t.id, name: t.user.name, jobsOpen: performance.jobsOpen };
         }));
@@ -71,6 +73,7 @@ let DashboardService = class DashboardService {
             pendingEstimates,
             lowStockCount: parts.filter(low_stock_1.isLowStock).length,
             technicianWorkload,
+            technicianWorkloadScope: currentTechnician ? 'mine' : 'all',
         };
         if (!canViewFinancials)
             return base;

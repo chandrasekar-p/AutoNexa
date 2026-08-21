@@ -127,14 +127,15 @@ let JobCardsService = class JobCardsService {
         });
         return this.findOne(jobCard.id);
     }
-    async findAll(query) {
+    async findAll(query, currentUserId) {
         const page = query.page ?? 1;
         const pageSize = query.pageSize ?? 20;
         const db = this.prisma.forTenant();
+        const scope = await this.getTechnicianScope(currentUserId);
         const where = {
             deletedAt: null,
             ...(query.status ? { status: query.status } : {}),
-            ...(query.technicianId ? { technicianId: query.technicianId } : {}),
+            ...(scope ? { technicianId: scope } : query.technicianId ? { technicianId: query.technicianId } : {}),
             ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
             ...(query.customerId ? { customerId: query.customerId } : {}),
             ...(query.search
@@ -158,17 +159,19 @@ let JobCardsService = class JobCardsService {
         ]);
         return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     }
-    async findOne(id) {
+    async findOne(id, currentUserId) {
         const jobCard = await this.prisma.forTenant().jobCard.findFirst({
             where: { id, deletedAt: null },
             include: JOB_CARD_INCLUDE,
         });
         if (!jobCard)
             throw new common_1.NotFoundException('Job card not found');
+        if (currentUserId)
+            await this.assertTechnicianAccess(jobCard, currentUserId);
         return jobCard;
     }
-    async update(id, dto) {
-        await this.assertExists(id);
+    async update(id, dto, currentUserId) {
+        await this.assertExists(id, currentUserId);
         if (dto.technicianId)
             await this.assertTechnicianExists(dto.technicianId);
         if (dto.inspectionId)
@@ -183,7 +186,7 @@ let JobCardsService = class JobCardsService {
         });
     }
     async updateStatus(id, dto, changedByUserId) {
-        const jobCard = await this.assertExists(id);
+        const jobCard = await this.assertExists(id, changedByUserId);
         if (!(0, job_card_status_transitions_1.isValidJobCardTransition)(jobCard.status, dto.status)) {
             throw new common_1.BadRequestException(`Cannot transition job card from ${jobCard.status} to ${dto.status}`);
         }
@@ -236,8 +239,8 @@ let JobCardsService = class JobCardsService {
         await this.messaging.notifyCustomer(tenantId, 'job-card.ready', { email: jobCard.customer.email, mobile: jobCard.customer.mobile }, content, { type: 'JobCard', id: jobCard.id });
         await this.messaging.notifyOps(tenantId, 'job-card.ready', `Ready for pickup: ${jobCard.jobCardNumber} — ${jobCard.customer.name} — ${jobCard.vehicle.registrationNo}`, { type: 'JobCard', id: jobCard.id });
     }
-    async addLabour(jobCardId, dto) {
-        await this.assertExists(jobCardId);
+    async addLabour(jobCardId, dto, currentUserId) {
+        await this.assertExists(jobCardId, currentUserId);
         const labourItem = await this.prisma.forTenant().labourItem.findFirst({
             where: { id: dto.labourItemId, deletedAt: null, isActive: true },
         });
@@ -260,13 +263,14 @@ let JobCardsService = class JobCardsService {
         });
         return this.findOne(jobCardId);
     }
-    async removeLabour(jobCardId, lineId) {
+    async removeLabour(jobCardId, lineId, currentUserId) {
+        await this.assertExists(jobCardId, currentUserId);
         await this.assertLabourLineExists(jobCardId, lineId);
         await this.prisma.forTenant().jobCardLabour.delete({ where: { id: lineId } });
         return this.findOne(jobCardId);
     }
-    async addPart(jobCardId, dto) {
-        await this.assertExists(jobCardId);
+    async addPart(jobCardId, dto, currentUserId) {
+        await this.assertExists(jobCardId, currentUserId);
         const db = this.prisma.forTenant();
         await db.$transaction(async (tx) => {
             const part = await tx.part.findFirst({ where: { id: dto.partId, deletedAt: null, isActive: true } });
@@ -305,8 +309,8 @@ let JobCardsService = class JobCardsService {
         });
         return this.findOne(jobCardId);
     }
-    async removePart(jobCardId, lineId) {
-        const jobCard = await this.assertExists(jobCardId);
+    async removePart(jobCardId, lineId, currentUserId) {
+        const jobCard = await this.assertExists(jobCardId, currentUserId);
         if (TERMINAL_JOB_CARD_STATUSES.includes(jobCard.status)) {
             throw new common_1.BadRequestException(`Cannot remove a part from a job card that is ${jobCard.status}`);
         }
@@ -331,14 +335,14 @@ let JobCardsService = class JobCardsService {
         return this.findOne(jobCardId);
     }
     async addNote(jobCardId, dto, authorId) {
-        await this.assertExists(jobCardId);
+        await this.assertExists(jobCardId, authorId);
         await this.prisma.forTenant().jobCardNote.create({
             data: { jobCardId, authorId, note: dto.note },
         });
         return this.findOne(jobCardId);
     }
-    async getStatusHistory(jobCardId) {
-        await this.assertExists(jobCardId);
+    async getStatusHistory(jobCardId, currentUserId) {
+        await this.assertExists(jobCardId, currentUserId);
         return this.prisma.forTenant().jobCardStatusHistory.findMany({
             where: { jobCardId },
             orderBy: { changedAt: 'desc' },
@@ -347,11 +351,22 @@ let JobCardsService = class JobCardsService {
     generateInvoice(jobCardId) {
         return this.invoicesService.generateFromJobCard(jobCardId);
     }
-    async assertExists(id) {
+    async assertExists(id, currentUserId) {
         const jobCard = await this.prisma.forTenant().jobCard.findFirst({ where: { id, deletedAt: null } });
         if (!jobCard)
             throw new common_1.NotFoundException('Job card not found');
+        await this.assertTechnicianAccess(jobCard, currentUserId);
         return jobCard;
+    }
+    async getTechnicianScope(userId) {
+        const technician = await this.prisma.forTenant().technician.findUnique({ where: { userId } });
+        return technician?.id ?? null;
+    }
+    async assertTechnicianAccess(jobCard, currentUserId) {
+        const scope = await this.getTechnicianScope(currentUserId);
+        if (scope && jobCard.technicianId !== scope) {
+            throw new common_1.NotFoundException('Job card not found');
+        }
     }
     async assertLabourLineExists(jobCardId, lineId) {
         const line = await this.prisma.forTenant().jobCardLabour.findFirst({ where: { id: lineId, jobCardId } });

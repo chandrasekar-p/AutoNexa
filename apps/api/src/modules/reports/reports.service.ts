@@ -13,6 +13,7 @@ import { PaginatedDateRangeQueryDto } from './dto/paginated-date-range-query.dto
 import { PurchasesReportQueryDto } from './dto/purchases-report-query.dto';
 import { LabourRevenueReportQueryDto } from './dto/labour-revenue-report-query.dto';
 import { DateRangeQueryDto } from './dto/date-range-query.dto';
+import { computeColumnTotals } from './column-totals';
 
 /** `{ [field]: { gte, lte } }`, or `{}` when neither bound is given — reused across every report below. */
 function dateRangeWhere(field: string, from?: string, to?: string): Record<string, unknown> {
@@ -28,7 +29,13 @@ function dateRangeWhere(field: string, from?: string, to?: string): Record<strin
 function paginate<T>(rows: T[], page: number, pageSize: number) {
   const total = rows.length;
   const items = rows.slice((page - 1) * pageSize, page * pageSize);
-  return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  // Computed over the full `rows`, not just `items` — a page-1-only sum
+  // would silently under-count whenever a report has more rows than fit
+  // on one page (see column-totals.ts). Cast is safe: computeColumnTotals
+  // only reads properties via Object.keys/indexing, never relies on T's
+  // actual shape.
+  const columnTotals = computeColumnTotals(rows as unknown as Record<string, unknown>[]);
+  return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize), columnTotals };
 }
 
 @Injectable()
@@ -152,6 +159,11 @@ export class ReportsService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
       summary: { count: total, totalAmount: summaryAgg._sum.amount ?? new Prisma.Decimal(0) },
+      // Aggregated in the DB over every matching payment, not just this
+      // page — same reasoning as paginate()'s columnTotals, just computed
+      // via a separate query here since `rows` above is already
+      // DB-paginated (skip/take), not the full matching set.
+      columnTotals: { amount: (summaryAgg._sum.amount ?? new Prisma.Decimal(0)).toNumber() },
     };
   }
 

@@ -5,18 +5,19 @@ import type { DashboardSummary } from '@/lib/api-types';
 
 interface Props {
   workload: DashboardSummary['technicianWorkload'] | null;
+  scope: DashboardSummary['technicianWorkloadScope'] | null;
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
 }
 
-export function TechnicianWorkloadCard({ workload, isLoading, error, onRetry }: Props) {
+export function TechnicianWorkloadCard({ workload, scope, isLoading, error, onRetry }: Props) {
   const maxOpen = workload ? Math.max(1, ...workload.map((t) => t.jobsOpen)) : 1;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Technician Workload</CardTitle>
+        <CardTitle>{scope === 'mine' ? 'My Workload' : 'Technician Workload'}</CardTitle>
       </CardHeader>
       <CardBody>
         {isLoading ? (

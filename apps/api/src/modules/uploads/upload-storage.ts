@@ -7,6 +7,7 @@ import { BadRequestException } from '@nestjs/common';
 
 type FileFilterCallback = (error: Error | null, acceptFile: boolean) => void;
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { API_PREFIX } from '../../common/api-prefix';
 
 // Local-disk storage — the right fit for a single-server pilot deployment
 // (see apps/api/README.md's infra notes); migrating to S3-compatible
@@ -34,6 +35,21 @@ export const uploadStorage = diskStorage({
     callback(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`);
   },
 });
+
+/**
+ * Maps a stored relative upload URL (as returned by POST /uploads, and
+ * saved as-is onto e.g. TenantSettings.logoUrl) back to its absolute path
+ * on disk. Handles both the current `/${API_PREFIX}/uploads/...` shape
+ * and the legacy bare `/uploads/...` shape some already-saved rows still
+ * carry from before API_PREFIX was applied to the static mount (see
+ * api-prefix.ts's doc comment — same class of bug, so this is the one
+ * place the URL-to-disk-path translation happens instead of being
+ * duplicated ad hoc wherever a stored upload URL needs reading back).
+ */
+export function resolveUploadPath(url: string): string {
+  const relative = url.replace(new RegExp(`^/(${API_PREFIX}/)?uploads/`), '');
+  return join(UPLOAD_ROOT, relative);
+}
 
 export function imageFileFilter(_req: Request, file: Express.Multer.File, callback: FileFilterCallback): void {
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {

@@ -33,32 +33,32 @@ let JobCardsController = class JobCardsController {
     create(dto) {
         return this.jobCardsService.create(dto);
     }
-    findAll(query) {
-        return this.jobCardsService.findAll(query);
+    findAll(query, user) {
+        return this.jobCardsService.findAll(query, user.userId);
     }
-    findOne(id) {
-        return this.jobCardsService.findOne(id);
+    findOne(id, user) {
+        return this.jobCardsService.findOne(id, user.userId);
     }
-    update(id, dto) {
-        return this.jobCardsService.update(id, dto);
+    update(id, dto, user) {
+        return this.jobCardsService.update(id, dto, user.userId);
     }
     updateStatus(id, dto, user) {
         return this.jobCardsService.updateStatus(id, dto, user.userId);
     }
-    getStatusHistory(id) {
-        return this.jobCardsService.getStatusHistory(id);
+    getStatusHistory(id, user) {
+        return this.jobCardsService.getStatusHistory(id, user.userId);
     }
-    addLabour(id, dto) {
-        return this.jobCardsService.addLabour(id, dto);
+    addLabour(id, dto, user) {
+        return this.jobCardsService.addLabour(id, dto, user.userId);
     }
-    removeLabour(id, lineId) {
-        return this.jobCardsService.removeLabour(id, lineId);
+    removeLabour(id, lineId, user) {
+        return this.jobCardsService.removeLabour(id, lineId, user.userId);
     }
-    addPart(id, dto) {
-        return this.jobCardsService.addPart(id, dto);
+    addPart(id, dto, user) {
+        return this.jobCardsService.addPart(id, dto, user.userId);
     }
-    removePart(id, lineId) {
-        return this.jobCardsService.removePart(id, lineId);
+    removePart(id, lineId, user) {
+        return this.jobCardsService.removePart(id, lineId, user.userId);
     }
     addNote(id, dto, user) {
         return this.jobCardsService.addNote(id, dto, user.userId);
@@ -81,16 +81,18 @@ __decorate([
     (0, permissions_decorator_1.Permissions)('job-card:read'),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [list_job_cards_query_dto_1.ListJobCardsQueryDto]),
+    __metadata("design:paramtypes", [list_job_cards_query_dto_1.ListJobCardsQueryDto, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "findAll", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('job-card:read'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "findOne", null);
 __decorate([
@@ -99,8 +101,9 @@ __decorate([
     (0, audit_log_interceptor_1.Audit)('job-card.update', 'JobCard'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_job_card_dto_1.UpdateJobCardDto]),
+    __metadata("design:paramtypes", [String, update_job_card_dto_1.UpdateJobCardDto, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "update", null);
 __decorate([
@@ -118,8 +121,9 @@ __decorate([
     (0, permissions_decorator_1.Permissions)('job-card:read'),
     (0, common_1.Get)(':id/status-history'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "getStatusHistory", null);
 __decorate([
@@ -128,8 +132,9 @@ __decorate([
     (0, audit_log_interceptor_1.Audit)('job-card.labour.add', 'JobCardLabour'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, create_job_card_labour_dto_1.CreateJobCardLabourDto]),
+    __metadata("design:paramtypes", [String, create_job_card_labour_dto_1.CreateJobCardLabourDto, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "addLabour", null);
 __decorate([
@@ -138,8 +143,9 @@ __decorate([
     (0, audit_log_interceptor_1.Audit)('job-card.labour.remove', 'JobCardLabour'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('lineId')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "removeLabour", null);
 __decorate([
@@ -148,8 +154,9 @@ __decorate([
     (0, audit_log_interceptor_1.Audit)('job-card.part.add', 'JobCardPart'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, create_job_card_part_dto_1.CreateJobCardPartDto]),
+    __metadata("design:paramtypes", [String, create_job_card_part_dto_1.CreateJobCardPartDto, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "addPart", null);
 __decorate([
@@ -158,8 +165,9 @@ __decorate([
     (0, audit_log_interceptor_1.Audit)('job-card.part.remove', 'JobCardPart'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('lineId')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "removePart", null);
 __decorate([

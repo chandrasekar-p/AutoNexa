@@ -29,9 +29,11 @@ export class PermissionsGuard implements CanActivate {
     const granted = new Set(user.permissions);
     const missing = required.filter((p) => !granted.has(p));
     if (missing.length > 0) {
-      throw new ForbiddenException(
-        `Missing required permission(s): ${missing.join(', ')}`,
-      );
+      // User-facing message deliberately doesn't name the missing
+      // resource:action strings — that's internal permission taxonomy, not
+      // something a workshop user should have to parse. Real detail for
+      // debugging belongs in server logs, not the response body.
+      throw new ForbiddenException("You don't have permission to view this page.");
     }
     return true;
   }

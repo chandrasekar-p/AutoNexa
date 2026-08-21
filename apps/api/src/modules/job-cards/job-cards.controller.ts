@@ -27,21 +27,21 @@ export class JobCardsController {
 
   @Permissions('job-card:read')
   @Get()
-  findAll(@Query() query: ListJobCardsQueryDto) {
-    return this.jobCardsService.findAll(query);
+  findAll(@Query() query: ListJobCardsQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.findAll(query, user.userId);
   }
 
   @Permissions('job-card:read')
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.jobCardsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.findOne(id, user.userId);
   }
 
   @Permissions('job-card:update')
   @Patch(':id')
   @Audit('job-card.update', 'JobCard')
-  update(@Param('id') id: string, @Body() dto: UpdateJobCardDto) {
-    return this.jobCardsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateJobCardDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.update(id, dto, user.userId);
   }
 
   @Permissions('job-card:update')
@@ -57,36 +57,36 @@ export class JobCardsController {
 
   @Permissions('job-card:read')
   @Get(':id/status-history')
-  getStatusHistory(@Param('id') id: string) {
-    return this.jobCardsService.getStatusHistory(id);
+  getStatusHistory(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.getStatusHistory(id, user.userId);
   }
 
   @Permissions('job-card:update')
   @Post(':id/labour')
   @Audit('job-card.labour.add', 'JobCardLabour')
-  addLabour(@Param('id') id: string, @Body() dto: CreateJobCardLabourDto) {
-    return this.jobCardsService.addLabour(id, dto);
+  addLabour(@Param('id') id: string, @Body() dto: CreateJobCardLabourDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.addLabour(id, dto, user.userId);
   }
 
   @Permissions('job-card:update')
   @Delete(':id/labour/:lineId')
   @Audit('job-card.labour.remove', 'JobCardLabour')
-  removeLabour(@Param('id') id: string, @Param('lineId') lineId: string) {
-    return this.jobCardsService.removeLabour(id, lineId);
+  removeLabour(@Param('id') id: string, @Param('lineId') lineId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.removeLabour(id, lineId, user.userId);
   }
 
   @Permissions('job-card:update')
   @Post(':id/parts')
   @Audit('job-card.part.add', 'JobCardPart')
-  addPart(@Param('id') id: string, @Body() dto: CreateJobCardPartDto) {
-    return this.jobCardsService.addPart(id, dto);
+  addPart(@Param('id') id: string, @Body() dto: CreateJobCardPartDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.addPart(id, dto, user.userId);
   }
 
   @Permissions('job-card:update')
   @Delete(':id/parts/:lineId')
   @Audit('job-card.part.remove', 'JobCardPart')
-  removePart(@Param('id') id: string, @Param('lineId') lineId: string) {
-    return this.jobCardsService.removePart(id, lineId);
+  removePart(@Param('id') id: string, @Param('lineId') lineId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.removePart(id, lineId, user.userId);
   }
 
   @Permissions('job-card:update')

@@ -184,15 +184,19 @@ export class JobCardsService {
     return this.findOne(jobCard.id);
   }
 
-  async findAll(query: ListJobCardsQueryDto) {
+  async findAll(query: ListJobCardsQueryDto, currentUserId: string) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const db = this.prisma.forTenant();
+    const scope = await this.getTechnicianScope(currentUserId);
 
     const where = {
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
-      ...(query.technicianId ? { technicianId: query.technicianId } : {}),
+      // A technician is force-scoped to their own jobCards regardless of
+      // what technicianId (if any) the client asked for — see
+      // getTechnicianScope's doc comment.
+      ...(scope ? { technicianId: scope } : query.technicianId ? { technicianId: query.technicianId } : {}),
       ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.search
@@ -219,17 +223,27 @@ export class JobCardsService {
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async findOne(id: string) {
+  /**
+   * `currentUserId` is optional here because findOne doubles as the
+   * "refetch the full joined view" tail call inside create/update/etc,
+   * where the caller already ran assertExists (which does the same scope
+   * check) earlier in the same method — re-checking there would just be a
+   * redundant technician lookup. The controller's own GET /job-cards/:id
+   * always passes it, since that's a real external entry point a
+   * technician could probe with someone else's job card id.
+   */
+  async findOne(id: string, currentUserId?: string) {
     const jobCard = await this.prisma.forTenant().jobCard.findFirst({
       where: { id, deletedAt: null },
       include: JOB_CARD_INCLUDE,
     });
     if (!jobCard) throw new NotFoundException('Job card not found');
+    if (currentUserId) await this.assertTechnicianAccess(jobCard, currentUserId);
     return jobCard;
   }
 
-  async update(id: string, dto: UpdateJobCardDto) {
-    await this.assertExists(id);
+  async update(id: string, dto: UpdateJobCardDto, currentUserId: string) {
+    await this.assertExists(id, currentUserId);
     if (dto.technicianId) await this.assertTechnicianExists(dto.technicianId);
     if (dto.inspectionId) await this.assertInspectionExists(dto.inspectionId);
 
@@ -244,7 +258,7 @@ export class JobCardsService {
   }
 
   async updateStatus(id: string, dto: UpdateJobCardStatusDto, changedByUserId: string) {
-    const jobCard = await this.assertExists(id);
+    const jobCard = await this.assertExists(id, changedByUserId);
     if (!isValidJobCardTransition(jobCard.status, dto.status)) {
       throw new BadRequestException(`Cannot transition job card from ${jobCard.status} to ${dto.status}`);
     }
@@ -330,8 +344,8 @@ export class JobCardsService {
     );
   }
 
-  async addLabour(jobCardId: string, dto: CreateJobCardLabourDto) {
-    await this.assertExists(jobCardId);
+  async addLabour(jobCardId: string, dto: CreateJobCardLabourDto, currentUserId: string) {
+    await this.assertExists(jobCardId, currentUserId);
     const labourItem = await this.prisma.forTenant().labourItem.findFirst({
       where: { id: dto.labourItemId, deletedAt: null, isActive: true },
     });
@@ -357,7 +371,8 @@ export class JobCardsService {
     return this.findOne(jobCardId);
   }
 
-  async removeLabour(jobCardId: string, lineId: string) {
+  async removeLabour(jobCardId: string, lineId: string, currentUserId: string) {
+    await this.assertExists(jobCardId, currentUserId);
     await this.assertLabourLineExists(jobCardId, lineId);
     await this.prisma.forTenant().jobCardLabour.delete({ where: { id: lineId } });
     return this.findOne(jobCardId);
@@ -371,8 +386,8 @@ export class JobCardsService {
    * literal "Job Card Invoiced -> Inventory Reduced" wording — see the
    * same note on the JobCardPart model in schema.prisma.
    */
-  async addPart(jobCardId: string, dto: CreateJobCardPartDto) {
-    await this.assertExists(jobCardId);
+  async addPart(jobCardId: string, dto: CreateJobCardPartDto, currentUserId: string) {
+    await this.assertExists(jobCardId, currentUserId);
     const db = this.prisma.forTenant();
 
     await db.$transaction(async (tx) => {
@@ -423,8 +438,8 @@ export class JobCardsService {
   }
 
   /** Reverses addPart symmetrically — restores stock, logs a positive RETURN transaction. */
-  async removePart(jobCardId: string, lineId: string) {
-    const jobCard = await this.assertExists(jobCardId);
+  async removePart(jobCardId: string, lineId: string, currentUserId: string) {
+    const jobCard = await this.assertExists(jobCardId, currentUserId);
     if (TERMINAL_JOB_CARD_STATUSES.includes(jobCard.status)) {
       throw new BadRequestException(`Cannot remove a part from a job card that is ${jobCard.status}`);
     }
@@ -452,15 +467,15 @@ export class JobCardsService {
   }
 
   async addNote(jobCardId: string, dto: CreateJobCardNoteDto, authorId: string) {
-    await this.assertExists(jobCardId);
+    await this.assertExists(jobCardId, authorId);
     await this.prisma.forTenant().jobCardNote.create({
       data: { jobCardId, authorId, note: dto.note } as unknown as Prisma.JobCardNoteUncheckedCreateInput,
     });
     return this.findOne(jobCardId);
   }
 
-  async getStatusHistory(jobCardId: string) {
-    await this.assertExists(jobCardId);
+  async getStatusHistory(jobCardId: string, currentUserId: string) {
+    await this.assertExists(jobCardId, currentUserId);
     return this.prisma.forTenant().jobCardStatusHistory.findMany({
       where: { jobCardId },
       orderBy: { changedAt: 'desc' },
@@ -477,10 +492,38 @@ export class JobCardsService {
     return this.invoicesService.generateFromJobCard(jobCardId);
   }
 
-  private async assertExists(id: string) {
+  private async assertExists(id: string, currentUserId: string) {
     const jobCard = await this.prisma.forTenant().jobCard.findFirst({ where: { id, deletedAt: null } });
     if (!jobCard) throw new NotFoundException('Job card not found');
+    await this.assertTechnicianAccess(jobCard, currentUserId);
     return jobCard;
+  }
+
+  /**
+   * A user who is themselves a technician (has a Technician row linked to
+   * their userId) only sees/touches their own assigned job cards — read
+   * and write, across list, detail, status changes, and labour/part/note
+   * mutations. Non-technician roles (Owner/Manager/Receptionist/Accountant/
+   * Service Advisor) resolve to no scope here and are unaffected, same as
+   * before. This is enforced here in the service, not just hidden by the
+   * frontend board — a technician calling the API directly with another
+   * technician's job card id must not be able to read or mutate it either.
+   */
+  private async getTechnicianScope(userId: string): Promise<string | null> {
+    const technician = await this.prisma.forTenant().technician.findUnique({ where: { userId } });
+    return technician?.id ?? null;
+  }
+
+  /**
+   * Cross-technician access reads as "not found," not "forbidden" — same
+   * idiom PrismaService.forTenant() already uses for cross-tenant access,
+   * so this doesn't reveal that a job card with this id exists at all.
+   */
+  private async assertTechnicianAccess(jobCard: { technicianId: string | null }, currentUserId: string) {
+    const scope = await this.getTechnicianScope(currentUserId);
+    if (scope && jobCard.technicianId !== scope) {
+      throw new NotFoundException('Job card not found');
+    }
   }
 
   private async assertLabourLineExists(jobCardId: string, lineId: string) {

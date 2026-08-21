@@ -17,6 +17,7 @@ const outstanding_1 = require("../../common/billing/outstanding");
 const technician_performance_1 = require("../technicians/technician-performance");
 const sales_bucketing_1 = require("./sales-bucketing");
 const profit_margin_1 = require("./profit-margin");
+const column_totals_1 = require("./column-totals");
 function dateRangeWhere(field, from, to) {
     if (!from && !to)
         return {};
@@ -30,7 +31,8 @@ function dateRangeWhere(field, from, to) {
 function paginate(rows, page, pageSize) {
     const total = rows.length;
     const items = rows.slice((page - 1) * pageSize, page * pageSize);
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    const columnTotals = (0, column_totals_1.computeColumnTotals)(rows);
+    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize), columnTotals };
 }
 let ReportsService = class ReportsService {
     constructor(prisma) {
@@ -129,6 +131,7 @@ let ReportsService = class ReportsService {
             pageSize,
             totalPages: Math.ceil(total / pageSize),
             summary: { count: total, totalAmount: summaryAgg._sum.amount ?? new client_1.Prisma.Decimal(0) },
+            columnTotals: { amount: (summaryAgg._sum.amount ?? new client_1.Prisma.Decimal(0)).toNumber() },
         };
     }
     async outstanding(query) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, StreamableFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoicePaymentDto } from './dto/create-invoice-payment.dto';
@@ -26,6 +26,18 @@ export class InvoicesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.invoicesService.findOne(id);
+  }
+
+  // Direct download, independent of Email/SMS/WhatsApp — for when no
+  // provider is configured (or the customer has no email/mobile on file),
+  // this is the only way to actually get the invoice as a file. Same
+  // permission as viewing it, same PDF resend() would have attached.
+  @Permissions('invoice:read')
+  @Get(':id/pdf')
+  @Header('Content-Type', 'application/pdf')
+  async downloadPdf(@Param('id') id: string): Promise<StreamableFile> {
+    const { fileName, buffer } = await this.invoicesService.downloadPdf(id);
+    return new StreamableFile(buffer, { type: 'application/pdf', disposition: `attachment; filename="${fileName}"` });
   }
 
   @Permissions('payment:create')

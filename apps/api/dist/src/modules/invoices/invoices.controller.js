@@ -30,6 +30,10 @@ let InvoicesController = class InvoicesController {
     findOne(id) {
         return this.invoicesService.findOne(id);
     }
+    async downloadPdf(id) {
+        const { fileName, buffer } = await this.invoicesService.downloadPdf(id);
+        return new common_1.StreamableFile(buffer, { type: 'application/pdf', disposition: `attachment; filename="${fileName}"` });
+    }
     recordPayment(id, dto) {
         return this.invoicesService.recordPayment(id, dto);
     }
@@ -54,6 +58,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], InvoicesController.prototype, "findOne", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('invoice:read'),
+    (0, common_1.Get)(':id/pdf'),
+    (0, common_1.Header)('Content-Type', 'application/pdf'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], InvoicesController.prototype, "downloadPdf", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('payment:create'),
     (0, common_1.Post)(':id/payments'),

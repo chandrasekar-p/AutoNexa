@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Send } from 'lucide-react';
-import { apiGet, apiPost, ApiError } from '@/lib/api-client';
+import { Download, Send } from 'lucide-react';
+import { apiGet, apiGetBlob, apiPost, ApiError } from '@/lib/api-client';
+import { downloadBlob } from '@/lib/export/csv';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate, formatMoney } from '@/lib/format';
@@ -73,6 +74,8 @@ export default function InvoiceDetailPage() {
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ tone: 'success' | 'warning' | 'danger'; message: string } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   async function handleSend() {
     setIsSending(true);
@@ -87,6 +90,22 @@ export default function InvoiceDetailPage() {
       setSendError(err instanceof ApiError ? err.message : 'Could not send the invoice.');
     } finally {
       setIsSending(false);
+    }
+  }
+
+  // Independent of Email/SMS/WhatsApp — this is the fallback when nothing
+  // is configured or the customer has no email/mobile on file: the owner
+  // can always grab the PDF directly instead of depending on delivery.
+  async function handleDownload() {
+    setIsDownloading(true);
+    setDownloadError(null);
+    try {
+      const blob = await apiGetBlob(`/invoices/${params.id}/pdf`);
+      downloadBlob(blob, `${query.data?.invoiceNumber ?? 'invoice'}.pdf`);
+    } catch (err) {
+      setDownloadError(err instanceof ApiError ? err.message : 'Could not download the invoice.');
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -121,6 +140,12 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="flex items-center gap-3">
           {canSend ? (
+            <Button variant="secondary" size="sm" onClick={handleDownload} isLoading={isDownloading}>
+              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Download PDF
+            </Button>
+          ) : null}
+          {canSend ? (
             <Button variant="secondary" size="sm" onClick={handleSend} isLoading={isSending}>
               <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Send Invoice
@@ -132,6 +157,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
+      {downloadError ? <ErrorState message={downloadError} /> : null}
       {sendError ? <ErrorState message={sendError} /> : null}
       {sendResult ? (
         <p

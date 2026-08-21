@@ -33,7 +33,7 @@ let PermissionsGuard = class PermissionsGuard {
         const granted = new Set(user.permissions);
         const missing = required.filter((p) => !granted.has(p));
         if (missing.length > 0) {
-            throw new common_1.ForbiddenException(`Missing required permission(s): ${missing.join(', ')}`);
+            throw new common_1.ForbiddenException("You don't have permission to view this page.");
         }
         return true;
     }

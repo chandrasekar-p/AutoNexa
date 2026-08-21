@@ -12,7 +12,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InvoicesService = void 0;
 const common_1 = require("@nestjs/common");
 const promises_1 = require("fs/promises");
-const path_1 = require("path");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
@@ -160,17 +159,28 @@ let InvoicesService = class InvoicesService {
     async resend(id) {
         const invoice = await this.findOne(id);
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
-        const [tenant, settings] = await Promise.all([
-            this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
-            this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } }),
-        ]);
-        const workshopName = tenant?.name ?? 'AutoNexa';
+        const { workshopName, pdfBuffer } = await this.buildInvoicePdfBuffer(invoice);
         const content = (0, templates_1.invoiceIssuedMessage)({
             workshopName,
             customerName: invoice.customer.name,
             invoiceNumber: invoice.invoiceNumber,
             grandTotal: `₹${Number(invoice.grandTotal).toFixed(2)}`,
         });
+        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.resent', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id }, [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]);
+        return { id, attempts };
+    }
+    async downloadPdf(id) {
+        const invoice = await this.findOne(id);
+        const { pdfBuffer } = await this.buildInvoicePdfBuffer(invoice);
+        return { fileName: `${invoice.invoiceNumber}.pdf`, buffer: pdfBuffer };
+    }
+    async buildInvoicePdfBuffer(invoice) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const [tenant, settings] = await Promise.all([
+            this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+            this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } }),
+        ]);
+        const workshopName = tenant?.name ?? 'AutoNexa';
         const pdfBuffer = await (0, invoice_pdf_1.buildInvoicePdf)({
             workshopName,
             logoBuffer: await this.readLogoBuffer(settings?.logoUrl ?? null),
@@ -193,14 +203,13 @@ let InvoicesService = class InvoicesService {
             roundOff: invoice.roundOff.toString(),
             grandTotal: invoice.grandTotal.toString(),
         });
-        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.resent', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id }, [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]);
-        return { id, attempts };
+        return { workshopName, pdfBuffer };
     }
     async readLogoBuffer(logoUrl) {
         if (!logoUrl)
             return null;
         try {
-            return await (0, promises_1.readFile)((0, path_1.join)(upload_storage_1.UPLOAD_ROOT, logoUrl.replace(/^\/uploads\//, '')));
+            return await (0, promises_1.readFile)((0, upload_storage_1.resolveUploadPath)(logoUrl));
         }
         catch {
             return null;

@@ -22,6 +22,6 @@ export class DashboardController {
   @Get('summary')
   summary(@CurrentUser() user: AuthenticatedUser) {
     const canViewFinancials = user.isSuperAdmin || user.permissions.includes('report:read');
-    return this.dashboardService.summary(canViewFinancials);
+    return this.dashboardService.summary(canViewFinancials, user.userId);
   }
 }

@@ -23,7 +23,7 @@ let DashboardController = class DashboardController {
     }
     summary(user) {
         const canViewFinancials = user.isSuperAdmin || user.permissions.includes('report:read');
-        return this.dashboardService.summary(canViewFinancials);
+        return this.dashboardService.summary(canViewFinancials, user.userId);
     }
 };
 exports.DashboardController = DashboardController;

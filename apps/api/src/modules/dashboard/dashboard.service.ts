@@ -44,37 +44,54 @@ export class DashboardService {
    * their queries skipped entirely, not just redacted after the fact) when
    * false, rather than nulled — the frontend only renders the KPI cards
    * that are actually present.
+   *
+   * `currentUserId` scopes the "Technician Workload" card: a user who is
+   * themselves a technician (has a Technician row) should only see their
+   * own open-job count on their own dashboard, not every technician's —
+   * that list is a shop-floor-planning view for Owner/Manager/Receptionist,
+   * not something a technician needs about their coworkers.
    */
-  async summary(canViewFinancials: boolean) {
+  async summary(canViewFinancials: boolean, currentUserId: string) {
     const db = this.prisma.forTenant();
     const today = todayRange();
     const month = monthRange();
 
-    const [todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians] =
-      await Promise.all([
-        db.appointment.count({
-          where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
-        }),
-        db.jobCard.count({ where: { deletedAt: null, status: { in: IN_BAY_STATUSES } } }),
-        db.jobCard.count({ where: { deletedAt: null, status: { notIn: TERMINAL_JOB_CARD_STATUSES } } }),
-        db.jobCard.count({
-          where: {
-            deletedAt: null,
-            status: JobCardStatus.DELIVERED,
-            actualDelivery: { gte: today.start, lt: today.end },
-          },
-        }),
-        db.estimate.count({ where: { deletedAt: null, status: EstimateStatus.SENT } }),
-        db.part.findMany({ where: { deletedAt: null, isActive: true } }),
-        db.technician.findMany({ include: { user: { select: { name: true } } } }),
-      ]);
+    const [
+      todaysAppointments,
+      vehiclesInService,
+      openJobCards,
+      completedJobsToday,
+      pendingEstimates,
+      parts,
+      technicians,
+      currentTechnician,
+    ] = await Promise.all([
+      db.appointment.count({
+        where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
+      }),
+      db.jobCard.count({ where: { deletedAt: null, status: { in: IN_BAY_STATUSES } } }),
+      db.jobCard.count({ where: { deletedAt: null, status: { notIn: TERMINAL_JOB_CARD_STATUSES } } }),
+      db.jobCard.count({
+        where: {
+          deletedAt: null,
+          status: JobCardStatus.DELIVERED,
+          actualDelivery: { gte: today.start, lt: today.end },
+        },
+      }),
+      db.estimate.count({ where: { deletedAt: null, status: EstimateStatus.SENT } }),
+      db.part.findMany({ where: { deletedAt: null, isActive: true } }),
+      db.technician.findMany({ include: { user: { select: { name: true } } } }),
+      db.technician.findUnique({ where: { userId: currentUserId }, include: { user: { select: { name: true } } } }),
+    ]);
+
+    const techniciansForWorkload = currentTechnician ? [currentTechnician] : technicians;
 
     // Reuses the same per-technician computation as
     // TechniciansService.findOne and the technician-performance report —
     // only jobsOpen is surfaced here, but the shared function is called as
     // a whole rather than reimplementing just that one count.
     const technicianWorkload = await Promise.all(
-      technicians.map(async (t) => {
+      techniciansForWorkload.map(async (t) => {
         const performance = await computeTechnicianPerformance(db, t.id);
         return { technicianId: t.id, name: t.user.name, jobsOpen: performance.jobsOpen };
       }),
@@ -88,6 +105,7 @@ export class DashboardService {
       pendingEstimates,
       lowStockCount: parts.filter(isLowStock).length,
       technicianWorkload,
+      technicianWorkloadScope: currentTechnician ? ('mine' as const) : ('all' as const),
     };
 
     if (!canViewFinancials) return base;
