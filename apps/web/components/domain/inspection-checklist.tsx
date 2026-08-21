@@ -28,13 +28,22 @@ const RESULT_BORDER: Record<InspectionResult, string> = {
 // Cool hues (blue/violet/teal) deliberately, so a category tag never reads
 // as a result status — those already own green/amber/red on every row's
 // Select border (see RESULT_BORDER above).
-const CATEGORY_STYLE: Record<InspectionCategory, { badge: string; rail: string }> = {
-  EXTERIOR: { badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400', rail: 'border-blue-300 dark:border-blue-500/40' },
+const CATEGORY_STYLE: Record<InspectionCategory, { badge: string; tabText: string; tabBg: string }> = {
+  EXTERIOR: {
+    badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+    tabText: 'text-blue-700 dark:text-blue-400',
+    tabBg: 'bg-blue-50 dark:bg-blue-500/10',
+  },
   INTERIOR: {
     badge: 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400',
-    rail: 'border-violet-300 dark:border-violet-500/40',
+    tabText: 'text-violet-700 dark:text-violet-400',
+    tabBg: 'bg-violet-50 dark:bg-violet-500/10',
   },
-  MECHANICAL: { badge: 'bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400', rail: 'border-teal-300 dark:border-teal-500/40' },
+  MECHANICAL: {
+    badge: 'bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400',
+    tabText: 'text-teal-700 dark:text-teal-400',
+    tabBg: 'bg-teal-50 dark:bg-teal-500/10',
+  },
 };
 
 function ItemRow({
@@ -123,8 +132,16 @@ function ItemRow({
   );
 }
 
-function AddItemForm({ inspectionId, onAdded }: { inspectionId: string; onAdded: () => void }) {
-  const [category, setCategory] = useState<InspectionCategory>('EXTERIOR');
+function AddItemForm({
+  inspectionId,
+  defaultCategory,
+  onAdded,
+}: {
+  inspectionId: string;
+  defaultCategory: InspectionCategory;
+  onAdded: () => void;
+}) {
+  const [category, setCategory] = useState<InspectionCategory>(defaultCategory);
   const [itemName, setItemName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,41 +191,90 @@ interface InspectionChecklistProps {
   onUpdated: () => void;
 }
 
-/** Grouped Exterior/Interior/Mechanical checklist (SRS §9) — each item's result/remarks save individually via PATCH /inspections/:id/items/:itemId, no separate "save" step for the whole form. */
-export function InspectionChecklist({ inspectionId, items, readOnly, onUpdated }: InspectionChecklistProps) {
-  const categories: InspectionCategory[] = ['EXTERIOR', 'INTERIOR', 'MECHANICAL'];
+const CATEGORIES: InspectionCategory[] = ['EXTERIOR', 'INTERIOR', 'MECHANICAL'];
 
+/**
+ * One category visible at a time behind a tab bar, not all three stacked
+ * — a full Exterior/Interior/Mechanical checklist run long enough to make
+ * stacking them a genuinely long scroll (each category has 6+ rows), and
+ * tabs solve that at every screen width, unlike a side-by-side column
+ * layout (which would force each row's name/dropdown/remarks to wrap
+ * inside a narrowed column, and gains nothing on mobile where columns
+ * just collapse back to stacked anyway).
+ */
+function CategoryTabs({
+  active,
+  onChange,
+  counts,
+}: {
+  active: InspectionCategory;
+  onChange: (category: InspectionCategory) => void;
+  counts: Record<InspectionCategory, number>;
+}) {
   return (
-    <div className="flex flex-col gap-6">
-      {categories.map((category) => {
-        const categoryItems = items.filter((i) => i.category === category);
-        if (categoryItems.length === 0) return null;
+    <div role="tablist" className="flex gap-1 border-b border-line">
+      {CATEGORIES.map((category) => {
+        const isActive = category === active;
         return (
-          <div key={category} className={cn('border-l-4 pl-3', CATEGORY_STYLE[category].rail)}>
+          <button
+            key={category}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(category)}
+            className={cn(
+              '-mb-px flex items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+              isActive
+                ? cn('border-current', CATEGORY_STYLE[category].tabText, CATEGORY_STYLE[category].tabBg)
+                : 'border-transparent text-ink-secondary hover:bg-surface-hover hover:text-ink',
+            )}
+          >
+            {CATEGORY_LABEL[category]}
             <span
               className={cn(
-                'mb-1 inline-block rounded-full px-2 py-0.5 text-micro font-semibold uppercase tracking-wide',
-                CATEGORY_STYLE[category].badge,
+                'rounded-full px-1.5 py-0.5 text-micro font-semibold',
+                isActive ? CATEGORY_STYLE[category].badge : 'bg-surface-hover text-ink-muted',
               )}
             >
-              {CATEGORY_LABEL[category]}
+              {counts[category]}
             </span>
-            <div className="flex flex-col divide-y divide-line">
-              {categoryItems.map((item) => (
-                <ItemRow key={item.id} inspectionId={inspectionId} item={item} readOnly={readOnly} onUpdated={onUpdated} />
-              ))}
-            </div>
-          </div>
+          </button>
         );
       })}
+    </div>
+  );
+}
+
+/** Grouped Exterior/Interior/Mechanical checklist (SRS §9) — each item's result/remarks save individually via PATCH /inspections/:id/items/:itemId, no separate "save" step for the whole form. */
+export function InspectionChecklist({ inspectionId, items, readOnly, onUpdated }: InspectionChecklistProps) {
+  const [activeCategory, setActiveCategory] = useState<InspectionCategory>('EXTERIOR');
+  const counts = Object.fromEntries(
+    CATEGORIES.map((c) => [c, items.filter((i) => i.category === c).length]),
+  ) as Record<InspectionCategory, number>;
+  const activeItems = items.filter((i) => i.category === activeCategory);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <CategoryTabs active={activeCategory} onChange={setActiveCategory} counts={counts} />
+
+      {activeItems.length === 0 ? (
+        <p className="py-4 text-sm text-ink-muted">No {CATEGORY_LABEL[activeCategory].toLowerCase()} items yet.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-line">
+          {activeItems.map((item) => (
+            <ItemRow key={item.id} inspectionId={inspectionId} item={item} readOnly={readOnly} onUpdated={onUpdated} />
+          ))}
+        </div>
+      )}
+
       {!readOnly ? (
         // Sticky so it stays reachable at the bottom of the viewport while
         // scrolling a long checklist, instead of only appearing once
-        // scrolled all the way past every category — and tinted so it
-        // reads as a persistent action bar rather than blending into the
-        // plain checklist rows above it.
+        // scrolled all the way past every item — and tinted so it reads
+        // as a persistent action bar rather than blending into the plain
+        // checklist rows above it.
         <div className="sticky bottom-0 -mx-5 -mb-5 rounded-b-lg border-t border-accent-200 bg-accent-50 px-5 py-3 dark:border-accent-500/30 dark:bg-accent-500/10">
-          <AddItemForm inspectionId={inspectionId} onAdded={onUpdated} />
+          <AddItemForm key={activeCategory} inspectionId={inspectionId} defaultCategory={activeCategory} onAdded={onUpdated} />
         </div>
       ) : null}
     </div>

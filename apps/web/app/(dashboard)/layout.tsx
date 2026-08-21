@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
+import { AppFooter } from '@/components/layout/footer';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -47,6 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar onOpenMobileNav={() => setIsMobileNavOpen(true)} />
         <main className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-6">{children}</main>
+        <AppFooter />
       </div>
     </div>
   );
