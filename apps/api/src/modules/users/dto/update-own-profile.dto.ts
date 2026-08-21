@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE } from '../../../common/validators/mobile';
 
 // Deliberately narrow — a self-service PATCH /users/me must never let a
 // user change their own email (the login identity, no verification flow
@@ -16,5 +17,6 @@ export class UpdateOwnProfileDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Matches(INDIAN_MOBILE_REGEX, { message: INVALID_MOBILE_MESSAGE })
   phone?: string;
 }

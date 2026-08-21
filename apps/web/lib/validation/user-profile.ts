@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE } from './mobile';
 
 // Mirrors the backend's UpdateOwnProfileDto (apps/api/src/modules/users/dto/update-own-profile.dto.ts)
 // exactly — name/phone only. Email/role/isActive are deliberately not
@@ -6,7 +7,7 @@ import { z } from 'zod';
 // /users/me either.
 export const userProfileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  phone: z.string().optional(),
+  phone: z.string().regex(INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE).optional().or(z.literal('')),
 });
 
 export type UserProfileFormValues = z.infer<typeof userProfileSchema>;

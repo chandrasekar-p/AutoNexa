@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
+import { validateCreateUserForm, type CreateUserFormErrors } from '@/lib/validation/user';
 import type { AppUser, Role } from '@/lib/api-types';
 import { Card, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ export default function NewUserPage() {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [roleIds, setRoleIds] = useState<string[]>([]);
+  const [errors, setErrors] = useState<CreateUserFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -29,18 +31,17 @@ export default function NewUserPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!name.trim() || !email.trim() || password.length < 8) {
-      setFormError('Name, email, and an 8+ character password are required.');
-      return;
-    }
-    if (roleIds.length === 0) {
-      setFormError('Select at least one role.');
-      return;
-    }
     setFormError(null);
+
+    const result = validateCreateUserForm({ name, email, password, phone, roleIds });
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+    setErrors({});
     setIsSubmitting(true);
     try {
-      const user = await apiPost<AppUser>('/users', { name, email, password, phone: phone || undefined, roleIds });
+      const user = await apiPost<AppUser>('/users', result.data);
       router.push(`/users/${user.id}`);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -63,16 +64,24 @@ export default function NewUserPage() {
           <CardBody className="pt-5">
             <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-                <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required />
+                <Input
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  error={errors.email}
+                  required
+                />
                 <Input
                   label="Password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  error={errors.password}
                   required
                 />
-                <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={errors.phone} />
               </div>
 
               <div className="flex flex-col gap-2">
@@ -90,6 +99,7 @@ export default function NewUserPage() {
                     </label>
                   ))}
                 </div>
+                {errors.roleIds ? <p className="text-xs text-danger-600 dark:text-danger-400">{errors.roleIds}</p> : null}
               </div>
 
               {formError ? (

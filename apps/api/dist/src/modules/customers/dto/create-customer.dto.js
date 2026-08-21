@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateCustomerDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const mobile_1 = require("../../../common/validators/mobile");
 class CreateCustomerDto {
 }
 exports.CreateCustomerDto = CreateCustomerDto;
@@ -25,12 +26,14 @@ __decorate([
     (0, swagger_1.ApiProperty)({ example: '+91 98765 43210' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.Matches)(mobile_1.INDIAN_MOBILE_REGEX, { message: mobile_1.INVALID_MOBILE_MESSAGE }),
     __metadata("design:type", String)
 ], CreateCustomerDto.prototype, "mobile", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(mobile_1.INDIAN_MOBILE_REGEX, { message: mobile_1.INVALID_MOBILE_MESSAGE }),
     __metadata("design:type", String)
 ], CreateCustomerDto.prototype, "altMobile", void 0);
 __decorate([

@@ -24,4 +24,10 @@ describe('validateUserProfileForm', () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.phone).toBe('9000011111');
   });
+
+  it('rejects a malformed phone', () => {
+    const result = validateUserProfileForm({ name: 'Demo Owner', phone: '12345' });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.phone).toBeDefined();
+  });
 });

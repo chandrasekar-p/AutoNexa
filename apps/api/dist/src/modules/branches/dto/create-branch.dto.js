@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateBranchDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const mobile_1 = require("../../../common/validators/mobile");
 class CreateBranchDto {
 }
 exports.CreateBranchDto = CreateBranchDto;
@@ -37,6 +38,7 @@ __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(mobile_1.INDIAN_MOBILE_REGEX, { message: mobile_1.INVALID_MOBILE_MESSAGE }),
     __metadata("design:type", String)
 ], CreateBranchDto.prototype, "phone", void 0);
 //# sourceMappingURL=create-branch.dto.js.map

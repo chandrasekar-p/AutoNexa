@@ -13,6 +13,15 @@ describe('validateSupplierForm', () => {
     if (!result.success) expect(result.errors.name).toBeDefined();
   });
 
+  it('rejects a malformed mobile but accepts a blank one', () => {
+    const bad = validateSupplierForm({ name: 'Bosch', mobile: '12345' });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.errors.mobile).toBeDefined();
+
+    const blank = validateSupplierForm({ name: 'Bosch', mobile: '' });
+    expect(blank.success).toBe(true);
+  });
+
   it('rejects a malformed email but accepts a blank one', () => {
     const bad = validateSupplierForm({ name: 'Bosch', email: 'not-an-email' });
     expect(bad.success).toBe(false);

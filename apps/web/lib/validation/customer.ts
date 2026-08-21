@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE } from './mobile';
 
 // Mirrors the backend's CreateCustomerDto (apps/api/src/modules/customers/dto/create-customer.dto.ts)
 // exactly — only name/mobile are required, matching the backend's own
@@ -6,8 +7,8 @@ import { z } from 'zod';
 // would accept or vice versa.
 export const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  mobile: z.string().min(1, 'Mobile number is required'),
-  altMobile: z.string().optional(),
+  mobile: z.string().min(1, 'Mobile number is required').regex(INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE),
+  altMobile: z.string().regex(INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().optional(),
   city: z.string().optional(),
