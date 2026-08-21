@@ -10,12 +10,13 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const app_module_1 = require("./app.module");
 const http_exception_filter_1 = require("./common/filters/http-exception.filter");
 const upload_storage_1 = require("./modules/uploads/upload-storage");
+const api_prefix_1 = require("./common/api-prefix");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
-    app.setGlobalPrefix('api/v1');
+    app.setGlobalPrefix(api_prefix_1.API_PREFIX);
     app.use((0, cookie_parser_1.default)());
     app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });
-    app.useStaticAssets(upload_storage_1.UPLOAD_ROOT, { prefix: '/uploads' });
+    app.useStaticAssets(upload_storage_1.UPLOAD_ROOT, { prefix: `/${api_prefix_1.API_PREFIX}/uploads` });
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,

@@ -18,12 +18,13 @@ const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const upload_storage_1 = require("./upload-storage");
+const api_prefix_1 = require("../../common/api-prefix");
 let UploadsController = class UploadsController {
     upload(file, user) {
         if (!file)
             throw new common_1.BadRequestException('No file uploaded');
         return {
-            url: `/uploads/${user.tenantId}/${file.filename}`,
+            url: `/${api_prefix_1.API_PREFIX}/uploads/${user.tenantId}/${file.filename}`,
             fileName: file.originalname,
         };
     }

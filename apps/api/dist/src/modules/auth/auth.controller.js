@@ -19,8 +19,9 @@ const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
 const public_decorator_1 = require("../../common/decorators/public.decorator");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
+const api_prefix_1 = require("../../common/api-prefix");
 const REFRESH_COOKIE = 'autonexa_refresh_token';
-const REFRESH_COOKIE_PATH = '/api/v1/auth';
+const REFRESH_COOKIE_PATH = `/${api_prefix_1.API_PREFIX}/auth`;
 const REFRESH_COOKIE_OPTIONS = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

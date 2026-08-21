@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { imageFileFilter, uploadStorage, MAX_UPLOAD_BYTES } from './upload-storage';
+import { API_PREFIX } from '../../common/api-prefix';
 
 // Generic — any authenticated tenant user may upload a file (no
 // @Permissions() gate here, same reasoning as NotificationsController:
@@ -25,7 +26,9 @@ export class UploadsController {
   upload(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthenticatedUser) {
     if (!file) throw new BadRequestException('No file uploaded');
     return {
-      url: `/uploads/${user.tenantId}/${file.filename}`,
+      // Must match main.ts's useStaticAssets prefix exactly, or this URL
+      // 404s once the frontend resolves it against NEXT_PUBLIC_API_URL.
+      url: `/${API_PREFIX}/uploads/${user.tenantId}/${file.filename}`,
       fileName: file.originalname,
     };
   }
