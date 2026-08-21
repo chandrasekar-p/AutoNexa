@@ -49,7 +49,7 @@ export default function LoginPage() {
   return (
     <div className="rounded-lg border border-line bg-surface p-8 shadow-panel">
       <div className="mb-8 flex flex-col items-center gap-2 text-center">
-        <Image src="/logo.png" alt="AutoNexa" width={72} height={72} className="rounded-2xl" priority />
+        <Image src="/logo.png" alt="AutoNexa" width={200} height={200} className="rounded-2xl" priority />
         <p className="text-xs text-ink-secondary">Sign in to your workshop</p>
       </div>
 

@@ -44,9 +44,6 @@ export default function JobCardDetailPage() {
 
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [generatedInvoice, setGeneratedInvoice] = useState<{ id: string; invoiceNumber: string; grandTotal: string } | null>(
-    null,
-  );
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
 
   const [complaint, setComplaint] = useState<string | null>(null);
@@ -81,10 +78,10 @@ export default function JobCardDetailPage() {
     setIsGeneratingInvoice(true);
     setActionError(null);
     try {
-      const invoice = await apiPost<{ id: string; invoiceNumber: string; grandTotal: string }>(
-        `/job-cards/${params.id}/generate-invoice`,
-      );
-      setGeneratedInvoice(invoice);
+      await apiPost(`/job-cards/${params.id}/generate-invoice`);
+      // The refetched job card's own `.invoice` field (see JOB_CARD_INCLUDE
+      // on the backend) is now the single source of truth for whether an
+      // invoice exists — no separate local state needed to track it.
       query.refetch();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -138,6 +135,7 @@ export default function JobCardDetailPage() {
   const jobCard = query.data;
   if (!jobCard) return null;
 
+  const existingInvoice = jobCard.invoice;
   const transitions = getValidJobCardTransitions(jobCard.status);
   const isTerminal = TERMINAL_STATUSES.includes(jobCard.status);
   const linesReadOnly = !canUpdate || isTerminal; // UI-only guard — see JobCardLabourLines' doc comment: the backend doesn't actually block this for labour, only for removePart.
@@ -169,13 +167,13 @@ export default function JobCardDetailPage() {
 
       {actionError ? <ErrorState message={actionError} /> : null}
 
-      {generatedInvoice ? (
+      {existingInvoice ? (
         <p className="rounded border border-success-100 bg-success-50 px-3 py-2 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
           Invoice{' '}
-          <Link href={`/invoices/${generatedInvoice.id}`} className="num font-medium underline">
-            {generatedInvoice.invoiceNumber}
+          <Link href={`/invoices/${existingInvoice.id}`} className="num font-medium underline">
+            {existingInvoice.invoiceNumber}
           </Link>{' '}
-          generated — {formatMoney(generatedInvoice.grandTotal)}.
+          — {formatMoney(existingInvoice.grandTotal)}.
         </p>
       ) : null}
 
@@ -191,7 +189,11 @@ export default function JobCardDetailPage() {
               {STATUS_ACTION_LABEL[status]}
             </Button>
           ))}
-          {canGenerateInvoice && GENERATABLE_INVOICE_STATUSES.includes(jobCard.status) ? (
+          {existingInvoice ? (
+            <Link href={`/invoices/${existingInvoice.id}`}>
+              <Button variant="secondary">View Invoice</Button>
+            </Link>
+          ) : canGenerateInvoice && GENERATABLE_INVOICE_STATUSES.includes(jobCard.status) ? (
             <Button variant="secondary" onClick={handleGenerateInvoice} isLoading={isGeneratingInvoice}>
               Generate Invoice
             </Button>

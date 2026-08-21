@@ -1,18 +1,51 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { apiGet } from '@/lib/api-client';
+import { Send } from 'lucide-react';
+import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { InvoiceDetail, PaymentMethod } from '@/lib/api-types';
+import type { DeliveryChannel, DeliveryStatus, InvoiceDetail, PaymentMethod } from '@/lib/api-types';
 import { InvoiceStatusBadge } from '@/components/domain/invoice-status-badge';
 import { RecordPaymentForm } from '@/components/domain/record-payment-form';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '@/components/ui/table';
+
+const CHANNEL_LABEL: Record<DeliveryChannel, string> = {
+  EMAIL: 'Email',
+  SMS: 'SMS',
+  WHATSAPP: 'WhatsApp',
+  SLACK: 'Slack',
+};
+
+function summarizeSendAttempts(attempts: { channel: DeliveryChannel; status: DeliveryStatus }[]): {
+  tone: 'success' | 'warning' | 'danger';
+  message: string;
+} {
+  const sent = attempts.filter((a) => a.status === 'SENT').map((a) => CHANNEL_LABEL[a.channel]);
+  const failed = attempts.filter((a) => a.status === 'FAILED').map((a) => CHANNEL_LABEL[a.channel]);
+  const skipped = attempts.every((a) => a.status === 'SKIPPED');
+
+  if (skipped) {
+    return {
+      tone: 'warning',
+      message: 'Not sent — no Email/SMS/WhatsApp provider is configured, or this customer has no email or mobile on file.',
+    };
+  }
+  if (sent.length > 0 && failed.length === 0) {
+    return { tone: 'success', message: `Sent via ${sent.join(' and ')}.` };
+  }
+  if (sent.length > 0 && failed.length > 0) {
+    return { tone: 'warning', message: `Sent via ${sent.join(', ')} — ${failed.join(', ')} failed.` };
+  }
+  return { tone: 'danger', message: `Could not send via ${failed.join(', ')}.` };
+}
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Cash',
@@ -34,8 +67,28 @@ function SummaryRow({ label, value, emphasized }: { label: string; value: string
 export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
   const canRecordPayment = usePermission('payment:create');
+  const canSend = usePermission('invoice:read');
 
   const query = useApiQuery<InvoiceDetail>(() => apiGet(`/invoices/${params.id}`), [params.id]);
+  const [isSending, setIsSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ tone: 'success' | 'warning' | 'danger'; message: string } | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  async function handleSend() {
+    setIsSending(true);
+    setSendError(null);
+    setSendResult(null);
+    try {
+      const result = await apiPost<{ attempts: { channel: DeliveryChannel; status: DeliveryStatus }[] }>(
+        `/invoices/${params.id}/send`,
+      );
+      setSendResult(summarizeSendAttempts(result.attempts));
+    } catch (err) {
+      setSendError(err instanceof ApiError ? err.message : 'Could not send the invoice.');
+    } finally {
+      setIsSending(false);
+    }
+  }
 
   if (query.isLoading) {
     return (
@@ -58,7 +111,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="num text-2xl font-semibold text-ink">{invoice.invoiceNumber}</h1>
@@ -66,10 +119,33 @@ export default function InvoiceDetailPage() {
           </div>
           <p className="text-sm text-ink-secondary">{formatDate(invoice.createdAt)}</p>
         </div>
-        <Link href="/invoices" className="self-center text-sm text-ink-secondary hover:text-ink">
-          &larr; Back to invoices
-        </Link>
+        <div className="flex items-center gap-3">
+          {canSend ? (
+            <Button variant="secondary" size="sm" onClick={handleSend} isLoading={isSending}>
+              <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Send Invoice
+            </Button>
+          ) : null}
+          <Link href="/invoices" className="text-sm text-ink-secondary hover:text-ink">
+            &larr; Back to invoices
+          </Link>
+        </div>
       </div>
+
+      {sendError ? <ErrorState message={sendError} /> : null}
+      {sendResult ? (
+        <p
+          className={
+            sendResult.tone === 'success'
+              ? 'rounded border border-success-100 bg-success-50 px-3 py-2 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
+              : sendResult.tone === 'warning'
+                ? 'rounded border border-warning-100 bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400'
+                : 'rounded border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-400'
+          }
+        >
+          {sendResult.message}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Link

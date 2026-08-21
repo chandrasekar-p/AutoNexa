@@ -26,7 +26,7 @@ let MessagingService = class MessagingService {
         this.whatsappProvider = whatsappProvider;
         this.slackProvider = slackProvider;
     }
-    async notifyCustomer(tenantId, event, recipient, content, related) {
+    async notifyCustomer(tenantId, event, recipient, content, related, attachments) {
         const availability = {
             email: this.emailProvider.isConfigured(),
             sms: this.smsProvider.isConfigured(),
@@ -35,22 +35,30 @@ let MessagingService = class MessagingService {
         const channels = (0, pick_channels_1.pickCustomerChannels)(recipient, availability);
         if (channels.length === 0) {
             await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email ?? recipient.mobile ?? 'unknown', client_1.DeliveryStatus.SKIPPED, 'No messaging provider configured', related);
-            return;
+            return [{ channel: client_1.DeliveryChannel.EMAIL, status: client_1.DeliveryStatus.SKIPPED }];
         }
+        const attempts = [];
         for (const channel of channels) {
             if (channel === 'EMAIL') {
-                const result = await this.emailProvider.send(recipient.email, content.subject, content.body);
-                await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email, result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED, result.error, related);
+                const result = await this.emailProvider.send(recipient.email, content.subject, content.body, attachments);
+                const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
+                await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email, status, result.error, related);
+                attempts.push({ channel: client_1.DeliveryChannel.EMAIL, status });
             }
             else if (channel === 'WHATSAPP') {
                 const result = await this.whatsappProvider.send(recipient.mobile, content.body);
-                await this.log(tenantId, client_1.DeliveryChannel.WHATSAPP, event, recipient.mobile, result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED, result.error, related);
+                const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
+                await this.log(tenantId, client_1.DeliveryChannel.WHATSAPP, event, recipient.mobile, status, result.error, related);
+                attempts.push({ channel: client_1.DeliveryChannel.WHATSAPP, status });
             }
             else if (channel === 'SMS') {
                 const result = await this.smsProvider.send(recipient.mobile, content.body);
-                await this.log(tenantId, client_1.DeliveryChannel.SMS, event, recipient.mobile, result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED, result.error, related);
+                const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
+                await this.log(tenantId, client_1.DeliveryChannel.SMS, event, recipient.mobile, status, result.error, related);
+                attempts.push({ channel: client_1.DeliveryChannel.SMS, status });
             }
         }
+        return attempts;
     }
     async notifyOps(tenantId, event, text, related) {
         const settings = await this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } });

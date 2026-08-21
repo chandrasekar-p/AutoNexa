@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import { SendResult } from './provider.types';
+import { EmailAttachment, SendResult } from './provider.types';
 
 @Injectable()
 export class EmailProvider {
@@ -30,10 +30,10 @@ export class EmailProvider {
     return this.transporter !== null;
   }
 
-  async send(to: string, subject: string, body: string): Promise<SendResult> {
+  async send(to: string, subject: string, body: string, attachments?: EmailAttachment[]): Promise<SendResult> {
     if (!this.transporter) return { ok: false, error: 'SMTP not configured' };
     try {
-      await this.transporter.sendMail({ from: `"${this.fromName}" <${this.fromEmail}>`, to, subject, text: body });
+      await this.transporter.sendMail({ from: `"${this.fromName}" <${this.fromEmail}>`, to, subject, text: body, attachments });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Unknown email error' };

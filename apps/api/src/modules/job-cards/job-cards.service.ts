@@ -26,6 +26,10 @@ const JOB_CARD_INCLUDE = {
   parts: true,
   statusHistory: { orderBy: { changedAt: 'desc' as const } },
   notes: { orderBy: { createdAt: 'desc' as const } },
+  // Lightweight reference so the frontend can link straight to an
+  // already-generated invoice instead of only surfacing "an invoice
+  // already exists for this job card" with nowhere to go from there.
+  invoice: { select: { id: true, invoiceNumber: true, status: true, grandTotal: true } },
 };
 const TERMINAL_JOB_CARD_STATUSES: JobCardStatus[] = [JobCardStatus.DELIVERED, JobCardStatus.CANCELLED];
 

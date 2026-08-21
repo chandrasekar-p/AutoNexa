@@ -5,12 +5,18 @@ import { EmailProvider } from './providers/email.provider';
 import { SmsProvider } from './providers/sms.provider';
 import { WhatsAppProvider } from './providers/whatsapp.provider';
 import { SlackProvider } from './providers/slack.provider';
+import { EmailAttachment } from './providers/provider.types';
 import { pickCustomerChannels, ChannelRecipient } from './pick-channels';
 import { MessageContent } from './templates';
 
 export interface RelatedEntity {
   type: string;
   id: string;
+}
+
+export interface DeliveryAttempt {
+  channel: DeliveryChannel;
+  status: DeliveryStatus;
 }
 
 @Injectable()
@@ -37,7 +43,10 @@ export class MessagingService {
     recipient: ChannelRecipient,
     content: MessageContent,
     related: RelatedEntity,
-  ): Promise<void> {
+    // Email-only (see EmailAttachment's doc comment) — e.g. a PDF invoice
+    // on a manual resend. SMS/WhatsApp always get content.body as plain text.
+    attachments?: EmailAttachment[],
+  ): Promise<DeliveryAttempt[]> {
     const availability = {
       email: this.emailProvider.isConfigured(),
       sms: this.smsProvider.isConfigured(),
@@ -58,45 +67,31 @@ export class MessagingService {
         'No messaging provider configured',
         related,
       );
-      return;
+      return [{ channel: DeliveryChannel.EMAIL, status: DeliveryStatus.SKIPPED }];
     }
+
+    const attempts: DeliveryAttempt[] = [];
 
     for (const channel of channels) {
       if (channel === 'EMAIL') {
-        const result = await this.emailProvider.send(recipient.email as string, content.subject, content.body);
-        await this.log(
-          tenantId,
-          DeliveryChannel.EMAIL,
-          event,
-          recipient.email as string,
-          result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED,
-          result.error,
-          related,
-        );
+        const result = await this.emailProvider.send(recipient.email as string, content.subject, content.body, attachments);
+        const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
+        await this.log(tenantId, DeliveryChannel.EMAIL, event, recipient.email as string, status, result.error, related);
+        attempts.push({ channel: DeliveryChannel.EMAIL, status });
       } else if (channel === 'WHATSAPP') {
         const result = await this.whatsappProvider.send(recipient.mobile as string, content.body);
-        await this.log(
-          tenantId,
-          DeliveryChannel.WHATSAPP,
-          event,
-          recipient.mobile as string,
-          result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED,
-          result.error,
-          related,
-        );
+        const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
+        await this.log(tenantId, DeliveryChannel.WHATSAPP, event, recipient.mobile as string, status, result.error, related);
+        attempts.push({ channel: DeliveryChannel.WHATSAPP, status });
       } else if (channel === 'SMS') {
         const result = await this.smsProvider.send(recipient.mobile as string, content.body);
-        await this.log(
-          tenantId,
-          DeliveryChannel.SMS,
-          event,
-          recipient.mobile as string,
-          result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED,
-          result.error,
-          related,
-        );
+        const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
+        await this.log(tenantId, DeliveryChannel.SMS, event, recipient.mobile as string, status, result.error, related);
+        attempts.push({ channel: DeliveryChannel.SMS, status });
       }
     }
+
+    return attempts;
   }
 
   /** Internal ops ping to the workshop's own Slack, if configured — never customer-facing. */

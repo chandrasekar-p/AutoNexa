@@ -6,8 +6,9 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { useHasResourceAccess } from '@/lib/hooks/use-permission';
-import { NAV_ITEMS, type NavItem } from './nav-items';
+import { useAuth } from '@/lib/auth/auth-context';
+import { hasResourceAccess } from '@/lib/hooks/use-permission';
+import { NAV_SECTIONS, type NavItem } from './nav-items';
 
 const STORAGE_KEY = 'autonexa-sidebar-collapsed';
 
@@ -19,13 +20,7 @@ function readInitialCollapsed(): boolean {
   return window.localStorage.getItem(STORAGE_KEY) === '1';
 }
 
-function NavLink({
-  href,
-  label,
-  icon: Icon,
-  showLabel,
-  onNavigate,
-}: NavItem & { showLabel: boolean; onNavigate: () => void }) {
+function NavLink({ href, label, icon: Icon, showLabel, onNavigate }: NavItem & { showLabel: boolean; onNavigate: () => void }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(`${href}/`);
 
@@ -48,15 +43,6 @@ function NavLink({
   );
 }
 
-function NavItemGated({ showLabel, onNavigate, ...item }: NavItem & { showLabel: boolean; onNavigate: () => void }) {
-  // Hooks can't be called conditionally, but a resource of `null` always
-  // passes — this small wrapper keeps that decision colocated per item
-  // rather than filtering the whole list with a hook called in a loop.
-  const hasAccess = useHasResourceAccess(item.resource ?? '__always__');
-  if (item.resource !== null && !hasAccess) return null;
-  return <NavLink {...item} showLabel={showLabel} onNavigate={onNavigate} />;
-}
-
 interface SidebarProps {
   /** Whether the mobile/tablet off-canvas drawer is open. Ignored at the `lg` breakpoint and up, where the sidebar is always in-flow. */
   mobileOpen: boolean;
@@ -64,6 +50,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
+  const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
 
   // The desktop density preference is irrelevant to the mobile drawer — a
@@ -71,6 +58,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   // overlay a visitor just opened to find their way around, so the drawer
   // always shows full labels regardless of the persisted `collapsed` state.
   const showLabels = !collapsed || mobileOpen;
+
+  // One useAuth() call, then plain filtering — not a hook per nav item —
+  // so a section's header can be skipped entirely when every item inside
+  // it is gated out for this role, without violating rules-of-hooks.
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => item.resource === null || hasResourceAccess(user, item.resource)),
+  })).filter((section) => section.items.length > 0);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -82,13 +77,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   return (
     <>
-      {mobileOpen ? (
-        <div
-          className="fixed inset-0 z-30 bg-graphite-950/60 lg:hidden"
-          onClick={onMobileClose}
-          aria-hidden
-        />
-      ) : null}
+      {mobileOpen ? <div className="fixed inset-0 z-30 bg-graphite-950/60 lg:hidden" onClick={onMobileClose} aria-hidden /> : null}
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-40 flex h-full flex-col border-r border-graphite-800 bg-graphite-900',
@@ -124,9 +113,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             <X aria-hidden className="h-4 w-4" />
           </button>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
-          {NAV_ITEMS.map((item) => (
-            <NavItemGated key={item.href} {...item} showLabel={showLabels} onNavigate={onMobileClose} />
+        <nav className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
+          {sections.map((section, index) => (
+            <div key={section.label ?? `section-${index}`} className="flex flex-col gap-0.5">
+              {section.label && showLabels ? (
+                <span className="px-3 pb-1 pt-2 text-micro font-semibold uppercase tracking-wide text-white/35">
+                  {section.label}
+                </span>
+              ) : null}
+              {section.label && !showLabels && index > 0 ? <div className="mx-1 my-1.5 border-t border-graphite-800" aria-hidden /> : null}
+              {section.items.map((item) => (
+                <NavLink key={item.href} {...item} showLabel={showLabels} onNavigate={onMobileClose} />
+              ))}
+            </div>
           ))}
         </nav>
       </aside>

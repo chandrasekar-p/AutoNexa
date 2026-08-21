@@ -1,4 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import { InvoiceStatus, JobCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
@@ -6,8 +8,10 @@ import { generateSequenceNumber } from '../../common/sequence/generate-sequence-
 import { rollupPaymentStatus } from '../../common/billing/rollup-payment-status';
 import { MessagingService } from '../messaging/messaging.service';
 import { invoiceIssuedMessage, paymentReceivedMessage } from '../messaging/templates';
+import { UPLOAD_ROOT } from '../uploads/upload-storage';
 import { calculateGstSplit, computeRoundOff, GstSplitLineItem } from './gst-split';
 import { isOverpayment } from './payment-guard';
+import { buildInvoicePdf } from './invoice-pdf';
 import { CreateInvoicePaymentDto } from './dto/create-invoice-payment.dto';
 import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
 
@@ -213,6 +217,81 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
+  }
+
+  /**
+   * Manual send/resend — unlike sendInvoiceIssued (fired once, automatically,
+   * at generation), this is user-triggered from the invoice page and emails
+   * an actual PDF attachment rather than a text-only notification. SMS/
+   * WhatsApp still get the same short text as the automatic notification —
+   * building a document those channels could carry is out of scope (see the
+   * phase write-up). Returns what was actually attempted so the frontend can
+   * tell the user whether it worked, not just fire-and-forget.
+   */
+  async resend(id: string) {
+    const invoice = await this.findOne(id);
+    const tenantId = TenantContext.requireTenantId();
+    const [tenant, settings] = await Promise.all([
+      this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+      this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } }),
+    ]);
+    const workshopName = tenant?.name ?? 'AutoNexa';
+
+    const content = invoiceIssuedMessage({
+      workshopName,
+      customerName: invoice.customer.name,
+      invoiceNumber: invoice.invoiceNumber,
+      grandTotal: `₹${Number(invoice.grandTotal).toFixed(2)}`,
+    });
+
+    const pdfBuffer = await buildInvoicePdf({
+      workshopName,
+      logoBuffer: await this.readLogoBuffer(settings?.logoUrl ?? null),
+      invoiceNumber: invoice.invoiceNumber,
+      createdAt: invoice.createdAt,
+      customerName: invoice.customer.name,
+      customerMobile: invoice.customer.mobile,
+      lineItems: invoice.lineItems.map((item) => ({
+        description: item.description,
+        hsnSac: item.hsnSac,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        gstRate: item.gstRate.toString(),
+        lineTotal: item.lineTotal.toString(),
+      })),
+      subtotal: invoice.subtotal.toString(),
+      cgstAmount: invoice.cgstAmount.toString(),
+      sgstAmount: invoice.sgstAmount.toString(),
+      igstAmount: invoice.igstAmount.toString(),
+      roundOff: invoice.roundOff.toString(),
+      grandTotal: invoice.grandTotal.toString(),
+    });
+
+    const attempts = await this.messaging.notifyCustomer(
+      tenantId,
+      'invoice.resent',
+      { email: invoice.customer.email, mobile: invoice.customer.mobile },
+      content,
+      { type: 'Invoice', id },
+      [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
+    );
+
+    // `id` in the response (not just `attempts`) is deliberate — the audit
+    // interceptor reads `.id` off every @Audit()-tagged response to fill
+    // `entityId` (see audit-log.interceptor.ts); without it every resend
+    // would log as entityId "unknown", the same bug fixed once already this
+    // build in adminSetPassword.
+    return { id, attempts };
+  }
+
+  /** `logoUrl` is a relative `/uploads/<tenantId>/<uuid>.ext` path (see upload-storage.ts) — resolved straight off local disk, not over HTTP, since this runs in the same process that serves it. */
+  private async readLogoBuffer(logoUrl: string | null): Promise<Buffer | null> {
+    if (!logoUrl) return null;
+    try {
+      return await readFile(join(UPLOAD_ROOT, logoUrl.replace(/^\/uploads\//, '')));
+    } catch {
+      return null;
+    }
   }
 
   async recordPayment(invoiceId: string, dto: CreateInvoicePaymentDto) {

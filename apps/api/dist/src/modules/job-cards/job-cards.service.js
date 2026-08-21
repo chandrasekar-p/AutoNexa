@@ -30,6 +30,7 @@ const JOB_CARD_INCLUDE = {
     parts: true,
     statusHistory: { orderBy: { changedAt: 'desc' } },
     notes: { orderBy: { createdAt: 'desc' } },
+    invoice: { select: { id: true, invoiceNumber: true, status: true, grandTotal: true } },
 };
 const TERMINAL_JOB_CARD_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 let JobCardsService = class JobCardsService {

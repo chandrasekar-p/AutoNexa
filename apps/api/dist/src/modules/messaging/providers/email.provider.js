@@ -66,11 +66,11 @@ let EmailProvider = class EmailProvider {
     isConfigured() {
         return this.transporter !== null;
     }
-    async send(to, subject, body) {
+    async send(to, subject, body, attachments) {
         if (!this.transporter)
             return { ok: false, error: 'SMTP not configured' };
         try {
-            await this.transporter.sendMail({ from: `"${this.fromName}" <${this.fromEmail}>`, to, subject, text: body });
+            await this.transporter.sendMail({ from: `"${this.fromName}" <${this.fromEmail}>`, to, subject, text: body, attachments });
             return { ok: true };
         }
         catch (err) {

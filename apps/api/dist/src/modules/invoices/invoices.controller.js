@@ -33,6 +33,9 @@ let InvoicesController = class InvoicesController {
     recordPayment(id, dto) {
         return this.invoicesService.recordPayment(id, dto);
     }
+    resend(id) {
+        return this.invoicesService.resend(id);
+    }
 };
 exports.InvoicesController = InvoicesController;
 __decorate([
@@ -61,6 +64,15 @@ __decorate([
     __metadata("design:paramtypes", [String, create_invoice_payment_dto_1.CreateInvoicePaymentDto]),
     __metadata("design:returntype", void 0)
 ], InvoicesController.prototype, "recordPayment", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('invoice:read'),
+    (0, common_1.Post)(':id/send'),
+    (0, audit_log_interceptor_1.Audit)('invoice.send', 'Invoice'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], InvoicesController.prototype, "resend", null);
 exports.InvoicesController = InvoicesController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiTags)('invoices'),

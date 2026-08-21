@@ -11,6 +11,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InvoicesService = void 0;
 const common_1 = require("@nestjs/common");
+const promises_1 = require("fs/promises");
+const path_1 = require("path");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
@@ -18,8 +20,10 @@ const generate_sequence_number_1 = require("../../common/sequence/generate-seque
 const rollup_payment_status_1 = require("../../common/billing/rollup-payment-status");
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
+const upload_storage_1 = require("../uploads/upload-storage");
 const gst_split_1 = require("./gst-split");
 const payment_guard_1 = require("./payment-guard");
+const invoice_pdf_1 = require("./invoice-pdf");
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true };
 const INVOICE_INCLUDE = {
     customer: { select: CUSTOMER_SUMMARY_SELECT },
@@ -152,6 +156,55 @@ let InvoicesService = class InvoicesService {
         if (!invoice)
             throw new common_1.NotFoundException('Invoice not found');
         return invoice;
+    }
+    async resend(id) {
+        const invoice = await this.findOne(id);
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const [tenant, settings] = await Promise.all([
+            this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+            this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } }),
+        ]);
+        const workshopName = tenant?.name ?? 'AutoNexa';
+        const content = (0, templates_1.invoiceIssuedMessage)({
+            workshopName,
+            customerName: invoice.customer.name,
+            invoiceNumber: invoice.invoiceNumber,
+            grandTotal: `₹${Number(invoice.grandTotal).toFixed(2)}`,
+        });
+        const pdfBuffer = await (0, invoice_pdf_1.buildInvoicePdf)({
+            workshopName,
+            logoBuffer: await this.readLogoBuffer(settings?.logoUrl ?? null),
+            invoiceNumber: invoice.invoiceNumber,
+            createdAt: invoice.createdAt,
+            customerName: invoice.customer.name,
+            customerMobile: invoice.customer.mobile,
+            lineItems: invoice.lineItems.map((item) => ({
+                description: item.description,
+                hsnSac: item.hsnSac,
+                quantity: item.quantity.toString(),
+                unitPrice: item.unitPrice.toString(),
+                gstRate: item.gstRate.toString(),
+                lineTotal: item.lineTotal.toString(),
+            })),
+            subtotal: invoice.subtotal.toString(),
+            cgstAmount: invoice.cgstAmount.toString(),
+            sgstAmount: invoice.sgstAmount.toString(),
+            igstAmount: invoice.igstAmount.toString(),
+            roundOff: invoice.roundOff.toString(),
+            grandTotal: invoice.grandTotal.toString(),
+        });
+        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.resent', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id }, [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]);
+        return { id, attempts };
+    }
+    async readLogoBuffer(logoUrl) {
+        if (!logoUrl)
+            return null;
+        try {
+            return await (0, promises_1.readFile)((0, path_1.join)(upload_storage_1.UPLOAD_ROOT, logoUrl.replace(/^\/uploads\//, '')));
+        }
+        catch {
+            return null;
+        }
     }
     async recordPayment(invoiceId, dto) {
         const invoice = await this.assertExists(invoiceId);

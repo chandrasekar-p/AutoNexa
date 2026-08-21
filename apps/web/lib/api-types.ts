@@ -626,6 +626,8 @@ export interface JobCardDetail extends JobCardFields {
   parts: JobCardPartLine[];
   statusHistory: JobCardStatusHistoryEntry[];
   notes: JobCardNoteEntry[];
+  /** null until POST /job-cards/:id/generate-invoice has been called once — Invoice.jobCardId is unique, so at most one. */
+  invoice: { id: string; invoiceNumber: string; status: InvoiceStatus; grandTotal: string } | null;
 }
 
 export type PaymentMethod = 'cash' | 'upi' | 'card' | 'bank_transfer' | 'credit';

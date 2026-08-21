@@ -34,4 +34,13 @@ export class InvoicesController {
   recordPayment(@Param('id') id: string, @Body() dto: CreateInvoicePaymentDto) {
     return this.invoicesService.recordPayment(id, dto);
   }
+
+  // Same permission as viewing the invoice, not a separate grant — anyone
+  // who can see this invoice (Service Advisor included) can (re)send it.
+  @Permissions('invoice:read')
+  @Post(':id/send')
+  @Audit('invoice.send', 'Invoice')
+  resend(@Param('id') id: string) {
+    return this.invoicesService.resend(id);
+  }
 }
