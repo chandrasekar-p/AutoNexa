@@ -12,7 +12,7 @@ export class CreateJobCardDto {
   vehicleId: string;
 
   @ApiProperty()
-  @IsUUID()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   customerId: string;
 
   @ApiPropertyOptional()

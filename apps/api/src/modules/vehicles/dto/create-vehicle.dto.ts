@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validators/uuid-like';
 
 export class CreateVehicleDto {
   @ApiProperty()
-  @IsUUID()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   customerId: string;
 
   @ApiProperty({ example: 'TN 37 AB 1234' })

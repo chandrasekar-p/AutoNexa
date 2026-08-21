@@ -13,6 +13,7 @@ exports.ListVehiclesQueryDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const uuid_like_1 = require("../../../common/validators/uuid-like");
 class ListVehiclesQueryDto {
     constructor() {
         this.page = 1;
@@ -29,7 +30,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
     __metadata("design:type", String)
 ], ListVehiclesQueryDto.prototype, "customerId", void 0);
 __decorate([

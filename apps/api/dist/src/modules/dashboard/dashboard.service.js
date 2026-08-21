@@ -42,7 +42,8 @@ let DashboardService = class DashboardService {
         const db = this.prisma.forTenant();
         const today = todayRange();
         const month = monthRange();
-        const [todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians, currentTechnician,] = await Promise.all([
+        const [totalCustomers, todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians, currentTechnician,] = await Promise.all([
+            db.customer.count({ where: { deletedAt: null } }),
             db.appointment.count({
                 where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
             }),
@@ -66,6 +67,7 @@ let DashboardService = class DashboardService {
             return { technicianId: t.id, name: t.user.name, jobsOpen: performance.jobsOpen };
         }));
         const base = {
+            totalCustomers,
             todaysAppointments,
             vehiclesInService,
             openJobCards,

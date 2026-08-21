@@ -4,7 +4,7 @@ import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validato
 
 export class CreateAppointmentDto {
   @ApiProperty()
-  @IsUUID()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   customerId: string;
 
   @ApiProperty()

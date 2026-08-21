@@ -27,7 +27,7 @@ export class ListJobCardsQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   customerId?: string;
 
   @ApiPropertyOptional({ default: 1 })

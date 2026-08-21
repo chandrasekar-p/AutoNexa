@@ -57,6 +57,7 @@ export class DashboardService {
     const month = monthRange();
 
     const [
+      totalCustomers,
       todaysAppointments,
       vehiclesInService,
       openJobCards,
@@ -66,6 +67,7 @@ export class DashboardService {
       technicians,
       currentTechnician,
     ] = await Promise.all([
+      db.customer.count({ where: { deletedAt: null } }),
       db.appointment.count({
         where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
       }),
@@ -98,6 +100,7 @@ export class DashboardService {
     );
 
     const base = {
+      totalCustomers,
       todaysAppointments,
       vehiclesInService,
       openJobCards,

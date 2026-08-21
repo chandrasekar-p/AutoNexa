@@ -12,12 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateVehicleDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const uuid_like_1 = require("../../../common/validators/uuid-like");
 class CreateVehicleDto {
 }
 exports.CreateVehicleDto = CreateVehicleDto;
 __decorate([
     (0, swagger_1.ApiProperty)(),
-    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
     __metadata("design:type", String)
 ], CreateVehicleDto.prototype, "customerId", void 0);
 __decorate([

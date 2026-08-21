@@ -27,6 +27,7 @@ export type JobCardStatus =
 
 /** The money fields are omitted entirely (not present, not null) unless the caller has report:read — see DashboardService.summary's canViewFinancials gate. Render each one conditionally, not with a fallback value. */
 export interface DashboardSummary {
+  totalCustomers: number;
   todaysAppointments: number;
   vehiclesInService: number;
   openJobCards: number;

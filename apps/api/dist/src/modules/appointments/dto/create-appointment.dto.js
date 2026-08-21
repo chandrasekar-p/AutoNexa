@@ -18,7 +18,7 @@ class CreateAppointmentDto {
 exports.CreateAppointmentDto = CreateAppointmentDto;
 __decorate([
     (0, swagger_1.ApiProperty)(),
-    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
     __metadata("design:type", String)
 ], CreateAppointmentDto.prototype, "customerId", void 0);
 __decorate([

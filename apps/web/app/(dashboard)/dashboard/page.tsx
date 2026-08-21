@@ -8,6 +8,7 @@ import {
   FileText,
   IndianRupee,
   TrendingUp,
+  Users,
   Wrench,
   Package,
   AlertTriangle,
@@ -77,6 +78,12 @@ const ICON_SIZE = 'h-4 w-4';
 function KpiGrid({ data }: { data: DashboardSummary }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <KpiCard
+        label="Total Customers"
+        value={formatNumber(data.totalCustomers)}
+        tone="accent"
+        icon={<Users className={ICON_SIZE} />}
+      />
       <KpiCard
         label="Today's Appointments"
         value={formatNumber(data.todaysAppointments)}
@@ -156,7 +163,7 @@ function KpiGrid({ data }: { data: DashboardSummary }) {
 function KpiGridSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {Array.from({ length: 11 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <Skeleton key={i} className="h-28 w-full" />
       ))}
     </div>
