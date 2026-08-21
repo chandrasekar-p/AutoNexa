@@ -36,39 +36,63 @@ export class DashboardService {
    * timezone-aware date math anywhere yet (no such dependency exists), so
    * this is a documented simplification consistent with that, not an
    * oversight specific to the dashboard.
+   *
+   * `canViewFinancials` (report:read) gates the money fields — pending
+   * payments, sales, labour/parts revenue — which a Technician or
+   * Receptionist shouldn't see even though the dashboard itself is
+   * universal. Those fields are simply omitted from the response (and
+   * their queries skipped entirely, not just redacted after the fact) when
+   * false, rather than nulled — the frontend only renders the KPI cards
+   * that are actually present.
    */
-  async summary() {
+  async summary(canViewFinancials: boolean) {
     const db = this.prisma.forTenant();
     const today = todayRange();
     const month = monthRange();
 
-    const [
+    const [todaysAppointments, vehiclesInService, openJobCards, completedJobsToday, pendingEstimates, parts, technicians] =
+      await Promise.all([
+        db.appointment.count({
+          where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
+        }),
+        db.jobCard.count({ where: { deletedAt: null, status: { in: IN_BAY_STATUSES } } }),
+        db.jobCard.count({ where: { deletedAt: null, status: { notIn: TERMINAL_JOB_CARD_STATUSES } } }),
+        db.jobCard.count({
+          where: {
+            deletedAt: null,
+            status: JobCardStatus.DELIVERED,
+            actualDelivery: { gte: today.start, lt: today.end },
+          },
+        }),
+        db.estimate.count({ where: { deletedAt: null, status: EstimateStatus.SENT } }),
+        db.part.findMany({ where: { deletedAt: null, isActive: true } }),
+        db.technician.findMany({ include: { user: { select: { name: true } } } }),
+      ]);
+
+    // Reuses the same per-technician computation as
+    // TechniciansService.findOne and the technician-performance report —
+    // only jobsOpen is surfaced here, but the shared function is called as
+    // a whole rather than reimplementing just that one count.
+    const technicianWorkload = await Promise.all(
+      technicians.map(async (t) => {
+        const performance = await computeTechnicianPerformance(db, t.id);
+        return { technicianId: t.id, name: t.user.name, jobsOpen: performance.jobsOpen };
+      }),
+    );
+
+    const base = {
       todaysAppointments,
       vehiclesInService,
       openJobCards,
       completedJobsToday,
       pendingEstimates,
-      unpaidInvoices,
-      todaysSalesAgg,
-      monthlySalesAgg,
-      labourRevenueAgg,
-      partsRevenueAgg,
-      parts,
-      technicians,
-    ] = await Promise.all([
-      db.appointment.count({
-        where: { deletedAt: null, appointmentDate: { gte: today.start, lt: today.end } },
-      }),
-      db.jobCard.count({ where: { deletedAt: null, status: { in: IN_BAY_STATUSES } } }),
-      db.jobCard.count({ where: { deletedAt: null, status: { notIn: TERMINAL_JOB_CARD_STATUSES } } }),
-      db.jobCard.count({
-        where: {
-          deletedAt: null,
-          status: JobCardStatus.DELIVERED,
-          actualDelivery: { gte: today.start, lt: today.end },
-        },
-      }),
-      db.estimate.count({ where: { deletedAt: null, status: EstimateStatus.SENT } }),
+      lowStockCount: parts.filter(isLowStock).length,
+      technicianWorkload,
+    };
+
+    if (!canViewFinancials) return base;
+
+    const [unpaidInvoices, todaysSalesAgg, monthlySalesAgg, labourRevenueAgg, partsRevenueAgg] = await Promise.all([
       db.invoice.findMany({ where: { status: { in: OUTSTANDING_STATUSES } }, include: { payments: true } }),
       db.invoice.aggregate({
         where: { createdAt: { gte: today.start, lt: today.end } },
@@ -86,8 +110,6 @@ export class DashboardService {
         where: { jobCard: { invoice: { createdAt: { gte: month.start, lt: month.end } } } },
         _sum: { lineTotal: true },
       }),
-      db.part.findMany({ where: { deletedAt: null, isActive: true } }),
-      db.technician.findMany({ include: { user: { select: { name: true } } } }),
     ]);
 
     const invoicesWithOutstanding = unpaidInvoices.map((inv) => ({
@@ -99,30 +121,13 @@ export class DashboardService {
       totalOutstanding: sumOutstanding(invoicesWithOutstanding),
     };
 
-    // Reuses the same per-technician computation as
-    // TechniciansService.findOne and the technician-performance report —
-    // only jobsOpen is surfaced here, but the shared function is called as
-    // a whole rather than reimplementing just that one count.
-    const technicianWorkload = await Promise.all(
-      technicians.map(async (t) => {
-        const performance = await computeTechnicianPerformance(db, t.id);
-        return { technicianId: t.id, name: t.user.name, jobsOpen: performance.jobsOpen };
-      }),
-    );
-
     return {
-      todaysAppointments,
-      vehiclesInService,
-      openJobCards,
-      completedJobsToday,
-      pendingEstimates,
+      ...base,
       pendingPayments,
       todaysSales: todaysSalesAgg._sum.grandTotal ?? new Prisma.Decimal(0),
       monthlySales: monthlySalesAgg._sum.grandTotal ?? new Prisma.Decimal(0),
       labourRevenueMonthly: labourRevenueAgg._sum.lineTotal ?? new Prisma.Decimal(0),
       partsRevenueMonthly: partsRevenueAgg._sum.lineTotal ?? new Prisma.Decimal(0),
-      lowStockCount: parts.filter(isLowStock).length,
-      technicianWorkload,
     };
   }
 }

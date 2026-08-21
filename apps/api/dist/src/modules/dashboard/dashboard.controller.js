@@ -8,26 +8,30 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const dashboard_service_1 = require("./dashboard.service");
-const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 let DashboardController = class DashboardController {
     constructor(dashboardService) {
         this.dashboardService = dashboardService;
     }
-    summary() {
-        return this.dashboardService.summary();
+    summary(user) {
+        const canViewFinancials = user.isSuperAdmin || user.permissions.includes('report:read');
+        return this.dashboardService.summary(canViewFinancials);
     }
 };
 exports.DashboardController = DashboardController;
 __decorate([
-    (0, permissions_decorator_1.Permissions)('report:read'),
     (0, common_1.Get)('summary'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "summary", null);
 exports.DashboardController = DashboardController = __decorate([

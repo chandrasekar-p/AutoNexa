@@ -106,37 +106,42 @@ function KpiGrid({ data }: { data: DashboardSummary }) {
         tone="teal"
         icon={<FileText className={ICON_SIZE} />}
       />
-      <KpiCard
-        label="Pending Payments"
-        value={formatMoney(data.pendingPayments.totalOutstanding)}
-        sublabel={`${formatNumber(data.pendingPayments.count)} invoice${data.pendingPayments.count === 1 ? '' : 's'}`}
-        tone="warning"
-        icon={<IndianRupee className={ICON_SIZE} />}
-      />
-      <KpiCard
-        label="Today's Sales"
-        value={formatMoney(data.todaysSales)}
-        tone="blue"
-        icon={<TrendingUp className={ICON_SIZE} />}
-      />
-      <KpiCard
-        label="Monthly Sales"
-        value={formatMoney(data.monthlySales)}
-        tone="fuchsia"
-        icon={<TrendingUp className={ICON_SIZE} />}
-      />
-      <KpiCard
-        label="Labour Revenue (MTD)"
-        value={formatMoney(data.labourRevenueMonthly)}
-        tone="accent"
-        icon={<Wrench className={ICON_SIZE} />}
-      />
-      <KpiCard
-        label="Parts Revenue (MTD)"
-        value={formatMoney(data.partsRevenueMonthly)}
-        tone="teal"
-        icon={<Package className={ICON_SIZE} />}
-      />
+      {data.pendingPayments ? (
+        <KpiCard
+          label="Pending Payments"
+          value={formatMoney(data.pendingPayments.totalOutstanding)}
+          sublabel={`${formatNumber(data.pendingPayments.count)} invoice${data.pendingPayments.count === 1 ? '' : 's'}`}
+          tone="warning"
+          icon={<IndianRupee className={ICON_SIZE} />}
+        />
+      ) : null}
+      {data.todaysSales !== undefined ? (
+        <KpiCard label="Today's Sales" value={formatMoney(data.todaysSales)} tone="blue" icon={<TrendingUp className={ICON_SIZE} />} />
+      ) : null}
+      {data.monthlySales !== undefined ? (
+        <KpiCard
+          label="Monthly Sales"
+          value={formatMoney(data.monthlySales)}
+          tone="fuchsia"
+          icon={<TrendingUp className={ICON_SIZE} />}
+        />
+      ) : null}
+      {data.labourRevenueMonthly !== undefined ? (
+        <KpiCard
+          label="Labour Revenue (MTD)"
+          value={formatMoney(data.labourRevenueMonthly)}
+          tone="accent"
+          icon={<Wrench className={ICON_SIZE} />}
+        />
+      ) : null}
+      {data.partsRevenueMonthly !== undefined ? (
+        <KpiCard
+          label="Parts Revenue (MTD)"
+          value={formatMoney(data.partsRevenueMonthly)}
+          tone="teal"
+          icon={<Package className={ICON_SIZE} />}
+        />
+      ) : null}
       <KpiCard
         label="Low Stock Parts"
         value={formatNumber(data.lowStockCount)}

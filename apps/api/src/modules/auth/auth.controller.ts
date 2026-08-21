@@ -7,11 +7,19 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 const REFRESH_COOKIE = 'autonexa_refresh_token';
+// Must match the actual mounted path of the auth routes below, or the
+// browser silently withholds the cookie on every request that doesn't
+// literally start with this prefix — including the refresh call itself.
+// Bit this once already: adding app.setGlobalPrefix('api/v1') in main.ts
+// moved every route to /api/v1/auth/... without updating this to match,
+// which broke silent refresh-on-page-load while login (which doesn't
+// depend on the cookie already being sent) kept working, masking it.
+const REFRESH_COOKIE_PATH = '/api/v1/auth';
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
-  path: '/auth',
+  path: REFRESH_COOKIE_PATH,
 };
 
 @ApiTags('auth')
@@ -65,7 +73,7 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = req.cookies?.[REFRESH_COOKIE];
     await this.authService.logout(raw);
-    res.clearCookie(REFRESH_COOKIE, { path: '/auth' });
+    res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
     return { success: true };
   }
 

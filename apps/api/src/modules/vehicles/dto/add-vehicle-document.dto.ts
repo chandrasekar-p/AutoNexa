@@ -1,16 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class AddVehicleDocumentDto {
   @ApiProperty({ enum: ['insurance', 'rc', 'puc', 'warranty', 'other'] })
   @IsIn(['insurance', 'rc', 'puc', 'warranty', 'other'])
   docType: string;
 
-  // Upload flow itself (presigned URL to object storage) belongs to the
-  // Phase 1 "File Storage" module; this endpoint just records the
-  // resulting reference once the client has uploaded the file.
+  // This endpoint just records the reference returned by POST /uploads,
+  // not a step of the upload itself. That endpoint returns a relative path
+  // (/uploads/<tenantId>/<uuid>.ext — see upload-storage.ts and
+  // resolveUploadUrl on the frontend), never an absolute URL, so this must
+  // be a plain string, not @IsUrl() — same bug fixed in
+  // AddInspectionPhotoDto, this one just has no frontend caller yet to
+  // have surfaced it.
   @ApiProperty()
-  @IsUrl({ require_tld: false })
+  @IsString()
+  @IsNotEmpty()
   fileUrl: string;
 
   @ApiPropertyOptional()

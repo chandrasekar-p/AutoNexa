@@ -85,7 +85,13 @@ function ItemRow({
       <Select
         value={item.result}
         onChange={(e) => save({ result: e.target.value as InspectionResult })}
-        disabled={readOnly || isSaving}
+        // Not `|| isSaving` — disabling the select the instant its own
+        // onChange fires disables it while it still has focus, and Chrome
+        // responds to a focused control becoming disabled by yanking focus
+        // away and scrolling the page to the new focus target (often the
+        // very top of the document). isSaving still blocks double-submits
+        // via save()'s own state, just not through the disabled attribute.
+        disabled={readOnly}
         className={cn('h-9 w-full sm:w-44', RESULT_BORDER[item.result])}
       >
         {(Object.keys(RESULT_LABEL) as InspectionResult[]).map((r) => (
@@ -99,7 +105,7 @@ function ItemRow({
         onChange={(e) => setRemarks(e.target.value)}
         onBlur={() => remarks !== (item.remarks ?? '') && save({ remarks })}
         placeholder="Remarks"
-        disabled={readOnly || isSaving}
+        disabled={readOnly}
         className="h-9 w-full sm:w-56"
       />
       {!readOnly ? (

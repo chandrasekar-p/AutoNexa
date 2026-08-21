@@ -6,8 +6,10 @@ import { decideOn401 } from './refresh-decision';
  * the single writer via setAccessToken; every fetch call in this module
  * reads the current value at call time. The refresh token itself is never
  * held or read by the frontend at all — it's an httpOnly cookie
- * (`autonexa_refresh_token`, scoped to path /auth by the backend) that
- * `credentials: 'include'` lets ride along automatically.
+ * (`autonexa_refresh_token`, scoped to path /api/v1/auth by the backend —
+ * see auth.controller.ts's REFRESH_COOKIE_PATH, must stay in sync with
+ * wherever the auth routes are actually mounted) that `credentials:
+ * 'include'` lets ride along automatically.
  */
 let accessToken: string | null = null;
 

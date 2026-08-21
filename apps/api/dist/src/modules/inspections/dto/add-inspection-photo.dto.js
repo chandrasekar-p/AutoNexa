@@ -17,7 +17,8 @@ class AddInspectionPhotoDto {
 exports.AddInspectionPhotoDto = AddInspectionPhotoDto;
 __decorate([
     (0, swagger_1.ApiProperty)(),
-    (0, class_validator_1.IsUrl)({ require_tld: false }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], AddInspectionPhotoDto.prototype, "fileUrl", void 0);
 __decorate([

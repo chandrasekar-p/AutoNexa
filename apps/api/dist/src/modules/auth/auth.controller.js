@@ -20,11 +20,12 @@ const login_dto_1 = require("./dto/login.dto");
 const public_decorator_1 = require("../../common/decorators/public.decorator");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const REFRESH_COOKIE = 'autonexa_refresh_token';
+const REFRESH_COOKIE_PATH = '/api/v1/auth';
 const REFRESH_COOKIE_OPTIONS = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/auth',
+    path: REFRESH_COOKIE_PATH,
 };
 let AuthController = class AuthController {
     constructor(authService) {
@@ -54,7 +55,7 @@ let AuthController = class AuthController {
     async logout(req, res) {
         const raw = req.cookies?.[REFRESH_COOKIE];
         await this.authService.logout(raw);
-        res.clearCookie(REFRESH_COOKIE, { path: '/auth' });
+        res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
         return { success: true };
     }
     me(user) {

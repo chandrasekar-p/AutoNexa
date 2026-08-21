@@ -25,17 +25,18 @@ export type JobCardStatus =
   | 'DELIVERED'
   | 'CANCELLED';
 
+/** The money fields are omitted entirely (not present, not null) unless the caller has report:read — see DashboardService.summary's canViewFinancials gate. Render each one conditionally, not with a fallback value. */
 export interface DashboardSummary {
   todaysAppointments: number;
   vehiclesInService: number;
   openJobCards: number;
   completedJobsToday: number;
   pendingEstimates: number;
-  pendingPayments: { count: number; totalOutstanding: string };
-  todaysSales: string;
-  monthlySales: string;
-  labourRevenueMonthly: string;
-  partsRevenueMonthly: string;
+  pendingPayments?: { count: number; totalOutstanding: string };
+  todaysSales?: string;
+  monthlySales?: string;
+  labourRevenueMonthly?: string;
+  partsRevenueMonthly?: string;
   lowStockCount: number;
   technicianWorkload: Array<{ technicianId: string; name: string; jobsOpen: number }>;
 }

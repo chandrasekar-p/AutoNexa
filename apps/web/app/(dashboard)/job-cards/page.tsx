@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { List, LayoutGrid } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
 import { usePermission } from '@/lib/hooks/use-permission';
+import { cn } from '@/lib/cn';
 import type { JobCardListItem, JobCardStatus, PaginatedResult } from '@/lib/api-types';
 import { formatDate } from '@/lib/format';
 import { JobCardStatusBadge } from '@/components/domain/job-card-status-badge';
+import { JobCardKanbanBoard } from '@/components/domain/job-card-kanban-board';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -19,6 +22,11 @@ import { Pagination } from '@/components/ui/pagination';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '@/components/ui/table';
 
 const PAGE_SIZE = 20;
+// The board shows every matching job card as columns, not a paginated
+// slice — 20-at-a-time would split single statuses across pages, which
+// defeats the point of a board. 100 is the backend's own hard cap
+// (ListJobCardsQueryDto's @Max(100)) — asking for more 400s outright.
+const BOARD_PAGE_SIZE = 100;
 const STATUSES: JobCardStatus[] = [
   'OPEN',
   'DIAGNOSIS',
@@ -47,7 +55,9 @@ const STATUS_LABEL: Record<JobCardStatus, string> = {
 export default function JobCardsPage() {
   const router = useRouter();
   const canCreate = usePermission('job-card:create');
+  const canUpdate = usePermission('job-card:update');
 
+  const [view, setView] = useState<'list' | 'board'>('list');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<JobCardStatus | ''>('');
   const [page, setPage] = useState(1);
@@ -55,12 +65,17 @@ export default function JobCardsPage() {
 
   const query = useApiQuery<PaginatedResult<JobCardListItem>>(
     () => {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      const params = new URLSearchParams({
+        page: String(view === 'board' ? 1 : page),
+        pageSize: String(view === 'board' ? BOARD_PAGE_SIZE : PAGE_SIZE),
+      });
       if (debouncedSearch) params.set('search', debouncedSearch);
-      if (status) params.set('status', status);
+      // The board already segments by status via its columns — a status
+      // filter on top would just empty out every column but one.
+      if (status && view === 'list') params.set('status', status);
       return apiGet(`/job-cards?${params.toString()}`);
     },
-    [page, debouncedSearch, status],
+    [view, page, debouncedSearch, status],
   );
 
   function handleSearchChange(value: string) {
@@ -78,29 +93,62 @@ export default function JobCardsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Job Cards</h1>
-          <p className="text-sm text-ink-secondary">The operational core — every job card, newest first.</p>
+          <p className="text-sm text-ink-secondary">
+            {view === 'board' ? 'Drag a card to move it through the pipeline.' : 'The operational core — every job card, newest first.'}
+          </p>
         </div>
         {canCreate ? <Button onClick={() => router.push('/job-cards/new')}>New Job Card</Button> : null}
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="max-w-sm flex-1">
-          <Input
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search by job card number or complaint"
-            aria-label="Search job cards"
-          />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap gap-3">
+          <div className="max-w-sm flex-1">
+            <Input
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by job card number or complaint"
+              aria-label="Search job cards"
+            />
+          </div>
+          {view === 'list' ? (
+            <div className="w-52">
+              <Select value={status} onChange={(e) => handleStatusChange(e.target.value)} aria-label="Filter by status">
+                <option value="">All statuses</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
         </div>
-        <div className="w-52">
-          <Select value={status} onChange={(e) => handleStatusChange(e.target.value)} aria-label="Filter by status">
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
-          </Select>
+
+        <div className="flex rounded border border-line bg-surface p-0.5">
+          <button
+            type="button"
+            onClick={() => setView('list')}
+            aria-pressed={view === 'list'}
+            className={cn(
+              'flex h-8 items-center gap-1.5 rounded px-3 text-xs font-medium transition-colors',
+              view === 'list' ? 'bg-accent-500 text-white' : 'text-ink-secondary hover:bg-surface-hover',
+            )}
+          >
+            <List className="h-3.5 w-3.5" aria-hidden />
+            List
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('board')}
+            aria-pressed={view === 'board'}
+            className={cn(
+              'flex h-8 items-center gap-1.5 rounded px-3 text-xs font-medium transition-colors',
+              view === 'board' ? 'bg-accent-500 text-white' : 'text-ink-secondary hover:bg-surface-hover',
+            )}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
+            Board
+          </button>
         </div>
       </div>
 
@@ -120,7 +168,11 @@ export default function JobCardsPage() {
         </p>
       ) : null}
 
-      {query.data && query.data.items.length > 0 ? (
+      {query.data && query.data.items.length > 0 && view === 'board' ? (
+        <JobCardKanbanBoard items={query.data.items} canUpdate={canUpdate} onStatusChanged={query.refetch} />
+      ) : null}
+
+      {query.data && query.data.items.length > 0 && view === 'list' ? (
         <div className="flex flex-col gap-3">
           <div className="rounded-lg border border-line bg-surface shadow-card">
             <Table>

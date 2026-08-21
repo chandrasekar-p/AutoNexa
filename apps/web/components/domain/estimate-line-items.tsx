@@ -179,9 +179,61 @@ export function EstimateLineItems({ estimateId, lineItems, readOnly, onUpdated }
             {lineItems.map((item) =>
               editingId === item.id ? (
                 <TableRow key={item.id}>
-                  <TableCell colSpan={readOnly ? 6 : 7}>
-                    <div className="flex flex-wrap items-center gap-2 py-1">
-                      <LineItemFormFields values={editValues} errors={editErrors} onChange={setEditValues} />
+                  <TableCell>
+                    <Select
+                      value={editValues.itemType}
+                      onChange={(e) => setEditValues({ ...editValues, itemType: e.target.value as EstimateLineItemType })}
+                      className="h-9 w-full"
+                    >
+                      {(Object.keys(TYPE_LABEL) as EstimateLineItemType[]).map((t) => (
+                        <option key={t} value={t}>
+                          {TYPE_LABEL[t]}
+                        </option>
+                      ))}
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={editValues.description}
+                      onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
+                      placeholder="Description"
+                      error={editErrors.description}
+                      className="h-9 w-full"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      value={editValues.quantity}
+                      onChange={(e) => setEditValues({ ...editValues, quantity: Number(e.target.value) })}
+                      error={editErrors.quantity}
+                      className="h-9 w-full"
+                      aria-label="Quantity"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      value={editValues.unitPrice}
+                      onChange={(e) => setEditValues({ ...editValues, unitPrice: Number(e.target.value) })}
+                      error={editErrors.unitPrice}
+                      className="h-9 w-full"
+                      aria-label="Unit price"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      value={editValues.gstRate}
+                      onChange={(e) => setEditValues({ ...editValues, gstRate: Number(e.target.value) })}
+                      error={editErrors.gstRate}
+                      className="h-9 w-full"
+                      aria-label="GST %"
+                    />
+                  </TableCell>
+                  <TableCell className="text-xs text-ink-muted">—</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
                       <Button type="button" size="sm" onClick={() => handleSaveEdit(item.id)} isLoading={isSaving}>
                         Save
                       </Button>
