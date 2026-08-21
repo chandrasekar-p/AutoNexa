@@ -10,6 +10,15 @@ import { UPLOAD_ROOT } from './modules/uploads/upload-storage';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // Matches the production reverse proxy's path-based routing (nginx
+  // forwards the full, unstripped request path to this process — see the
+  // deployment notes in README.md) — every @Controller() route now lives
+  // under /api/v1/..., e.g. POST /api/v1/auth/login. Doesn't affect
+  // useStaticAssets or Swagger below — those are mounted directly on the
+  // underlying Express app, outside Nest's controller-routing layer that
+  // this prefix applies to.
+  app.setGlobalPrefix('api/v1');
+
   app.use(cookieParser());
   app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });
   // Served directly by Express, outside Nest's guard pipeline — an

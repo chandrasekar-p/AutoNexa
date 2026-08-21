@@ -12,6 +12,7 @@ const http_exception_filter_1 = require("./common/filters/http-exception.filter"
 const upload_storage_1 = require("./modules/uploads/upload-storage");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    app.setGlobalPrefix('api/v1');
     app.use((0, cookie_parser_1.default)());
     app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });
     app.useStaticAssets(upload_storage_1.UPLOAD_ROOT, { prefix: '/uploads' });
