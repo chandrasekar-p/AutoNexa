@@ -57,7 +57,7 @@ export default function JobCardsPage() {
   const canCreate = usePermission('job-card:create');
   const canUpdate = usePermission('job-card:update');
 
-  const [view, setView] = useState<'list' | 'board'>('list');
+  const [view, setView] = useState<'list' | 'board'>('board');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<JobCardStatus | ''>('');
   const [page, setPage] = useState(1);
