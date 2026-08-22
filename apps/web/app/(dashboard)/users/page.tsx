@@ -9,6 +9,7 @@ import { usePermission } from '@/lib/hooks/use-permission';
 import type { AppUser } from '@/lib/api-types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -72,7 +73,8 @@ export default function UsersPage() {
               {filtered.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/users/${user.id}`} className="hover:text-accent-600">
+                    <Link href={`/users/${user.id}`} className="flex items-center gap-2.5 hover:text-accent-600">
+                      <Avatar name={user.name} photoUrl={user.avatarUrl} size="sm" />
                       {user.name}
                     </Link>
                   </TableCell>

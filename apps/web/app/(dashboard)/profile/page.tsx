@@ -8,6 +8,7 @@ import { validateUserProfileForm, type UserProfileFormErrors } from '@/lib/valid
 import { validateChangePasswordForm, type ChangePasswordFormErrors } from '@/lib/validation/change-password';
 import { formatDate } from '@/lib/format';
 import type { UserProfile } from '@/lib/api-types';
+import { UserAvatarUpload } from '@/components/domain/user-avatar-upload';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -83,13 +84,25 @@ function ProfileCard({ profile, onSaved }: { profile: UserProfile; onSaved: () =
         <CardTitle>Profile</CardTitle>
       </CardHeader>
       <CardBody className="flex flex-col gap-5 pt-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {profile.roles.map(({ role }) => (
-            <Badge key={role.id} tone="accent">
-              {role.name}
-            </Badge>
-          ))}
-          <span className="text-xs text-ink-muted">Member since {formatDate(profile.createdAt)}</span>
+        <div className="flex items-center gap-4">
+          <UserAvatarUpload
+            userId={profile.id}
+            name={profile.name}
+            avatarUrl={profile.avatarUrl}
+            canUpdate
+            onUploaded={async (avatarUrl) => {
+              await apiPatch('/users/me', { avatarUrl });
+              onSaved();
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {profile.roles.map(({ role }) => (
+              <Badge key={role.id} tone="accent">
+                {role.name}
+              </Badge>
+            ))}
+            <span className="text-xs text-ink-muted">Member since {formatDate(profile.createdAt)}</span>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">

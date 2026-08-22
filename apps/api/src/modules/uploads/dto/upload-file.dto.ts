@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 import { UploadCategory } from '../../storage/storage.types';
 
-const CATEGORIES: UploadCategory[] = ['vehicle-photo', 'inspection-photo', 'vehicle-document', 'workshop-logo'];
+const CATEGORIES: UploadCategory[] = ['vehicle-photo', 'inspection-photo', 'vehicle-document', 'workshop-logo', 'user-avatar'];
 
 // Arrives as a regular multipart text field alongside `file` — the
 // frontend already knows exactly what it's uploading at every one of its

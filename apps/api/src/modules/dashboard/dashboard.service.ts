@@ -138,7 +138,7 @@ export class DashboardService {
         complaint: true,
         vehicle: { select: VEHICLE_SUMMARY_SELECT },
         customer: { select: CUSTOMER_SUMMARY_SELECT },
-        technician: { select: { user: { select: { name: true } } } },
+        technician: { select: { user: { select: { name: true, avatarUrl: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
       take: TODAYS_WORKSHOP_LIMIT,
@@ -152,6 +152,7 @@ export class DashboardService {
         customerId: jc.customer.id,
         customerName: jc.customer.name,
         technicianName: jc.technician?.user.name ?? null,
+        technicianAvatarUrl: jc.technician ? await resolveDisplayUrl(this.storage, jc.technician.user.avatarUrl) : null,
       })),
     );
 

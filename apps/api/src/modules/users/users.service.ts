@@ -1,7 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
+import { resolveDisplayUrl } from '../storage/resolve-display-url';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -13,6 +15,7 @@ const SAFE_SELECT = {
   name: true,
   email: true,
   phone: true,
+  avatarUrl: true,
   isActive: true,
   branchId: true,
   lastLoginAt: true,
@@ -22,7 +25,10 @@ const SAFE_SELECT = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   async create(dto: CreateUserDto) {
     const db = this.prisma.forTenant();
@@ -49,12 +55,13 @@ export class UsersService {
     return user;
   }
 
-  findAll() {
-    return this.prisma.forTenant().user.findMany({
+  async findAll() {
+    const users = await this.prisma.forTenant().user.findMany({
       where: { deletedAt: null },
       select: SAFE_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+    return Promise.all(users.map(async (user) => ({ ...user, avatarUrl: await resolveDisplayUrl(this.storage, user.avatarUrl) })));
   }
 
   async findOne(id: string) {
@@ -63,7 +70,7 @@ export class UsersService {
       select: SAFE_SELECT,
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return { ...user, avatarUrl: await resolveDisplayUrl(this.storage, user.avatarUrl) };
   }
 
   async update(id: string, dto: UpdateUserDto) {
@@ -80,6 +87,7 @@ export class UsersService {
       data: {
         name: dto.name,
         phone: dto.phone,
+        avatarUrl: dto.avatarUrl,
         branchId: dto.branchId,
         isActive: dto.isActive,
         ...(dto.roleIds ? { roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } } : {}),
@@ -105,7 +113,7 @@ export class UsersService {
   updateOwnProfile(userId: string, dto: UpdateOwnProfileDto) {
     return this.prisma.forTenant().user.update({
       where: { id: userId },
-      data: { name: dto.name, phone: dto.phone },
+      data: { name: dto.name, phone: dto.phone, avatarUrl: dto.avatarUrl },
       select: SAFE_SELECT,
     });
   }

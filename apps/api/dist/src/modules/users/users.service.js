@@ -41,16 +41,22 @@ var __importStar = (this && this.__importStar) || (function () {
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const argon2 = __importStar(require("argon2"));
 const prisma_service_1 = require("../../prisma/prisma.service");
+const storage_types_1 = require("../storage/storage.types");
+const resolve_display_url_1 = require("../storage/resolve-display-url");
 const SAFE_SELECT = {
     id: true,
     name: true,
     email: true,
     phone: true,
+    avatarUrl: true,
     isActive: true,
     branchId: true,
     lastLoginAt: true,
@@ -58,8 +64,9 @@ const SAFE_SELECT = {
     roles: { select: { role: { select: { id: true, name: true } } } },
 };
 let UsersService = class UsersService {
-    constructor(prisma) {
+    constructor(prisma, storage) {
         this.prisma = prisma;
+        this.storage = storage;
     }
     async create(dto) {
         const db = this.prisma.forTenant();
@@ -81,12 +88,13 @@ let UsersService = class UsersService {
         });
         return user;
     }
-    findAll() {
-        return this.prisma.forTenant().user.findMany({
+    async findAll() {
+        const users = await this.prisma.forTenant().user.findMany({
             where: { deletedAt: null },
             select: SAFE_SELECT,
             orderBy: { createdAt: 'desc' },
         });
+        return Promise.all(users.map(async (user) => ({ ...user, avatarUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, user.avatarUrl) })));
     }
     async findOne(id) {
         const user = await this.prisma.forTenant().user.findFirst({
@@ -95,7 +103,7 @@ let UsersService = class UsersService {
         });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        return user;
+        return { ...user, avatarUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, user.avatarUrl) };
     }
     async update(id, dto) {
         await this.findOne(id);
@@ -109,6 +117,7 @@ let UsersService = class UsersService {
             data: {
                 name: dto.name,
                 phone: dto.phone,
+                avatarUrl: dto.avatarUrl,
                 branchId: dto.branchId,
                 isActive: dto.isActive,
                 ...(dto.roleIds ? { roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } } : {}),
@@ -130,7 +139,7 @@ let UsersService = class UsersService {
     updateOwnProfile(userId, dto) {
         return this.prisma.forTenant().user.update({
             where: { id: userId },
-            data: { name: dto.name, phone: dto.phone },
+            data: { name: dto.name, phone: dto.phone, avatarUrl: dto.avatarUrl },
             select: SAFE_SELECT,
         });
     }
@@ -164,6 +173,7 @@ let UsersService = class UsersService {
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(1, (0, common_1.Inject)(storage_types_1.STORAGE_SERVICE)),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { VehicleThumbnail } from '@/components/domain/vehicle-thumbnail';
 import { STATUS_LABEL, STATUS_TONE } from '@/components/domain/job-card-status-badge';
-import { initialsFor } from '@/lib/format';
+import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/cn';
 import type { DashboardSummary } from '@/lib/api-types';
 
@@ -125,7 +125,7 @@ interface Props {
   onRetry: () => void;
 }
 
-/** Live shop-floor snapshot — the 5 most recently-active non-terminal job cards, capped server-side. VehicleThumbnail shows the real uploaded photo once one exists, a generic car icon otherwise; the technician column still falls back to an initials circle since this app has no staff photos. */
+/** Live shop-floor snapshot — the 5 most recently-active non-terminal job cards, capped server-side. VehicleThumbnail and the technician Avatar both show a real uploaded photo once one exists, falling back to a generic icon / initials circle otherwise. */
 export function TodaysWorkshopCard({ jobCards, isLoading, error, onRetry }: Props) {
   return (
     <Card>
@@ -192,9 +192,7 @@ export function TodaysWorkshopCard({ jobCards, isLoading, error, onRetry }: Prop
                     <td className="py-3 pl-3 pr-3">
                       {jc.technicianName ? (
                         <span className="flex items-center gap-2">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-500 text-micro font-semibold text-white">
-                            {initialsFor(jc.technicianName)}
-                          </span>
+                          <Avatar name={jc.technicianName} photoUrl={jc.technicianAvatarUrl} size="sm" />
                           <span className="text-ink-secondary">{jc.technicianName}</span>
                         </span>
                       ) : (

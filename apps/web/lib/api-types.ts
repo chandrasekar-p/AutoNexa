@@ -52,6 +52,7 @@ export interface DashboardSummary {
     customerId: string;
     customerName: string;
     technicianName: string | null;
+    technicianAvatarUrl: string | null;
   }>;
 }
 
@@ -808,6 +809,8 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string | null;
+  /** Resolved display URL (local path or signed S3 URL) — resolve with lib/uploads.ts's resolveUploadUrl before use in an <img src>, same as Vehicle.photoUrl. Null falls back to an initials avatar. */
+  avatarUrl: string | null;
   isActive: boolean;
   branchId: string | null;
   lastLoginAt: string | null;

@@ -160,6 +160,11 @@ model User {
   email        String
   passwordHash String
   phone        String?
+  // Stored reference (LOCAL_DISK relative path / S3 key) resolved to a
+  // display URL via resolveDisplayUrl at every read site — same pattern
+  // as Vehicle.photoUrl/TenantSettings.logoUrl. Optional; a user with none
+  // falls back to an initials avatar on the frontend.
+  avatarUrl    String?
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())

@@ -30,4 +30,10 @@ __decorate([
     (0, class_validator_1.Matches)(mobile_1.INDIAN_MOBILE_REGEX, { message: mobile_1.INVALID_MOBILE_MESSAGE }),
     __metadata("design:type", String)
 ], UpdateOwnProfileDto.prototype, "phone", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateOwnProfileDto.prototype, "avatarUrl", void 0);
 //# sourceMappingURL=update-own-profile.dto.js.map

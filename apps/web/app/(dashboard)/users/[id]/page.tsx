@@ -9,6 +9,7 @@ import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate } from '@/lib/format';
 import type { AppUser, Role } from '@/lib/api-types';
 import { ResetPasswordCard } from '@/components/domain/reset-password-card';
+import { UserAvatarUpload } from '@/components/domain/user-avatar-upload';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -81,12 +82,24 @@ export default function UserDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-ink">{user.name}</h1>
-            <Badge tone={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge>
+        <div className="flex items-center gap-4">
+          <UserAvatarUpload
+            userId={user.id}
+            name={user.name}
+            avatarUrl={user.avatarUrl}
+            canUpdate={canUpdate}
+            onUploaded={async (avatarUrl) => {
+              await apiPatch(`/users/${params.id}`, { avatarUrl });
+              query.refetch();
+            }}
+          />
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-ink">{user.name}</h1>
+              <Badge tone={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Active' : 'Inactive'}</Badge>
+            </div>
+            <p className="text-sm text-ink-secondary">{user.email}</p>
           </div>
-          <p className="text-sm text-ink-secondary">{user.email}</p>
         </div>
         <Link href="/users" className="self-center text-sm text-ink-secondary hover:text-ink">
           &larr; Back to users

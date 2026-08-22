@@ -19,4 +19,12 @@ export class UpdateOwnProfileDto {
   @IsString()
   @Matches(INDIAN_MOBILE_REGEX, { message: INVALID_MOBILE_MESSAGE })
   phone?: string;
+
+  // The stored reference from POST /uploads (category: 'user-avatar'), not
+  // a display URL — same "persist the key as-is" discipline as
+  // Vehicle.photoUrl/TenantSettings.logoUrl.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }
