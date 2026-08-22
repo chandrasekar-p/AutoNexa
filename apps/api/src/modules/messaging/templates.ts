@@ -56,6 +56,21 @@ export interface PaymentLinkTemplateContext {
   paymentUrl: string;
 }
 
+export interface VehicleReminderTemplateContext {
+  workshopName: string;
+  customerName: string;
+  vehicleLabel: string;
+  expiryDate: string;
+}
+
+export interface ServiceDueTemplateContext {
+  workshopName: string;
+  customerName: string;
+  vehicleLabel: string;
+  // A pre-built phrase, not raw data — e.g. "in about 6 months" or "based on your odometer reading".
+  dueReason: string;
+}
+
 export function appointmentConfirmedMessage(ctx: AppointmentTemplateContext): MessageContent {
   return {
     subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -102,5 +117,26 @@ export function paymentLinkMessage(ctx: PaymentLinkTemplateContext): MessageCont
   return {
     subject: `Pay invoice ${ctx.invoiceNumber} online — ${ctx.workshopName}`,
     body: `Hi ${ctx.customerName}, pay ${ctx.amount} for invoice ${ctx.invoiceNumber} online: ${ctx.paymentUrl} — ${ctx.workshopName}`,
+  };
+}
+
+export function insuranceExpiringMessage(ctx: VehicleReminderTemplateContext): MessageContent {
+  return {
+    subject: `Insurance expiring soon — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel}'s insurance expires on ${ctx.expiryDate}. Please renew it in time. — ${ctx.workshopName}`,
+  };
+}
+
+export function pucExpiringMessage(ctx: VehicleReminderTemplateContext): MessageContent {
+  return {
+    subject: `PUC certificate expiring soon — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel}'s PUC certificate expires on ${ctx.expiryDate}. Please renew it in time. — ${ctx.workshopName}`,
+  };
+}
+
+export function serviceDueMessage(ctx: ServiceDueTemplateContext): MessageContent {
+  return {
+    subject: `Service due soon — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel} is due for its next service ${ctx.dueReason}. Book an appointment at your convenience. — ${ctx.workshopName}`,
   };
 }

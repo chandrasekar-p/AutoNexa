@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardService = void 0;
 const common_1 = require("@nestjs/common");
@@ -16,6 +19,8 @@ const prisma_service_1 = require("../../prisma/prisma.service");
 const outstanding_1 = require("../../common/billing/outstanding");
 const technician_performance_1 = require("../technicians/technician-performance");
 const low_stock_1 = require("../parts/low-stock");
+const storage_types_1 = require("../storage/storage.types");
+const resolve_display_url_1 = require("../storage/resolve-display-url");
 const IN_BAY_STATUSES = [
     client_1.JobCardStatus.DIAGNOSIS,
     client_1.JobCardStatus.APPROVED,
@@ -46,8 +51,9 @@ function yesterdayRange() {
     return { start: new Date(today.start.getTime() - 24 * 60 * 60 * 1000), end: today.start };
 }
 let DashboardService = class DashboardService {
-    constructor(prisma) {
+    constructor(prisma, storage) {
         this.prisma = prisma;
+        this.storage = storage;
     }
     async summary(canViewFinancials, currentUserId) {
         const db = this.prisma.forTenant();
@@ -96,15 +102,15 @@ let DashboardService = class DashboardService {
             orderBy: { updatedAt: 'desc' },
             take: TODAYS_WORKSHOP_LIMIT,
         });
-        const todaysWorkshop = todaysWorkshopRows.map((jc) => ({
+        const todaysWorkshop = await Promise.all(todaysWorkshopRows.map(async (jc) => ({
             id: jc.id,
             status: jc.status,
             complaint: jc.complaint,
-            vehicle: jc.vehicle,
+            vehicle: { ...jc.vehicle, photoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, jc.vehicle.photoUrl) },
             customerId: jc.customer.id,
             customerName: jc.customer.name,
             technicianName: jc.technician?.user.name ?? null,
-        }));
+        })));
         const base = {
             todaysWorkshop,
             totalCustomers,
@@ -171,6 +177,7 @@ let DashboardService = class DashboardService {
 exports.DashboardService = DashboardService;
 exports.DashboardService = DashboardService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(1, (0, common_1.Inject)(storage_types_1.STORAGE_SERVICE)),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
 ], DashboardService);
 //# sourceMappingURL=dashboard.service.js.map

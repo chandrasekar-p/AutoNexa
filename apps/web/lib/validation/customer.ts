@@ -16,6 +16,7 @@ export const customerSchema = z.object({
   gstin: z.string().optional(),
   customerType: z.enum(['individual', 'business']),
   notes: z.string().optional(),
+  reminderOptOut: z.boolean().optional(),
 });
 
 export type CustomerFormValues = z.infer<typeof customerSchema>;

@@ -6,6 +6,9 @@ import {
   invoiceIssuedMessage,
   paymentReceivedMessage,
   paymentLinkMessage,
+  insuranceExpiringMessage,
+  pucExpiringMessage,
+  serviceDueMessage,
 } from '../src/modules/messaging/templates';
 
 describe('messaging templates', () => {
@@ -94,5 +97,40 @@ describe('messaging templates', () => {
     expect(msg.body).toContain('₹2,000.00');
     expect(msg.body).toContain('INV-0001');
     expect(msg.body).toContain('https://rzp.io/l/abc123');
+  });
+
+  it('builds an insurance-expiring message with the vehicle and expiry date', () => {
+    const msg = insuranceExpiringMessage({
+      workshopName: 'Demo Workshop',
+      customerName: 'Arun',
+      vehicleLabel: 'KA01AB1234 Honda City',
+      expiryDate: '15 Mar 2027',
+    });
+    expect(msg.body).toContain('KA01AB1234 Honda City');
+    expect(msg.body).toContain('15 Mar 2027');
+    expect(msg.body).toContain('insurance');
+  });
+
+  it('builds a PUC-expiring message with the vehicle and expiry date', () => {
+    const msg = pucExpiringMessage({
+      workshopName: 'Demo Workshop',
+      customerName: 'Arun',
+      vehicleLabel: 'KA01AB1234 Honda City',
+      expiryDate: '15 Mar 2027',
+    });
+    expect(msg.body).toContain('KA01AB1234 Honda City');
+    expect(msg.body).toContain('15 Mar 2027');
+    expect(msg.body).toContain('PUC');
+  });
+
+  it('builds a service-due message with the vehicle and reason', () => {
+    const msg = serviceDueMessage({
+      workshopName: 'Demo Workshop',
+      customerName: 'Arun',
+      vehicleLabel: 'KA01AB1234 Honda City',
+      dueReason: 'in about 6 months',
+    });
+    expect(msg.body).toContain('KA01AB1234 Honda City');
+    expect(msg.body).toContain('in about 6 months');
   });
 });

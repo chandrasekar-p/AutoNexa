@@ -85,6 +85,18 @@ model TenantSettings {
   // dashboard.service.ts's todayRange().
   businessHoursOpen  String?
   businessHoursClose String?
+  // Customer-facing reminder cron (see reminder-cron.service.ts) — each
+  // type independently toggleable; thresholdDays is shared by all three
+  // date-based checks (insurance/PUC expiry, service-due-by-date), each
+  // firing once per vehicle per threshold crossing (dedup via
+  // DeliveryLog.dedupeKey). serviceIntervalMonths/Km are the tenant-wide
+  // default next-service-due rule; Vehicle may override either.
+  reminderInsuranceEnabled  Boolean @default(true)
+  reminderPucEnabled        Boolean @default(true)
+  reminderServiceDueEnabled Boolean @default(true)
+  reminderThresholdDays     Int[]   @default([30, 15, 7])
+  serviceIntervalMonths     Int     @default(6)
+  serviceIntervalKm         Int     @default(5000)
   updatedAt       DateTime @updatedAt
 
   @@map("tenant_settings")
@@ -266,6 +278,10 @@ model Customer {
   gstin        String?
   customerType String    @default("individual") // "individual" | "business"
   notes        String?
+  // Opts out of the proactive insurance/PUC/service-due reminder cron only
+  // (see reminder-cron.service.ts) — transactional messages (invoice,
+  // payment, estimate, appointment) are never gated by this.
+  reminderOptOut Boolean @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
@@ -307,6 +323,10 @@ model Vehicle {
   // frontend) — null means no photo has been uploaded yet, in which case
   // callers show a generic placeholder rather than treating it as an error.
   photoUrl        String?
+  // Null means "use the tenant's default" (TenantSettings.serviceInterval*)
+  // — see next-service-due.ts's computeServiceDue.
+  serviceIntervalMonthsOverride Int?
+  serviceIntervalKmOverride     Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
@@ -1204,10 +1224,20 @@ model DeliveryLog {
   errorMessage      String?
   relatedEntityType String?
   relatedEntityId   String?
+  // Recurring/threshold-based reminders only (reminder-cron.service.ts) —
+  // e.g. "<vehicleId>:insuranceExpiry:2027-03-15:30d" or
+  // "<vehicleId>:odometer:48000". Existence of a row with this exact key
+  // means that specific threshold crossing has already been messaged, so
+  // it won't repeat — but a NEW expiry date (renewal) or a new last-service
+  // odometer produces a new key, letting the cycle fire again. Null for
+  // every other event type (appointment/estimate/invoice/payment), which
+  // don't need this since they're one-shot, not recurring.
+  dedupeKey         String?
   createdAt         DateTime        @default(now())
 
   @@index([tenantId, createdAt])
   @@index([tenantId, status])
+  @@index([tenantId, event, dedupeKey])
   @@map("delivery_logs")
 }
 

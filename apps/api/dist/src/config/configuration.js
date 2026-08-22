@@ -40,5 +40,15 @@ exports.default = () => ({
         keySecret: process.env.RAZORPAY_KEY_SECRET,
         webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
     },
+    storage: {
+        mode: process.env.STORAGE_MODE ?? 'local',
+        s3: {
+            bucket: process.env.S3_BUCKET,
+            region: process.env.S3_REGION,
+            accessKeyId: process.env.S3_ACCESS_KEY_ID,
+            secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+            endpoint: process.env.S3_ENDPOINT,
+        },
+    },
 });
 //# sourceMappingURL=configuration.js.map

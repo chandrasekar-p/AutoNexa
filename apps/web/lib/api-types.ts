@@ -117,6 +117,14 @@ export interface TenantSettings {
   /** "HH:mm" 24h, e.g. "09:00" — both null means business hours were never set; see lib/workshop-hours.ts for the derived Open/Closed status. */
   businessHoursOpen: string | null;
   businessHoursClose: string | null;
+  /** Toggles for the customer-facing reminder cron (reminder-cron.service.ts) — see ReminderSettingsCard. */
+  reminderInsuranceEnabled: boolean;
+  reminderPucEnabled: boolean;
+  reminderServiceDueEnabled: boolean;
+  /** Days-before-due thresholds shared by insurance/PUC/service-due date reminders, e.g. [30, 15, 7]. */
+  reminderThresholdDays: number[];
+  serviceIntervalMonths: number;
+  serviceIntervalKm: number;
   updatedAt: string;
 }
 
@@ -177,6 +185,8 @@ export interface Customer {
   gstin: string | null;
   customerType: CustomerType;
   notes: string | null;
+  /** Opts out of the proactive insurance/PUC/service-due reminder cron only — transactional messages are never affected. */
+  reminderOptOut: boolean;
   createdAt: string;
   updatedAt: string;
 }

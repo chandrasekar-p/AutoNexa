@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsNumber, IsUrl, Matches } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString, IsNumber, IsUrl, Matches, Min } from 'class-validator';
 
 const HH_MM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INVALID_TIME_MESSAGE = 'Must be a 24-hour time in HH:mm format, e.g. 09:00';
@@ -66,4 +66,41 @@ export class UpdateTenantSettingsDto {
   @IsOptional()
   @Matches(HH_MM_REGEX, { message: INVALID_TIME_MESSAGE })
   businessHoursClose?: string;
+
+  @ApiPropertyOptional({ description: 'Toggles the customer-facing insurance-expiry reminder cron' })
+  @IsOptional()
+  @IsBoolean()
+  reminderInsuranceEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Toggles the customer-facing PUC-expiry reminder cron' })
+  @IsOptional()
+  @IsBoolean()
+  reminderPucEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Toggles the customer-facing next-service-due reminder cron' })
+  @IsOptional()
+  @IsBoolean()
+  reminderServiceDueEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Days-before-due thresholds shared by insurance/PUC/service-due date reminders, e.g. [30, 15, 7]',
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  reminderThresholdDays?: number[];
+
+  @ApiPropertyOptional({ description: 'Default months between services, used by next-service-due unless a vehicle overrides it' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  serviceIntervalMonths?: number;
+
+  @ApiPropertyOptional({ description: 'Default km between services, used by next-service-due unless a vehicle overrides it' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  serviceIntervalKm?: number;
 }

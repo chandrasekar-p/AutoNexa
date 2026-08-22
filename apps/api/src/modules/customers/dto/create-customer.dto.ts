@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE } from '../../../common/validators/mobile';
 
 export class CreateCustomerDto {
@@ -54,4 +54,13 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Opts out of the proactive insurance/PUC/service-due reminder cron only — transactional messages (invoice, payment, estimate, appointment) are never affected',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  reminderOptOut?: boolean;
 }

@@ -1,15 +1,20 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
+import { resolveDisplayUrl } from '../storage/resolve-display-url';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { RESOURCES, ACTIONS, DEFAULT_ROLE_GRANTS } from '../roles/default-role-grants';
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   /**
    * Platform-level: provisions a brand-new workshop tenant, its default
@@ -94,14 +99,17 @@ export class TenantsService {
       include: { settings: true, branches: { where: { deletedAt: null } } },
     });
     if (!tenant) throw new NotFoundException('Tenant not found');
-    return tenant;
+    if (!tenant.settings) return tenant;
+
+    return { ...tenant, settings: { ...tenant.settings, logoUrl: await resolveDisplayUrl(this.storage, tenant.settings.logoUrl) } };
   }
 
   async updateSettings(dto: UpdateTenantSettingsDto) {
     const tenantId = TenantContext.requireTenantId();
-    return this.prisma.platform.tenantSettings.update({
+    const settings = await this.prisma.platform.tenantSettings.update({
       where: { tenantId },
       data: dto,
     });
+    return { ...settings, logoUrl: await resolveDisplayUrl(this.storage, settings.logoUrl) };
   }
 }

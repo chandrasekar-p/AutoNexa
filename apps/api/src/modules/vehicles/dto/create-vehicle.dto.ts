@@ -88,4 +88,16 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsString()
   photoUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Overrides TenantSettings.serviceIntervalMonths for this vehicle only; omit to use the tenant default' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  serviceIntervalMonthsOverride?: number;
+
+  @ApiPropertyOptional({ description: 'Overrides TenantSettings.serviceIntervalKm for this vehicle only; omit to use the tenant default' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  serviceIntervalKmOverride?: number;
 }

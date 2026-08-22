@@ -46,6 +46,7 @@ const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
 const notifications_module_1 = require("./modules/notifications/notifications.module");
 const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
 const search_module_1 = require("./modules/search/search.module");
+const storage_module_1 = require("./modules/storage/storage.module");
 const uploads_module_1 = require("./modules/uploads/uploads.module");
 const messaging_module_1 = require("./modules/messaging/messaging.module");
 const attendance_module_1 = require("./modules/attendance/attendance.module");
@@ -86,6 +87,7 @@ exports.AppModule = AppModule = __decorate([
             notifications_module_1.NotificationsModule,
             audit_logs_module_1.AuditLogsModule,
             search_module_1.SearchModule,
+            storage_module_1.StorageModule,
             uploads_module_1.UploadsModule,
             messaging_module_1.MessagingModule,
             attendance_module_1.AttendanceModule,

@@ -34,6 +34,7 @@ export function CustomerForm({ initial, submitLabel, onSubmit, onCancel }: Custo
     gstin: initial?.gstin ?? '',
     customerType: initial?.customerType ?? 'individual',
     notes: initial?.notes ?? '',
+    reminderOptOut: initial?.reminderOptOut ?? false,
   });
   const [errors, setErrors] = useState<CustomerFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -136,6 +137,20 @@ export function CustomerForm({ initial, submitLabel, onSubmit, onCancel }: Custo
         onChange={(e) => set('notes', e.target.value)}
         error={errors.notes}
       />
+
+      <label className="flex items-start gap-2.5 text-sm text-ink-secondary">
+        <input
+          type="checkbox"
+          checked={values.reminderOptOut}
+          onChange={(e) => set('reminderOptOut', e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-line accent-accent-500"
+        />
+        <span>
+          Opt out of proactive reminders (insurance/PUC expiry, next-service-due).
+          <br />
+          <span className="text-xs text-ink-muted">Transactional messages (invoices, payments, appointments) are not affected.</span>
+        </span>
+      </label>
 
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>

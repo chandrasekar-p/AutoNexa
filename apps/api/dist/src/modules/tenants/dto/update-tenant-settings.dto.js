@@ -90,4 +90,47 @@ __decorate([
     (0, class_validator_1.Matches)(HH_MM_REGEX, { message: INVALID_TIME_MESSAGE }),
     __metadata("design:type", String)
 ], UpdateTenantSettingsDto.prototype, "businessHoursClose", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Toggles the customer-facing insurance-expiry reminder cron' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateTenantSettingsDto.prototype, "reminderInsuranceEnabled", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Toggles the customer-facing PUC-expiry reminder cron' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateTenantSettingsDto.prototype, "reminderPucEnabled", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Toggles the customer-facing next-service-due reminder cron' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateTenantSettingsDto.prototype, "reminderServiceDueEnabled", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Days-before-due thresholds shared by insurance/PUC/service-due date reminders, e.g. [30, 15, 7]',
+        type: [Number],
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsInt)({ each: true }),
+    (0, class_validator_1.Min)(1, { each: true }),
+    __metadata("design:type", Array)
+], UpdateTenantSettingsDto.prototype, "reminderThresholdDays", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Default months between services, used by next-service-due unless a vehicle overrides it' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], UpdateTenantSettingsDto.prototype, "serviceIntervalMonths", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Default km between services, used by next-service-due unless a vehicle overrides it' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], UpdateTenantSettingsDto.prototype, "serviceIntervalKm", void 0);
 //# sourceMappingURL=update-tenant-settings.dto.js.map

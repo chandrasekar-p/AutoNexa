@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
+import { resolveDisplayUrl } from '../storage/resolve-display-url';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { ListVehiclesQueryDto } from './dto/list-vehicles-query.dto';
@@ -8,7 +10,10 @@ import { AddVehicleDocumentDto } from './dto/add-vehicle-document.dto';
 
 @Injectable()
 export class VehiclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
   // at runtime (see PrismaService) — the generated create types can't see that.
@@ -55,7 +60,11 @@ export class VehiclesService {
       db.vehicle.count({ where }),
     ]);
 
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    const resolvedItems = await Promise.all(
+      items.map(async (vehicle) => ({ ...vehicle, photoUrl: await resolveDisplayUrl(this.storage, vehicle.photoUrl) })),
+    );
+
+    return { items: resolvedItems, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
   async findOne(id: string) {
@@ -67,7 +76,13 @@ export class VehiclesService {
       },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
-    return vehicle;
+
+    const [photoUrl, documents] = await Promise.all([
+      resolveDisplayUrl(this.storage, vehicle.photoUrl),
+      Promise.all(vehicle.documents.map(async (doc) => ({ ...doc, fileUrl: (await resolveDisplayUrl(this.storage, doc.fileUrl))! }))),
+    ]);
+
+    return { ...vehicle, photoUrl, documents };
   }
 
   /**

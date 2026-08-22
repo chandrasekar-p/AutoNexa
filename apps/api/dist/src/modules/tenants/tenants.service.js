@@ -41,16 +41,22 @@ var __importStar = (this && this.__importStar) || (function () {
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TenantsService = void 0;
 const common_1 = require("@nestjs/common");
 const argon2 = __importStar(require("argon2"));
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
+const storage_types_1 = require("../storage/storage.types");
+const resolve_display_url_1 = require("../storage/resolve-display-url");
 const default_role_grants_1 = require("../roles/default-role-grants");
 let TenantsService = class TenantsService {
-    constructor(prisma) {
+    constructor(prisma, storage) {
         this.prisma = prisma;
+        this.storage = storage;
     }
     async provisionTenant(dto) {
         const existing = await this.prisma.platform.tenant.findUnique({ where: { slug: dto.slug } });
@@ -123,19 +129,23 @@ let TenantsService = class TenantsService {
         });
         if (!tenant)
             throw new common_1.NotFoundException('Tenant not found');
-        return tenant;
+        if (!tenant.settings)
+            return tenant;
+        return { ...tenant, settings: { ...tenant.settings, logoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, tenant.settings.logoUrl) } };
     }
     async updateSettings(dto) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
-        return this.prisma.platform.tenantSettings.update({
+        const settings = await this.prisma.platform.tenantSettings.update({
             where: { tenantId },
             data: dto,
         });
+        return { ...settings, logoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, settings.logoUrl) };
     }
 };
 exports.TenantsService = TenantsService;
 exports.TenantsService = TenantsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(1, (0, common_1.Inject)(storage_types_1.STORAGE_SERVICE)),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
 ], TenantsService);
 //# sourceMappingURL=tenants.service.js.map

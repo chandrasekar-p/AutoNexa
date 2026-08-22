@@ -34,6 +34,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SearchModule } from './modules/search/search.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
@@ -71,6 +72,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     NotificationsModule,
     AuditLogsModule,
     SearchModule,
+    StorageModule,
     UploadsModule,
     MessagingModule,
     AttendanceModule,

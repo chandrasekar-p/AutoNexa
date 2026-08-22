@@ -1,5 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { readFile } from 'fs/promises';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InvoiceStatus, JobCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
@@ -7,7 +6,7 @@ import { generateSequenceNumber } from '../../common/sequence/generate-sequence-
 import { rollupPaymentStatus } from '../../common/billing/rollup-payment-status';
 import { MessagingService } from '../messaging/messaging.service';
 import { invoiceIssuedMessage, paymentReceivedMessage } from '../messaging/templates';
-import { resolveUploadPath } from '../uploads/upload-storage';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
 import { calculateGstSplit, computeRoundOff, GstSplitLineItem } from './gst-split';
 import { isOverpayment } from './payment-guard';
 import { buildInvoicePdf } from './invoice-pdf';
@@ -40,6 +39,7 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly messaging: MessagingService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
   /**
@@ -307,11 +307,11 @@ export class InvoicesService {
     return { workshopName, pdfBuffer };
   }
 
-  /** `logoUrl` is a relative upload URL (see upload-storage.ts's resolveUploadPath) — resolved straight off local disk, not over HTTP, since this runs in the same process that serves it. */
+  /** `logoUrl` is a stored key (see storage.types.ts) — fetched as raw bytes via StorageService.getBuffer, never a signed URL round-trip, since this runs server-side and needs to hand PDFKit actual image bytes. */
   private async readLogoBuffer(logoUrl: string | null): Promise<Buffer | null> {
     if (!logoUrl) return null;
     try {
-      return await readFile(resolveUploadPath(logoUrl));
+      return await this.storage.getBuffer(logoUrl);
     } catch {
       return null;
     }

@@ -109,6 +109,9 @@ The app listens on `:3000` by default and expects the API from
 | `RAZORPAY_WEBHOOK_SECRET` | no (required if the above are set) | Verifies the HMAC signature Razorpay sends on every webhook delivery — configure it in the Razorpay dashboard's webhook settings to match |
 | `FRONTEND_URL` | recommended | Where a customer-facing link should point the browser — Razorpay's Payment Link `callback_url` after paying, and the estimate self-approval link (`{FRONTEND_URL}/estimates/approve/:token}`). Unset: the Razorpay redirect is just skipped (Razorpay shows its own confirmation page instead), but the estimate approval link becomes a relative path with no host — only actually usable once a real `FRONTEND_URL` is set, so treat this as required in practice once either feature is in use |
 | `ESTIMATE_APPROVAL_SECRET` | **yes**, once this feature is deployed | Signs/verifies the customer estimate-approval link's token — a dedicated secret, not shared with `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` or `RAZORPAY_WEBHOOK_SECRET`. Unlike the messaging/Razorpay providers, this one is **not** optional-with-graceful-degradation: `EstimatesService.send()` (the pre-existing "send to customer" action) now mints a token on every call, so an unset secret breaks `send()` outright, not just a new feature — set it before deploying this phase |
+| `STORAGE_MODE` | no (default `local`) | `local` writes to `apps/api/uploads/`; `s3` uses the S3-compatible provider configured below |
+| `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | **yes** if `STORAGE_MODE=s3` | Bucket + credentials — unlike the messaging providers, a missing var here **fails the app at startup**, not a quiet degradation (see §4 below) |
+| `S3_ENDPOINT` | no | Set for Cloudflare R2/MinIO/any non-AWS S3-compatible provider; unset uses AWS's own endpoint resolution |
 
 Slack is configured per-workshop, not via `.env` — each tenant sets its own
 incoming webhook URL under Settings → Workshop → Slack Webhook URL.
@@ -165,13 +168,13 @@ requests from an entirely different registrable domain — so deploy the
 frontend and API as subdomains of the same domain (e.g. `app.example.com`
 and `api.example.com`), not unrelated domains.
 
-**File uploads** (workshop logos, inspection photos) are written to local
-disk (`apps/api/uploads/`), not object storage. On any host with an
-ephemeral or non-shared filesystem — most container platforms, multi-instance
-deployments — this means uploads won't survive a redeploy or won't be visible
-from a second instance. Mount a persistent volume at `apps/api/uploads` (or
-plan to move `src/modules/uploads` to S3-compatible storage) before relying
-on this in production.
+**File uploads** (workshop logos, inspection photos, vehicle photos, vehicle
+documents) go through `StorageService` — `STORAGE_MODE=local` (the default)
+writes to `apps/api/uploads/`, fine for local dev but not for any host with
+an ephemeral or non-shared filesystem (most container platforms,
+multi-instance deployments), since uploads won't survive a redeploy or be
+visible from a second instance. Set `STORAGE_MODE=s3` before relying on
+this in production — see §4 below.
 
 ### 3. Web (`apps/web`)
 
@@ -187,7 +190,45 @@ not just at runtime). Put this behind the same reverse-proxy/TLS setup as
 the API, on a subdomain of the same registrable domain (see the cookie note
 above).
 
-### 4. Payment Gateway (Razorpay) — optional
+### 4. Object Storage (S3-compatible)
+
+`STORAGE_MODE` defaults to `local` (writes to `apps/api/uploads/`, the
+right fit for local dev and single-server pilots). For anything with an
+ephemeral or multi-instance filesystem, switch to S3-compatible object
+storage — AWS S3, Cloudflare R2, MinIO, or any other S3-API-compatible
+provider:
+
+1. Create a bucket. **Do not** make it public-read or public-write — every
+   file is served through a signed, time-limited URL generated on demand
+   (15 minutes), never a public bucket URL.
+2. Set `STORAGE_MODE=s3`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`,
+   `S3_SECRET_ACCESS_KEY` (see the env var table above). Set `S3_ENDPOINT`
+   too if you're on R2/MinIO/anything other than AWS itself — unset uses
+   AWS's own endpoint resolution.
+3. Restart the API. If any required `S3_*` var is missing while
+   `STORAGE_MODE=s3`, the app **fails to start** rather than silently
+   falling back to local disk — a storage misconfiguration should be loud,
+   not a redeploy that quietly starts writing to a container's ephemeral
+   disk again.
+
+**Already have files in `apps/api/uploads/` from running in local mode?**
+Run the one-off migration once, after switching to S3 for real:
+
+```bash
+npm run migrate:uploads-to-s3 -- --dry-run   # prints what it would do, changes nothing
+npm run migrate:uploads-to-s3                # uploads each file to the bucket, rewrites the DB row
+```
+
+Safe to run twice — a row already migrated no longer matches the old
+local-disk path shape, so a second run finds nothing left to do for it.
+Not wired into any deploy/start hook; it's a manual, one-time cutover step.
+
+**What doesn't need to change**: the frontend already resolves whatever
+`GET`/`POST` responses hand it (`lib/uploads.ts`'s `resolveUploadUrl`
+passes an absolute URL straight through) — no frontend code cares which
+`STORAGE_MODE` the API is running in.
+
+### 5. Payment Gateway (Razorpay) — optional
 
 1. Create a Razorpay account (or use an existing one) and grab the API
    key pair from Settings → API Keys — set `RAZORPAY_KEY_ID` /
@@ -211,7 +252,7 @@ Until this is configured, "Send Payment Link" simply doesn't appear/errors
 clearly (`payment gateway is not configured`) — nothing else in the app
 depends on it.
 
-### 5. Customer Communication — self-service estimate approval
+### 6. Customer Communication — self-service estimate approval
 
 Set `ESTIMATE_APPROVAL_SECRET` (a long random string — treat it like a JWT
 signing secret, because it is one) and `FRONTEND_URL` (see the env var
@@ -242,11 +283,47 @@ Staff's existing "Mark Approved"/"Mark Rejected" buttons (for phone-based
 approvals) are unaffected — both paths update the same estimate through
 the same guard, just tagged with who made the call.
 
-### 6. Smoke-test before declaring it live
+### 7. Customer Reminders — insurance/PUC expiry, next-service-due
+
+No new env vars — this rides on the same Email/SMS/WhatsApp providers as
+every other customer message, and the same daily 08:00 server-time cron
+(`ReminderCronService`) that already sends appointment reminders. Three new
+checks run alongside it:
+
+- **Insurance expiry** and **PUC expiry** — reuses `Vehicle.insuranceExpiry`
+  /`pucExpiry`, the same fields the internal dashboard's "Needs Attention"
+  alerts already read; this phase adds an outbound message on top, it
+  doesn't change that internal view.
+- **Next-service-due** — computed from the vehicle's most recent delivered
+  job card (`actualDelivery` date + `odometer` reading at that service)
+  against a service interval, either the tenant's default or a per-vehicle
+  override. Fires by whichever comes first: `serviceIntervalMonths` after
+  the last service, or `serviceIntervalKm` since the last recorded
+  odometer reading — the odometer trigger only works if
+  `Vehicle.odometerReading` is kept reasonably current, since nothing in
+  this app updates it automatically from job cards.
+
+Each reminder fires once per **threshold crossing** (default 30/15/7 days
+out, shared across all three date-based checks), not once per day —
+tracked via `DeliveryLog.dedupeKey`, so a renewed policy or a newly
+completed service naturally resets the cycle rather than being suppressed
+forever.
+
+Configure from **Settings → Customer Reminders**: toggle each reminder type
+on/off, edit the day-thresholds, and set the default service interval. A
+customer can opt out of all three (but not transactional messages —
+invoices, payments, appointments) from their own record's "Opt out of
+proactive reminders" checkbox.
+
+### 8. Smoke-test before declaring it live
 
 - `POST /auth/login` against the deployed API with a real account
 - Confirm the frontend can reach it (no CORS errors in the browser console)
 - Upload a file (e.g. a workshop logo) and confirm it's fetchable back
+- If `STORAGE_MODE=s3`: confirm the uploaded file actually landed in the
+  bucket (not `apps/api/uploads/`), and that the URL the app loads it from
+  is a signed S3 URL (has a query string with `X-Amz-Signature` or
+  similar), not a bare `/uploads/...` path
 - If messaging env vars are set, trigger one event (e.g. book an appointment)
   and check `/deliveries` in the app for a `SENT` row, not `FAILED`
 - If Razorpay env vars are set: click "Send Payment Link" on an invoice
@@ -258,6 +335,11 @@ the same guard, just tagged with who made the call.
 - Send an estimate to a test customer, open the approval link it produces
   in an incognito window (no session), and confirm you can approve it and
   that a second click of the same link is rejected as already-decided
+- Set a test vehicle's insurance/PUC expiry a few days inside your
+  configured threshold, run/wait for the reminder cron, and confirm a
+  `vehicle.insurance-expiring` (or `.puc-expiring`) row appears in
+  `/deliveries` with a `dedupeKey` set — then confirm running the cron
+  again the same day does **not** produce a second row for that vehicle
 
 ## Seeded accounts (local dev only)
 

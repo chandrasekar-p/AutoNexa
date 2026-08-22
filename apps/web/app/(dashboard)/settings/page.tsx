@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { LoginBackgroundSetting } from '@/components/domain/login-background-setting';
 import { WorkshopSettingsCard } from '@/components/domain/workshop-settings-card';
+import { ReminderSettingsCard } from '@/components/domain/reminder-settings-card';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 
 export default function SettingsPage() {
@@ -39,7 +40,10 @@ export default function SettingsPage() {
           </Card>
         </div>
 
-        <WorkshopSettingsCard />
+        <div className="flex flex-col gap-6">
+          <WorkshopSettingsCard />
+          <ReminderSettingsCard />
+        </div>
       </div>
     </div>
   );

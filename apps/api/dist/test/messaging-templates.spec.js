@@ -82,5 +82,37 @@ describe('messaging templates', () => {
         expect(msg.body).toContain('INV-0001');
         expect(msg.body).toContain('https://rzp.io/l/abc123');
     });
+    it('builds an insurance-expiring message with the vehicle and expiry date', () => {
+        const msg = (0, templates_1.insuranceExpiringMessage)({
+            workshopName: 'Demo Workshop',
+            customerName: 'Arun',
+            vehicleLabel: 'KA01AB1234 Honda City',
+            expiryDate: '15 Mar 2027',
+        });
+        expect(msg.body).toContain('KA01AB1234 Honda City');
+        expect(msg.body).toContain('15 Mar 2027');
+        expect(msg.body).toContain('insurance');
+    });
+    it('builds a PUC-expiring message with the vehicle and expiry date', () => {
+        const msg = (0, templates_1.pucExpiringMessage)({
+            workshopName: 'Demo Workshop',
+            customerName: 'Arun',
+            vehicleLabel: 'KA01AB1234 Honda City',
+            expiryDate: '15 Mar 2027',
+        });
+        expect(msg.body).toContain('KA01AB1234 Honda City');
+        expect(msg.body).toContain('15 Mar 2027');
+        expect(msg.body).toContain('PUC');
+    });
+    it('builds a service-due message with the vehicle and reason', () => {
+        const msg = (0, templates_1.serviceDueMessage)({
+            workshopName: 'Demo Workshop',
+            customerName: 'Arun',
+            vehicleLabel: 'KA01AB1234 Honda City',
+            dueReason: 'in about 6 months',
+        });
+        expect(msg.body).toContain('KA01AB1234 Honda City');
+        expect(msg.body).toContain('in about 6 months');
+    });
 });
 //# sourceMappingURL=messaging-templates.spec.js.map

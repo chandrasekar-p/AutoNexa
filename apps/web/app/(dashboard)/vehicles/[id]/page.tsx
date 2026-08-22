@@ -31,6 +31,8 @@ function VehiclePhotoUpload({ vehicle, canUpdate, onUpdated }: { vehicle: Vehicl
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('category', 'vehicle-photo');
+      formData.append('entityId', vehicle.id);
       const uploaded = await apiPost<{ url: string }>('/uploads', formData);
       await apiPatch(`/vehicles/${vehicle.id}`, { photoUrl: uploaded.url });
       onUpdated();

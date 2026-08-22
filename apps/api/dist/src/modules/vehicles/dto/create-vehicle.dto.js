@@ -119,4 +119,18 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateVehicleDto.prototype, "photoUrl", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Overrides TenantSettings.serviceIntervalMonths for this vehicle only; omit to use the tenant default' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CreateVehicleDto.prototype, "serviceIntervalMonthsOverride", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Overrides TenantSettings.serviceIntervalKm for this vehicle only; omit to use the tenant default' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CreateVehicleDto.prototype, "serviceIntervalKmOverride", void 0);
 //# sourceMappingURL=create-vehicle.dto.js.map

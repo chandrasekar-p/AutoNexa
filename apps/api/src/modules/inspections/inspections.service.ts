@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
+import { resolveDisplayUrl } from '../storage/resolve-display-url';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
 import { ListInspectionsQueryDto } from './dto/list-inspections-query.dto';
@@ -13,7 +15,12 @@ const INSPECTION_INCLUDE = { items: true, photos: { orderBy: { uploadedAt: 'desc
 
 @Injectable()
 export class InspectionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(InspectionsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   // Casts below are needed because forTenant() injects tenantId into `data`
   // at runtime (see PrismaService) — the generated create types can't see that.
@@ -70,7 +77,11 @@ export class InspectionsService {
       include: INSPECTION_INCLUDE,
     });
     if (!inspection) throw new NotFoundException('Inspection not found');
-    return inspection;
+
+    const photos = await Promise.all(
+      inspection.photos.map(async (photo) => ({ ...photo, fileUrl: (await resolveDisplayUrl(this.storage, photo.fileUrl))! })),
+    );
+    return { ...inspection, photos };
   }
 
   async update(id: string, dto: UpdateInspectionDto) {
@@ -111,16 +122,18 @@ export class InspectionsService {
     return this.findOne(inspectionId);
   }
 
-  /**
-   * Unreferences a wrongly-uploaded photo from the inspection — deletes
-   * the InspectionPhoto row only, not the underlying file on disk. This
-   * codebase has no upload lifecycle/cleanup anywhere yet (local-disk MVP
-   * storage, see upload-storage.ts and README's deployment notes), so an
-   * orphaned file left behind here is consistent with that, not a new gap.
-   */
+  /** Unreferences a wrongly-uploaded photo from the inspection — deletes both the InspectionPhoto row and the underlying stored object (best-effort; see StorageService.delete's doc comment). */
   async removePhoto(inspectionId: string, photoId: string) {
-    await this.assertPhotoExists(inspectionId, photoId);
+    const photo = await this.assertPhotoExists(inspectionId, photoId);
     await this.prisma.forTenant().inspectionPhoto.delete({ where: { id: photoId } });
+    try {
+      await this.storage.delete(photo.fileUrl);
+    } catch (err) {
+      // The row is already gone — an orphaned object left behind is a
+      // storage-cost issue, not a correctness one, so this must not fail
+      // the request the way an unhandled rejection would.
+      this.logger.warn(`Failed to delete storage object for inspection photo ${photoId}: ${err instanceof Error ? err.message : err}`);
+    }
     return this.findOne(inspectionId);
   }
 

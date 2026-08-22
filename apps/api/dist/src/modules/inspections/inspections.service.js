@@ -8,15 +8,23 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var InspectionsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InspectionsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const storage_types_1 = require("../storage/storage.types");
+const resolve_display_url_1 = require("../storage/resolve-display-url");
 const default_inspection_checklist_1 = require("./default-inspection-checklist");
 const INSPECTION_INCLUDE = { items: true, photos: { orderBy: { uploadedAt: 'desc' } } };
-let InspectionsService = class InspectionsService {
-    constructor(prisma) {
+let InspectionsService = InspectionsService_1 = class InspectionsService {
+    constructor(prisma, storage) {
         this.prisma = prisma;
+        this.storage = storage;
+        this.logger = new common_1.Logger(InspectionsService_1.name);
     }
     async create(dto) {
         await this.assertVehicleExists(dto.vehicleId);
@@ -62,7 +70,8 @@ let InspectionsService = class InspectionsService {
         });
         if (!inspection)
             throw new common_1.NotFoundException('Inspection not found');
-        return inspection;
+        const photos = await Promise.all(inspection.photos.map(async (photo) => ({ ...photo, fileUrl: (await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, photo.fileUrl)) })));
+        return { ...inspection, photos };
     }
     async update(id, dto) {
         await this.assertExists(id);
@@ -94,8 +103,14 @@ let InspectionsService = class InspectionsService {
         return this.findOne(inspectionId);
     }
     async removePhoto(inspectionId, photoId) {
-        await this.assertPhotoExists(inspectionId, photoId);
+        const photo = await this.assertPhotoExists(inspectionId, photoId);
         await this.prisma.forTenant().inspectionPhoto.delete({ where: { id: photoId } });
+        try {
+            await this.storage.delete(photo.fileUrl);
+        }
+        catch (err) {
+            this.logger.warn(`Failed to delete storage object for inspection photo ${photoId}: ${err instanceof Error ? err.message : err}`);
+        }
         return this.findOne(inspectionId);
     }
     async assertExists(id) {
@@ -123,8 +138,9 @@ let InspectionsService = class InspectionsService {
     }
 };
 exports.InspectionsService = InspectionsService;
-exports.InspectionsService = InspectionsService = __decorate([
+exports.InspectionsService = InspectionsService = InspectionsService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(1, (0, common_1.Inject)(storage_types_1.STORAGE_SERVICE)),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
 ], InspectionsService);
 //# sourceMappingURL=inspections.service.js.map

@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EstimateStatus, InvoiceStatus, JobCardStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceOutstanding, sumOutstanding } from '../../common/billing/outstanding';
 import { computeTechnicianPerformance } from '../technicians/technician-performance';
 import { isLowStock } from '../parts/low-stock';
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
+import { resolveDisplayUrl } from '../storage/resolve-display-url';
 
 const IN_BAY_STATUSES: JobCardStatus[] = [
   JobCardStatus.DIAGNOSIS,
@@ -44,7 +46,10 @@ function yesterdayRange(): { start: Date; end: Date } {
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   /**
    * "Today"/"this month" boundaries use the server's local time, not
@@ -138,15 +143,17 @@ export class DashboardService {
       orderBy: { updatedAt: 'desc' },
       take: TODAYS_WORKSHOP_LIMIT,
     });
-    const todaysWorkshop = todaysWorkshopRows.map((jc) => ({
-      id: jc.id,
-      status: jc.status,
-      complaint: jc.complaint,
-      vehicle: jc.vehicle,
-      customerId: jc.customer.id,
-      customerName: jc.customer.name,
-      technicianName: jc.technician?.user.name ?? null,
-    }));
+    const todaysWorkshop = await Promise.all(
+      todaysWorkshopRows.map(async (jc) => ({
+        id: jc.id,
+        status: jc.status,
+        complaint: jc.complaint,
+        vehicle: { ...jc.vehicle, photoUrl: await resolveDisplayUrl(this.storage, jc.vehicle.photoUrl) },
+        customerId: jc.customer.id,
+        customerName: jc.customer.name,
+        technicianName: jc.technician?.user.name ?? null,
+      })),
+    );
 
     const base = {
       todaysWorkshop,

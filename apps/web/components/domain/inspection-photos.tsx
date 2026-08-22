@@ -29,6 +29,8 @@ export function InspectionPhotos({ inspectionId, photos, readOnly, onUploaded }:
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('category', 'inspection-photo');
+      formData.append('entityId', inspectionId);
       const uploaded = await apiPost<{ url: string; fileName: string }>('/uploads', formData);
       await apiPost(`/inspections/${inspectionId}/photos`, { fileUrl: uploaded.url, fileName: uploaded.fileName });
       onUploaded();

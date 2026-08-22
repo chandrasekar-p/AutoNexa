@@ -26,7 +26,7 @@ let MessagingService = class MessagingService {
         this.whatsappProvider = whatsappProvider;
         this.slackProvider = slackProvider;
     }
-    async notifyCustomer(tenantId, event, recipient, content, related, attachments) {
+    async notifyCustomer(tenantId, event, recipient, content, related, attachments, dedupeKey) {
         const availability = {
             email: this.emailProvider.isConfigured(),
             sms: this.smsProvider.isConfigured(),
@@ -34,7 +34,7 @@ let MessagingService = class MessagingService {
         };
         const channels = (0, pick_channels_1.pickCustomerChannels)(recipient, availability);
         if (channels.length === 0) {
-            await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email ?? recipient.mobile ?? 'unknown', client_1.DeliveryStatus.SKIPPED, 'No messaging provider configured', related);
+            await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email ?? recipient.mobile ?? 'unknown', client_1.DeliveryStatus.SKIPPED, 'No messaging provider configured', related, dedupeKey);
             return [{ channel: client_1.DeliveryChannel.EMAIL, status: client_1.DeliveryStatus.SKIPPED }];
         }
         const attempts = [];
@@ -42,23 +42,27 @@ let MessagingService = class MessagingService {
             if (channel === 'EMAIL') {
                 const result = await this.emailProvider.send(recipient.email, content.subject, content.body, attachments);
                 const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
-                await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email, status, result.error, related);
+                await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email, status, result.error, related, dedupeKey);
                 attempts.push({ channel: client_1.DeliveryChannel.EMAIL, status });
             }
             else if (channel === 'WHATSAPP') {
                 const result = await this.whatsappProvider.send(recipient.mobile, content.body);
                 const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
-                await this.log(tenantId, client_1.DeliveryChannel.WHATSAPP, event, recipient.mobile, status, result.error, related);
+                await this.log(tenantId, client_1.DeliveryChannel.WHATSAPP, event, recipient.mobile, status, result.error, related, dedupeKey);
                 attempts.push({ channel: client_1.DeliveryChannel.WHATSAPP, status });
             }
             else if (channel === 'SMS') {
                 const result = await this.smsProvider.send(recipient.mobile, content.body);
                 const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
-                await this.log(tenantId, client_1.DeliveryChannel.SMS, event, recipient.mobile, status, result.error, related);
+                await this.log(tenantId, client_1.DeliveryChannel.SMS, event, recipient.mobile, status, result.error, related, dedupeKey);
                 attempts.push({ channel: client_1.DeliveryChannel.SMS, status });
             }
         }
         return attempts;
+    }
+    async wasReminded(tenantId, event, dedupeKey) {
+        const existing = await this.prisma.platform.deliveryLog.findFirst({ where: { tenantId, event, dedupeKey } });
+        return existing !== null;
     }
     async notifyOps(tenantId, event, text, related) {
         const settings = await this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } });
@@ -69,7 +73,7 @@ let MessagingService = class MessagingService {
         const result = await this.slackProvider.send(settings.slackWebhookUrl, text);
         await this.log(tenantId, client_1.DeliveryChannel.SLACK, event, 'ops', result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED, result.error, related);
     }
-    async log(tenantId, channel, event, recipient, status, errorMessage, related) {
+    async log(tenantId, channel, event, recipient, status, errorMessage, related, dedupeKey) {
         try {
             await this.prisma.platform.deliveryLog.create({
                 data: {
@@ -81,6 +85,7 @@ let MessagingService = class MessagingService {
                     errorMessage,
                     relatedEntityType: related.type,
                     relatedEntityId: related.id,
+                    dedupeKey,
                 },
             });
         }

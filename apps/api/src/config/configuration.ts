@@ -45,4 +45,18 @@ export default () => ({
     keySecret: process.env.RAZORPAY_KEY_SECRET,
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
   },
+  // 'local' (default) writes to apps/api/uploads/ — fine for a single-server
+  // pilot, not for anything with an ephemeral/non-shared filesystem. See
+  // modules/storage/storage.module.ts for the LOCAL_DISK vs S3 selection.
+  storage: {
+    mode: process.env.STORAGE_MODE ?? 'local',
+    s3: {
+      bucket: process.env.S3_BUCKET,
+      region: process.env.S3_REGION,
+      accessKeyId: process.env.S3_ACCESS_KEY_ID,
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+      // Set for R2/MinIO/any non-AWS S3-compatible provider; unset uses AWS's default endpoint resolution.
+      endpoint: process.env.S3_ENDPOINT,
+    },
+  },
 });

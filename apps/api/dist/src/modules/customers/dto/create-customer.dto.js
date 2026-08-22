@@ -78,4 +78,13 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateCustomerDto.prototype, "notes", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Opts out of the proactive insurance/PUC/service-due reminder cron only — transactional messages (invoice, payment, estimate, appointment) are never affected',
+        default: false,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateCustomerDto.prototype, "reminderOptOut", void 0);
 //# sourceMappingURL=create-customer.dto.js.map

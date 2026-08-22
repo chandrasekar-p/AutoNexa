@@ -7,6 +7,9 @@ exports.jobCardReadyMessage = jobCardReadyMessage;
 exports.invoiceIssuedMessage = invoiceIssuedMessage;
 exports.paymentReceivedMessage = paymentReceivedMessage;
 exports.paymentLinkMessage = paymentLinkMessage;
+exports.insuranceExpiringMessage = insuranceExpiringMessage;
+exports.pucExpiringMessage = pucExpiringMessage;
+exports.serviceDueMessage = serviceDueMessage;
 function appointmentConfirmedMessage(ctx) {
     return {
         subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -47,6 +50,24 @@ function paymentLinkMessage(ctx) {
     return {
         subject: `Pay invoice ${ctx.invoiceNumber} online — ${ctx.workshopName}`,
         body: `Hi ${ctx.customerName}, pay ${ctx.amount} for invoice ${ctx.invoiceNumber} online: ${ctx.paymentUrl} — ${ctx.workshopName}`,
+    };
+}
+function insuranceExpiringMessage(ctx) {
+    return {
+        subject: `Insurance expiring soon — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel}'s insurance expires on ${ctx.expiryDate}. Please renew it in time. — ${ctx.workshopName}`,
+    };
+}
+function pucExpiringMessage(ctx) {
+    return {
+        subject: `PUC certificate expiring soon — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel}'s PUC certificate expires on ${ctx.expiryDate}. Please renew it in time. — ${ctx.workshopName}`,
+    };
+}
+function serviceDueMessage(ctx) {
+    return {
+        subject: `Service due soon — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel} is due for its next service ${ctx.dueReason}. Book an appointment at your convenience. — ${ctx.workshopName}`,
     };
 }
 //# sourceMappingURL=templates.js.map

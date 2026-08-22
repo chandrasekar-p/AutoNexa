@@ -8,13 +8,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VehiclesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const storage_types_1 = require("../storage/storage.types");
+const resolve_display_url_1 = require("../storage/resolve-display-url");
 let VehiclesService = class VehiclesService {
-    constructor(prisma) {
+    constructor(prisma, storage) {
         this.prisma = prisma;
+        this.storage = storage;
     }
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
@@ -55,7 +61,8 @@ let VehiclesService = class VehiclesService {
             }),
             db.vehicle.count({ where }),
         ]);
-        return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+        const resolvedItems = await Promise.all(items.map(async (vehicle) => ({ ...vehicle, photoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, vehicle.photoUrl) })));
+        return { items: resolvedItems, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     }
     async findOne(id) {
         const vehicle = await this.prisma.forTenant().vehicle.findFirst({
@@ -67,7 +74,11 @@ let VehiclesService = class VehiclesService {
         });
         if (!vehicle)
             throw new common_1.NotFoundException('Vehicle not found');
-        return vehicle;
+        const [photoUrl, documents] = await Promise.all([
+            (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, vehicle.photoUrl),
+            Promise.all(vehicle.documents.map(async (doc) => ({ ...doc, fileUrl: (await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, doc.fileUrl)) }))),
+        ]);
+        return { ...vehicle, photoUrl, documents };
     }
     async getServiceHistory(id) {
         await this.assertExists(id);
@@ -153,6 +164,7 @@ let VehiclesService = class VehiclesService {
 exports.VehiclesService = VehiclesService;
 exports.VehiclesService = VehiclesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(1, (0, common_1.Inject)(storage_types_1.STORAGE_SERVICE)),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, Object])
 ], VehiclesService);
 //# sourceMappingURL=vehicles.service.js.map

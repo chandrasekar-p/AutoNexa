@@ -46,6 +46,10 @@ export class MessagingService {
     // Email-only (see EmailAttachment's doc comment) — e.g. a PDF invoice
     // on a manual resend. SMS/WhatsApp always get content.body as plain text.
     attachments?: EmailAttachment[],
+    // Recurring/threshold-based reminders only (see reminder-cron.service.ts
+    // and DeliveryLog.dedupeKey's doc comment) — omitted by every other
+    // (one-shot) trigger.
+    dedupeKey?: string,
   ): Promise<DeliveryAttempt[]> {
     const availability = {
       email: this.emailProvider.isConfigured(),
@@ -66,6 +70,7 @@ export class MessagingService {
         DeliveryStatus.SKIPPED,
         'No messaging provider configured',
         related,
+        dedupeKey,
       );
       return [{ channel: DeliveryChannel.EMAIL, status: DeliveryStatus.SKIPPED }];
     }
@@ -76,22 +81,35 @@ export class MessagingService {
       if (channel === 'EMAIL') {
         const result = await this.emailProvider.send(recipient.email as string, content.subject, content.body, attachments);
         const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
-        await this.log(tenantId, DeliveryChannel.EMAIL, event, recipient.email as string, status, result.error, related);
+        await this.log(tenantId, DeliveryChannel.EMAIL, event, recipient.email as string, status, result.error, related, dedupeKey);
         attempts.push({ channel: DeliveryChannel.EMAIL, status });
       } else if (channel === 'WHATSAPP') {
         const result = await this.whatsappProvider.send(recipient.mobile as string, content.body);
         const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
-        await this.log(tenantId, DeliveryChannel.WHATSAPP, event, recipient.mobile as string, status, result.error, related);
+        await this.log(tenantId, DeliveryChannel.WHATSAPP, event, recipient.mobile as string, status, result.error, related, dedupeKey);
         attempts.push({ channel: DeliveryChannel.WHATSAPP, status });
       } else if (channel === 'SMS') {
         const result = await this.smsProvider.send(recipient.mobile as string, content.body);
         const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
-        await this.log(tenantId, DeliveryChannel.SMS, event, recipient.mobile as string, status, result.error, related);
+        await this.log(tenantId, DeliveryChannel.SMS, event, recipient.mobile as string, status, result.error, related, dedupeKey);
         attempts.push({ channel: DeliveryChannel.SMS, status });
       }
     }
 
     return attempts;
+  }
+
+  /**
+   * Has a reminder for this exact threshold crossing already been sent?
+   * (see DeliveryLog.dedupeKey's doc comment). Checked against ANY status
+   * (SENT/FAILED/SKIPPED) — even a SKIPPED attempt (no provider configured)
+   * still means this crossing was already considered, so retrying it daily
+   * wouldn't accomplish anything; the next NEW crossing (different key)
+   * will be considered again regardless.
+   */
+  async wasReminded(tenantId: string, event: string, dedupeKey: string): Promise<boolean> {
+    const existing = await this.prisma.platform.deliveryLog.findFirst({ where: { tenantId, event, dedupeKey } });
+    return existing !== null;
   }
 
   /** Internal ops ping to the workshop's own Slack, if configured — never customer-facing. */
@@ -121,6 +139,7 @@ export class MessagingService {
     status: DeliveryStatus,
     errorMessage: string | undefined,
     related: RelatedEntity,
+    dedupeKey?: string,
   ): Promise<void> {
     // Explicit tenantId + the unscoped `platform` client, not forTenant() —
     // this is called from both request-scoped triggers (appointment create,
@@ -138,6 +157,7 @@ export class MessagingService {
           errorMessage,
           relatedEntityType: related.type,
           relatedEntityId: related.id,
+          dedupeKey,
         },
       });
     } catch {

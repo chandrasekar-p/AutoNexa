@@ -8,10 +8,12 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InvoicesService = void 0;
 const common_1 = require("@nestjs/common");
-const promises_1 = require("fs/promises");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
@@ -19,7 +21,7 @@ const generate_sequence_number_1 = require("../../common/sequence/generate-seque
 const rollup_payment_status_1 = require("../../common/billing/rollup-payment-status");
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
-const upload_storage_1 = require("../uploads/upload-storage");
+const storage_types_1 = require("../storage/storage.types");
 const gst_split_1 = require("./gst-split");
 const payment_guard_1 = require("./payment-guard");
 const invoice_pdf_1 = require("./invoice-pdf");
@@ -37,9 +39,10 @@ const INVOICE_STATUSES = {
     paid: client_1.InvoiceStatus.PAID,
 };
 let InvoicesService = class InvoicesService {
-    constructor(prisma, messaging) {
+    constructor(prisma, messaging, storage) {
         this.prisma = prisma;
         this.messaging = messaging;
+        this.storage = storage;
     }
     async generateFromJobCard(jobCardId) {
         const db = this.prisma.forTenant();
@@ -209,7 +212,7 @@ let InvoicesService = class InvoicesService {
         if (!logoUrl)
             return null;
         try {
-            return await (0, promises_1.readFile)((0, upload_storage_1.resolveUploadPath)(logoUrl));
+            return await this.storage.getBuffer(logoUrl);
         }
         catch {
             return null;
@@ -284,7 +287,8 @@ let InvoicesService = class InvoicesService {
 exports.InvoicesService = InvoicesService;
 exports.InvoicesService = InvoicesService = __decorate([
     (0, common_1.Injectable)(),
+    __param(2, (0, common_1.Inject)(storage_types_1.STORAGE_SERVICE)),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        messaging_service_1.MessagingService])
+        messaging_service_1.MessagingService, Object])
 ], InvoicesService);
 //# sourceMappingURL=invoices.service.js.map
