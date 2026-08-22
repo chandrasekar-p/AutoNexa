@@ -10,13 +10,19 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReportsService = void 0;
+exports.dateRangeWhere = dateRangeWhere;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const tenant_context_1 = require("../../prisma/tenant-context");
 const outstanding_1 = require("../../common/billing/outstanding");
 const technician_performance_1 = require("../technicians/technician-performance");
 const sales_bucketing_1 = require("./sales-bucketing");
 const profit_margin_1 = require("./profit-margin");
+const loyalty_liability_1 = require("../loyalty/loyalty-liability");
+const warranty_status_1 = require("../warranty/warranty-status");
+const comeback_rate_1 = require("./comeback-rate");
+const gst_summary_1 = require("./gst-summary");
 const column_totals_1 = require("./column-totals");
 function dateRangeWhere(field, from, to) {
     if (!from && !to)
@@ -369,23 +375,11 @@ let ReportsService = class ReportsService {
     }
     async gstSummary(query) {
         const db = this.prisma.forTenant();
-        const agg = await db.invoice.aggregate({
+        const invoices = await db.invoice.findMany({
             where: dateRangeWhere('createdAt', query.from, query.to),
-            _sum: { subtotal: true, cgstAmount: true, sgstAmount: true, igstAmount: true, grandTotal: true },
-            _count: { _all: true },
+            select: { subtotal: true, cgstAmount: true, sgstAmount: true, igstAmount: true, grandTotal: true },
         });
-        const cgst = agg._sum.cgstAmount ?? new client_1.Prisma.Decimal(0);
-        const sgst = agg._sum.sgstAmount ?? new client_1.Prisma.Decimal(0);
-        const igst = agg._sum.igstAmount ?? new client_1.Prisma.Decimal(0);
-        return {
-            invoiceCount: agg._count._all,
-            subtotal: agg._sum.subtotal ?? new client_1.Prisma.Decimal(0),
-            cgstAmount: cgst,
-            sgstAmount: sgst,
-            igstAmount: igst,
-            totalGst: cgst.add(sgst).add(igst).toDecimalPlaces(2),
-            grandTotal: agg._sum.grandTotal ?? new client_1.Prisma.Decimal(0),
-        };
+        return (0, gst_summary_1.summarizeInvoiceGst)(invoices);
     }
     async jobCardStatus(query) {
         const db = this.prisma.forTenant();
@@ -397,6 +391,146 @@ let ReportsService = class ReportsService {
         return grouped
             .map((g) => ({ status: g.status, count: g._count._all }))
             .sort((a, b) => b.count - a.count);
+    }
+    async packagesSummary(query) {
+        const db = this.prisma.forTenant();
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const [settings, packages] = await Promise.all([
+            db.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
+            db.customerServicePackage.findMany({
+                include: {
+                    servicePackage: { select: { name: true } },
+                    customer: { select: { id: true, name: true } },
+                    vehicle: { select: { id: true, registrationNo: true } },
+                },
+                orderBy: { endDate: 'asc' },
+            }),
+        ]);
+        const soonestThresholdDays = Math.max(...settings.reminderThresholdDays);
+        const expiringHorizon = new Date(Date.now() + soonestThresholdDays * 24 * 60 * 60 * 1000);
+        const now = new Date();
+        const counts = {
+            active: packages.filter((p) => p.status === 'ACTIVE' && p.endDate > expiringHorizon).length,
+            expiringSoon: packages.filter((p) => p.status === 'ACTIVE' && p.endDate <= expiringHorizon && p.endDate > now).length,
+            expired: packages.filter((p) => p.status === 'EXPIRED').length,
+            cancelled: packages.filter((p) => p.status === 'CANCELLED').length,
+        };
+        const rows = packages.map((p) => ({
+            id: p.id,
+            packageName: p.servicePackage.name,
+            customerName: p.customer.name,
+            vehicleRegistrationNo: p.vehicle.registrationNo,
+            status: p.status,
+            startDate: p.startDate,
+            endDate: p.endDate,
+            visitsUsed: p.visitsUsed,
+            visitLimit: p.visitLimit,
+        }));
+        return { counts, ...paginate(rows, query.page ?? 1, query.pageSize ?? 20) };
+    }
+    async loyaltyLiability() {
+        const db = this.prisma.forTenant();
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const [settings, customers] = await Promise.all([
+            db.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
+            db.customer.findMany({ where: { deletedAt: null, loyaltyPointsBalance: { gt: 0 } }, select: { loyaltyPointsBalance: true } }),
+        ]);
+        const pointValueRupees = settings.loyaltyPointValueRupees;
+        const totalPointsOutstanding = customers.reduce((sum, c) => sum + c.loyaltyPointsBalance, 0);
+        return {
+            totalPointsOutstanding,
+            customersWithBalance: customers.length,
+            liabilityRupees: (0, loyalty_liability_1.calculateLoyaltyLiability)(customers.map((c) => c.loyaltyPointsBalance), pointValueRupees),
+        };
+    }
+    async warrantyLiability() {
+        const db = this.prisma.forTenant();
+        const [labourLines, partLines] = await Promise.all([
+            db.jobCardLabour.findMany({
+                where: { warrantyMonths: { not: null }, jobCard: { deletedAt: null, actualDelivery: { not: null } } },
+                select: { warrantyMonths: true, lineTotal: true, jobCard: { select: { actualDelivery: true } } },
+            }),
+            db.jobCardPart.findMany({
+                where: {
+                    OR: [{ warrantyMonths: { not: null } }, { warrantyKm: { not: null } }],
+                    jobCard: { deletedAt: null, actualDelivery: { not: null } },
+                },
+                select: {
+                    warrantyMonths: true,
+                    warrantyKm: true,
+                    quantity: true,
+                    part: { select: { purchasePrice: true } },
+                    jobCard: { select: { actualDelivery: true, odometer: true, vehicle: { select: { odometerReading: true } } } },
+                },
+            }),
+        ]);
+        const activeLabour = labourLines.filter((l) => (0, warranty_status_1.computeWarrantyStatus)(l.jobCard.actualDelivery, l.warrantyMonths, null, null, null).isActive);
+        const activeParts = partLines.filter((p) => (0, warranty_status_1.computeWarrantyStatus)(p.jobCard.actualDelivery, p.warrantyMonths, p.warrantyKm, p.jobCard.odometer, p.jobCard.vehicle.odometerReading).isActive);
+        const labourExposure = activeLabour.reduce((sum, l) => sum.add(l.lineTotal), new client_1.Prisma.Decimal(0));
+        const partsExposure = activeParts.reduce((sum, p) => sum.add(new client_1.Prisma.Decimal(p.part.purchasePrice).mul(p.quantity)), new client_1.Prisma.Decimal(0));
+        return {
+            labourLinesUnderWarranty: activeLabour.length,
+            partsLinesUnderWarranty: activeParts.length,
+            labourExposure: labourExposure.toDecimalPlaces(2),
+            partsExposure: partsExposure.toDecimalPlaces(2),
+            totalExposure: labourExposure.add(partsExposure).toDecimalPlaces(2),
+        };
+    }
+    async warrantyClaimsSummary(query) {
+        const db = this.prisma.forTenant();
+        const claims = await db.warrantyClaim.findMany({
+            include: {
+                claimJobCard: { select: { jobCardNumber: true } },
+                originalJobCardPart: { select: { part: { select: { name: true } } } },
+                originalJobCardLabour: { select: { description: true, labourItem: { select: { description: true } } } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        const counts = {
+            open: claims.filter((c) => c.status === 'OPEN').length,
+            approved: claims.filter((c) => c.status === 'APPROVED').length,
+            rejected: claims.filter((c) => c.status === 'REJECTED').length,
+            resolved: claims.filter((c) => c.status === 'RESOLVED').length,
+        };
+        const rows = claims.map((c) => ({
+            id: c.id,
+            claimJobCardNumber: c.claimJobCard.jobCardNumber,
+            originalItem: c.originalJobCardPart?.part.name ?? c.originalJobCardLabour?.labourItem?.description ?? c.originalJobCardLabour?.description ?? 'Unknown',
+            status: c.status,
+            isBillable: c.isBillable,
+            createdAt: c.createdAt,
+        }));
+        return { counts, ...paginate(rows, query.page ?? 1, query.pageSize ?? 20) };
+    }
+    async comebackRate(query) {
+        const db = this.prisma.forTenant();
+        const claims = await db.warrantyClaim.findMany({
+            where: dateRangeWhere('createdAt', query.from, query.to),
+            include: {
+                originalJobCardPart: {
+                    select: {
+                        partId: true,
+                        part: { select: { name: true, supplierId: true, supplier: { select: { name: true } } } },
+                        jobCard: { select: { technicianId: true, technician: { select: { user: { select: { name: true } } } } } },
+                    },
+                },
+                originalJobCardLabour: {
+                    select: { jobCard: { select: { technicianId: true, technician: { select: { user: { select: { name: true } } } } } } },
+                },
+            },
+        });
+        const inputs = claims.map((claim) => {
+            const jobCard = claim.originalJobCardPart?.jobCard ?? claim.originalJobCardLabour?.jobCard;
+            return {
+                technicianId: jobCard?.technicianId ?? null,
+                technicianName: jobCard?.technician?.user.name ?? null,
+                partId: claim.originalJobCardPart?.partId ?? null,
+                partName: claim.originalJobCardPart?.part.name ?? null,
+                supplierId: claim.originalJobCardPart?.part.supplierId ?? null,
+                supplierName: claim.originalJobCardPart?.part.supplier?.name ?? null,
+            };
+        });
+        return (0, comeback_rate_1.aggregateComebackRate)(inputs, query.groupBy);
     }
 };
 exports.ReportsService = ReportsService;

@@ -60,4 +60,9 @@ export class CreateJobCardDto {
   @IsOptional()
   @IsDateString()
   expectedDelivery?: string;
+
+  @ApiPropertyOptional({ description: 'An active CustomerServicePackage this visit redeems against — must belong to the same customer and vehicle' })
+  @IsOptional()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
+  redeemedPackageId?: string;
 }

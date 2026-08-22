@@ -180,6 +180,56 @@ let ReminderCronService = ReminderCronService_1 = class ReminderCronService {
         }
         this.logger.log(`${sentCount} service-due reminder(s) sent`);
     }
+    async sendPackageExpiryReminders() {
+        const now = new Date();
+        const event = 'package.expiring';
+        const packages = await this.prisma.platform.customerServicePackage.findMany({
+            where: { status: 'ACTIVE', endDate: { gt: now } },
+            include: {
+                servicePackage: { select: { name: true } },
+                customer: { select: { id: true, name: true, email: true, mobile: true, reminderOptOut: true } },
+                vehicle: { select: { registrationNo: true, brand: true, model: true } },
+                tenant: { select: { id: true, name: true, settings: true } },
+            },
+        });
+        let sentCount = 0;
+        for (const pkg of packages) {
+            const settings = pkg.tenant.settings;
+            if (!settings || !settings.reminderPackageExpiryEnabled)
+                continue;
+            for (const thresholdDays of settings.reminderThresholdDays) {
+                const dedupeKey = (0, reminder_eligibility_1.buildDateDedupeKey)(pkg.id, 'packageExpiry', pkg.endDate, thresholdDays);
+                const alreadySent = await this.messaging.wasReminded(pkg.tenantId, event, dedupeKey);
+                const eligible = (0, reminder_eligibility_1.shouldSendDateReminder)({
+                    optedOut: pkg.customer.reminderOptOut,
+                    enabled: settings.reminderPackageExpiryEnabled,
+                    now,
+                    targetDate: pkg.endDate,
+                    thresholdDays,
+                    alreadySent,
+                });
+                if (!eligible)
+                    continue;
+                const content = (0, templates_1.packageExpiringMessage)({
+                    workshopName: pkg.tenant.name,
+                    customerName: pkg.customer.name,
+                    packageName: pkg.servicePackage.name,
+                    vehicleLabel: `${pkg.vehicle.registrationNo} ${pkg.vehicle.brand} ${pkg.vehicle.model}`,
+                    expiryDate: pkg.endDate.toLocaleDateString('en-IN', DATE_FORMAT),
+                });
+                await this.messaging.notifyCustomer(pkg.tenantId, event, { email: pkg.customer.email, mobile: pkg.customer.mobile }, content, { type: 'CustomerServicePackage', id: pkg.id }, undefined, dedupeKey);
+                sentCount++;
+            }
+        }
+        this.logger.log(`${sentCount} package-expiring reminder(s) sent`);
+    }
+    async markExpiredPackages() {
+        const result = await this.prisma.platform.customerServicePackage.updateMany({
+            where: { status: 'ACTIVE', endDate: { lt: new Date() } },
+            data: { status: 'EXPIRED' },
+        });
+        this.logger.log(`${result.count} package(s) marked EXPIRED`);
+    }
 };
 exports.ReminderCronService = ReminderCronService;
 __decorate([
@@ -206,6 +256,18 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ReminderCronService.prototype, "sendServiceDueReminders", null);
+__decorate([
+    (0, schedule_1.Cron)('0 8 * * *'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], ReminderCronService.prototype, "sendPackageExpiryReminders", null);
+__decorate([
+    (0, schedule_1.Cron)('0 8 * * *'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], ReminderCronService.prototype, "markExpiredPackages", null);
 exports.ReminderCronService = ReminderCronService = ReminderCronService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,

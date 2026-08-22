@@ -24,6 +24,7 @@ const paginated_date_range_query_dto_1 = require("./dto/paginated-date-range-que
 const purchases_report_query_dto_1 = require("./dto/purchases-report-query.dto");
 const labour_revenue_report_query_dto_1 = require("./dto/labour-revenue-report-query.dto");
 const date_range_query_dto_1 = require("./dto/date-range-query.dto");
+const comeback_rate_query_dto_1 = require("./dto/comeback-rate-query.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 let ReportsController = class ReportsController {
     constructor(reportsService) {
@@ -70,6 +71,21 @@ let ReportsController = class ReportsController {
     }
     jobCardStatus(query) {
         return this.reportsService.jobCardStatus(query);
+    }
+    packagesSummary(query) {
+        return this.reportsService.packagesSummary(query);
+    }
+    loyaltyLiability() {
+        return this.reportsService.loyaltyLiability();
+    }
+    warrantyLiability() {
+        return this.reportsService.warrantyLiability();
+    }
+    warrantyClaimsSummary(query) {
+        return this.reportsService.warrantyClaimsSummary(query);
+    }
+    comebackRate(query) {
+        return this.reportsService.comebackRate(query);
     }
 };
 exports.ReportsController = ReportsController;
@@ -171,6 +187,39 @@ __decorate([
     __metadata("design:paramtypes", [date_range_query_dto_1.DateRangeQueryDto]),
     __metadata("design:returntype", void 0)
 ], ReportsController.prototype, "jobCardStatus", null);
+__decorate([
+    (0, common_1.Get)('packages-summary'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [pagination_query_dto_1.PaginationQueryDto]),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "packagesSummary", null);
+__decorate([
+    (0, common_1.Get)('loyalty-liability'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "loyaltyLiability", null);
+__decorate([
+    (0, common_1.Get)('warranty-liability'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "warrantyLiability", null);
+__decorate([
+    (0, common_1.Get)('warranty-claims-summary'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [pagination_query_dto_1.PaginationQueryDto]),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "warrantyClaimsSummary", null);
+__decorate([
+    (0, common_1.Get)('comeback-rate'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [comeback_rate_query_dto_1.ComebackRateQueryDto]),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "comebackRate", null);
 exports.ReportsController = ReportsController = __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiTags)('reports'),

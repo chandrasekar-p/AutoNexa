@@ -9,7 +9,7 @@ import { usePermission } from '@/lib/hooks/use-permission';
 import { useStaffOptions } from '@/lib/hooks/use-staff-options';
 import { getValidJobCardTransitions } from '@/lib/job-card-transitions';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { JobCardDetail, JobCardStatus, PaginatedResult, Technician } from '@/lib/api-types';
+import type { JobCardDetail, JobCardStatus, LoyaltyBalance, PaginatedResult, Technician } from '@/lib/api-types';
 import { JobCardStatusBadge } from '@/components/domain/job-card-status-badge';
 import { JobCardLabourLines } from '@/components/domain/job-card-labour-lines';
 import { JobCardPartLines } from '@/components/domain/job-card-part-lines';
@@ -41,10 +41,12 @@ export default function JobCardDetailPage() {
   const params = useParams<{ id: string }>();
   const canUpdate = usePermission('job-card:update');
   const canGenerateInvoice = usePermission('invoice:create');
+  const canReadLoyalty = usePermission('loyalty:read');
 
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [redeemPoints, setRedeemPoints] = useState('');
 
   const [complaint, setComplaint] = useState<string | null>(null);
   const [customerRequest, setCustomerRequest] = useState<string | null>(null);
@@ -59,6 +61,13 @@ export default function JobCardDetailPage() {
   const query = useApiQuery<JobCardDetail>(() => apiGet(`/job-cards/${params.id}`), [params.id]);
   const technicians = useApiQuery<PaginatedResult<Technician>>(() => apiGet('/technicians?pageSize=100'), []);
   const staff = useStaffOptions();
+  // Best-effort, same "n/a" pattern as other permission-gated side queries
+  // on this page — a customer with no loyalty balance to redeem is the
+  // overwhelmingly common case, so this never blocks invoice generation.
+  const loyaltyBalance = useApiQuery<LoyaltyBalance | null>(
+    () => (canReadLoyalty && query.data ? apiGet(`/loyalty/customers/${query.data.customerId}/balance`) : Promise.resolve(null)),
+    [canReadLoyalty, query.data?.customerId],
+  );
 
   async function handleStatusChange(status: JobCardStatus) {
     if (status === 'CANCELLED' && !window.confirm('Cancel this job card? This cannot be undone.')) return;
@@ -78,7 +87,11 @@ export default function JobCardDetailPage() {
     setIsGeneratingInvoice(true);
     setActionError(null);
     try {
-      await apiPost(`/job-cards/${params.id}/generate-invoice`);
+      const points = Number(redeemPoints);
+      await apiPost(
+        `/job-cards/${params.id}/generate-invoice`,
+        points > 0 ? { redeemLoyaltyPoints: points } : undefined,
+      );
       // The refetched job card's own `.invoice` field (see JOB_CARD_INCLUDE
       // on the backend) is now the single source of truth for whether an
       // invoice exists — no separate local state needed to track it.
@@ -194,9 +207,21 @@ export default function JobCardDetailPage() {
               <Button variant="secondary">View Invoice</Button>
             </Link>
           ) : canGenerateInvoice && GENERATABLE_INVOICE_STATUSES.includes(jobCard.status) ? (
-            <Button variant="secondary" onClick={handleGenerateInvoice} isLoading={isGeneratingInvoice}>
-              Generate Invoice
-            </Button>
+            <>
+              {loyaltyBalance.data && loyaltyBalance.data.balance > 0 ? (
+                <Input
+                  type="number"
+                  value={redeemPoints}
+                  onChange={(e) => setRedeemPoints(e.target.value)}
+                  placeholder={`Redeem points (max ${loyaltyBalance.data.balance})`}
+                  className="h-9 w-56"
+                  aria-label="Loyalty points to redeem"
+                />
+              ) : null}
+              <Button variant="secondary" onClick={handleGenerateInvoice} isLoading={isGeneratingInvoice}>
+                Generate Invoice
+              </Button>
+            </>
           ) : null}
         </div>
       ) : null}
@@ -310,6 +335,7 @@ export default function JobCardDetailPage() {
         <CardBody>
           <JobCardLabourLines
             jobCardId={jobCard.id}
+            vehicleId={jobCard.vehicleId}
             lines={jobCard.labourItems}
             readOnly={linesReadOnly}
             onUpdated={query.refetch}
@@ -322,7 +348,13 @@ export default function JobCardDetailPage() {
           <CardTitle>Parts</CardTitle>
         </CardHeader>
         <CardBody>
-          <JobCardPartLines jobCardId={jobCard.id} lines={jobCard.parts} readOnly={linesReadOnly} onUpdated={query.refetch} />
+          <JobCardPartLines
+            jobCardId={jobCard.id}
+            vehicleId={jobCard.vehicleId}
+            lines={jobCard.parts}
+            readOnly={linesReadOnly}
+            onUpdated={query.refetch}
+          />
         </CardBody>
       </Card>
 

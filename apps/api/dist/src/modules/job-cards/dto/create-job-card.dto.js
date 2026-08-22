@@ -81,4 +81,10 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], CreateJobCardDto.prototype, "expectedDelivery", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'An active CustomerServicePackage this visit redeems against — must belong to the same customer and vehicle' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
+    __metadata("design:type", String)
+], CreateJobCardDto.prototype, "redeemedPackageId", void 0);
 //# sourceMappingURL=create-job-card.dto.js.map

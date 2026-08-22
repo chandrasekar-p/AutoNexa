@@ -1,8 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID, Matches, Min } from 'class-validator';
+import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validators/uuid-like';
 
-// rate/gstRate are never client-supplied — they're snapshotted server-side
-// from the LabourItem at add time (see job-cards.service.ts).
+// rate/gstRate/warrantyMonths are never client-supplied — they're
+// snapshotted server-side from the LabourItem at add time (see
+// job-cards.service.ts).
 export class CreateJobCardLabourDto {
   @ApiProperty()
   @IsUUID()
@@ -18,4 +20,9 @@ export class CreateJobCardLabourDto {
   @IsNumber()
   @Min(0.01)
   hours?: number;
+
+  @ApiPropertyOptional({ description: 'An open warranty claim on THIS job card that this line is the fix for — makes it non-billable if the claim is approved as free' })
+  @IsOptional()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
+  warrantyClaimId?: string;
 }

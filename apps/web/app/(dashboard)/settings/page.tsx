@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 
 export default function SettingsPage() {
   return (
-    <div className="flex max-w-6xl flex-col gap-6">
+    <div className="flex max-w-[1600px] flex-col gap-6">
       <h1 className="text-2xl font-semibold text-ink">Settings</h1>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
@@ -38,11 +38,12 @@ export default function SettingsPage() {
               </Link>
             </CardBody>
           </Card>
+
+          <ReminderSettingsCard />
         </div>
 
         <div className="flex flex-col gap-6">
           <WorkshopSettingsCard />
-          <ReminderSettingsCard />
         </div>
       </div>
     </div>

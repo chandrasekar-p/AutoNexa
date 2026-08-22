@@ -11,10 +11,17 @@ The full SRS MVP scope (§30) is built: Customers, Vehicles, Appointments,
 Inspections, Estimates, Job Cards, Technicians, Parts/Inventory, Suppliers,
 Purchases, Invoices/Payments, plus the admin layer (Users, Roles, Audit Log,
 Message Deliveries, Workshop Settings, Reports, global Search). Outbound
-Email/SMS/WhatsApp/Slack messaging on key business events is also in place.
-Deferred, per the SRS's own Phase 2 scope (§31): customer self-service
-portal, multi-branch UI, mobile app, subscription billing, and accounting
-integration.
+Email/SMS/WhatsApp/Slack messaging on key business events is also in place,
+along with Razorpay payment collection, customer self-service estimate
+approval, proactive insurance/PUC/service-due reminders, S3-backed file
+storage, AMC/Service Packages + a points-based Loyalty program (§8),
+per-line warranty tracking with comeback-claim workflow (§9), and
+GST/Tally export for the accountant's monthly filing (§10) — this closes
+the original seven-item gap-analysis list.
+Deferred, per the SRS's own Phase 2 scope (§31): multi-branch UI, mobile
+app, and subscription billing. Accounting integration is addressed as
+correct, reconciled export files rather than a live sync — there's no
+public real-time API for Tally to integrate against.
 
 ## Repo layout
 
@@ -315,7 +322,194 @@ customer can opt out of all three (but not transactional messages —
 invoices, payments, appointments) from their own record's "Opt out of
 proactive reminders" checkbox.
 
-### 8. Smoke-test before declaring it live
+### 8. AMC / Service Packages + Loyalty Program
+
+No new env vars — everything is DB-driven via `TenantSettings`, same
+posture as the reminder toggles from §7.
+
+**Service Packages (AMC)**: a `ServicePackage` is the tenant-defined
+catalogue template (name, price, GST rate, validity, optional visit limit,
+and which `LabourItem`s/`Part`s/`PartCategory`s it covers for free). Selling
+one (`POST /customer-service-packages`) creates a `CustomerServicePackage`
+tied to a specific customer+vehicle **and** the standalone invoice that
+paid for it, atomically — same "never a phantom invoice" guarantee as
+every other invoice-generating action in this app.
+
+Redeeming a package: link a job card to it via `redeemedPackageId`
+(create-time or update). Any labour/part added to that job card that
+matches the package's included-items list is automatically excluded from
+the eventual invoice (covered "for free" — no re-charge, no incremental
+GST, since GST was already paid in full when the package itself was
+sold); anything outside the package's coverage bills normally. The
+package's visit counter increments once per job card, at the DELIVERED
+transition — not per line item, and not at invoice time.
+
+Renewal (`POST /customer-service-packages/:id/renew`) is a manual staff
+action that creates a new package + new invoice — no separate Razorpay
+integration needed, the resulting invoice gets the same "Send Payment
+Link" button as any other invoice. `ReminderCronService` sends an
+expiring-soon notice (reusing the exact reminder-threshold/dedup
+mechanics from §7) but never auto-renews or auto-charges.
+
+**Loyalty**: customers earn points (`TenantSettings.loyaltyPointsPerRupee`,
+default 1 point per ₹100) on an invoice's pre-tax subtotal once it's fully
+paid — not at generation. Points redeem
+(`TenantSettings.loyaltyPointValueRupees`, default 1 point = ₹1) as a
+**pre-tax** discount on a future invoice
+(`POST /job-cards/:id/generate-invoice` with `{"redeemLoyaltyPoints": N}`)
+— it reduces the taxable value before GST is computed, not a post-tax
+subtraction, so GST payable actually goes down. Every earn/redeem/manual
+correction is recorded in the append-only `LoyaltyTransaction` ledger;
+`Customer.loyaltyPointsBalance` is a guarded running-total cache kept in
+sync with it, same "mutable cache next to an append-only ledger" pattern
+`Part.currentStock`/`InventoryTransaction` already use. Manual corrections
+(goodwill points, fixing an error) go through `POST /loyalty/adjust`,
+gated on `loyalty:update`.
+
+Configure both from **Settings** (thresholds/toggles) — no dedicated UI
+was built for this phase beyond the API; see the reports below for
+visibility in the meantime.
+
+**Reports**: `GET /reports/packages-summary` (active/expiring-soon/
+expired/cancelled counts + a paginated list) and
+`GET /reports/loyalty-liability` (total outstanding points across every
+customer, converted to rupees at the current redemption rate — i.e. the
+discount exposure if every point were redeemed tomorrow).
+
+**Upgrading an existing deployment**: adding `service-package`/`loyalty`
+as new permission resources doesn't retroactively grant them to
+already-provisioned tenants' roles (only a fresh `prisma:seed` or a
+brand-new tenant picks up `default-role-grants.ts` automatically). Run
+once after deploying this phase:
+
+```bash
+npm run backfill:role-permissions -- --dry-run   # prints what would change
+npm run backfill:role-permissions                # actually grants them
+```
+
+Safe to run more than once — every grant is upsert/skip-if-exists, and it
+only touches roles whose name matches a known default (Workshop Owner,
+Workshop Manager, ...), never a tenant's own custom-named roles.
+
+### 9. Warranty Tracking & Comeback Claims
+
+No new env vars. `Part`/`LabourItem` gained a `warrantyPeriodMonths`
+(both) and `warrantyKm` (`Part` only — a labour warranty isn't naturally
+mileage-bound) template field — set them from the Parts/Labour Items
+pages. Every time one is added to a job card, its warranty term is
+**snapshotted** onto the `JobCardPart`/`JobCardLabour` row, same
+discipline as the price/GST snapshot already used everywhere else in this
+app — editing a Part's warranty later never changes coverage on a job
+already done.
+
+**Coverage is computed, never stored**: `GET /vehicles/:id/warranty-status`
+shows every past labour/part line on a vehicle with its live active/expired
+status (whichever comes first — date or km), useful at intake to check "is
+this brake job still covered?" before diagnosing a comeback.
+
+**Raising and resolving a claim**:
+
+1. Create a new job card for the comeback visit, exactly like any other
+   visit — `job-card-status-transitions.ts` is completely unchanged, a
+   comeback isn't a special job-card type.
+2. `POST /warranty-claims` with `claimJobCardId` + exactly one of
+   `originalJobCardPartId`/`originalJobCardLabourId` — rejected outright
+   if that original line's warranty has already expired. Gated on
+   `warranty-claim:create` (Technician and Service Advisor both have this
+   by default — anyone doing intake can flag a suspected comeback).
+3. Add the actual fix to the comeback job card via the normal
+   `POST /job-cards/:id/labour`/`/parts` endpoints, with an added optional
+   `warrantyClaimId` tagging which open claim (on that same job card) this
+   line resolves.
+4. A manager reviews and decides: `PATCH /warranty-claims/:id` with
+   `status: "APPROVED"` (or `"REJECTED"`) and `isBillable`. Gated on
+   `warranty-claim:update` — Technician/Service Advisor can raise a claim
+   but not approve their own. Approved-and-free lines are excluded from
+   the eventual invoice entirely (same "excluded, not zeroed" treatment
+   AMC package coverage already uses) — zero incremental GST, since a
+   warranty fix isn't a new sale.
+
+**Reports**: `GET /reports/warranty-liability` (cost exposure if every
+currently-covered part/labour line came back as a valid claim tomorrow —
+parts at purchase price, labour at full snapshotted value, same "no
+per-technician cost data" caveat the profit-margin report already
+documents), `GET /reports/warranty-claims-summary` (counts by status +
+list), and `GET /reports/comeback-rate?groupBy=technician|part|supplier`
+(raw counts, not a computed percentage). The `supplier` grouping uses each
+part's configured *preferred* supplier — this system has no lot/batch
+tracking, so it can't trace a specific defective unit back to the exact
+purchase invoice that brought it in; a documented approximation, not exact
+traceability.
+
+**Not built in this phase, deliberately**: any supplier-side chargeback/
+recovery workflow — this phase only surfaces the data (comeback rate by
+supplier) needed to decide when that's warranted.
+
+**`Vehicle.warrantyInfo`** is unchanged and untouched — it's the vehicle's
+own *manufacturer* warranty (free text, e.g. "3 years bumper-to-bumper"),
+a different concept from the workshop's own repair warranty this phase
+tracks. Nothing to migrate; they don't overlap.
+
+**Upgrading an existing deployment**: `warranty-claim` is a new permission
+resource — run the same backfill from §8 again after deploying this phase
+(it's idempotent, safe to re-run for any past or future addition to
+`default-role-grants.ts`):
+
+```bash
+npm run backfill:role-permissions
+```
+
+### 10. GST Export & Tally-Ready Vouchers
+
+No new env vars. This doesn't integrate live with Tally (there's no public
+real-time API for that) — it builds correct, reconciled export files an
+accountant imports or works from directly, closing the last item on the
+original gap-analysis list.
+
+```
+GET /reports/export/gst?from=&to=&format=tally-xml|gstr-csv&side=sales|purchases
+```
+
+Gated on its own `gst-export:read` permission — deliberately **not** the
+existing `report:read` (also granted to Service Advisor/Inventory Manager,
+too broad for a raw financial export with customer GSTINs). Only Workshop
+Owner/Manager and Accountant have it by default.
+
+- `side=sales` (Invoice/InvoiceLineItem/Payment) is high-fidelity: GST is
+  already split into CGST/SGST/IGST per invoice, and `format=gstr-csv`
+  re-derives it per rate/HSN bucket via the same `calculateGstSplit()`
+  invoices were generated with, so a GSTR-1 row can never disagree with
+  how the invoice itself was taxed. `format=tally-xml` produces Sales +
+  Receipt vouchers.
+- `side=purchases` (PurchaseInvoice/SupplierPayment) is **approximate,
+  by design** — `PurchaseInvoice` has no HSN-wise or CGST/SGST/IGST
+  breakdown (no line items, no `Supplier.state`), so tax is shown as one
+  blended amount, split evenly into CGST+SGST assuming an in-state
+  supplier. Correct for GSTR-3B's aggregate ITC total; not accurate
+  per-tax-head for an inter-state supplier. `format=tally-xml` produces
+  Purchase + Payment vouchers. Every export response's `warnings` array
+  says this explicitly — it's not buried in this file.
+- Add `&preview=true` to get JSON totals/warnings back instead of a file
+  download, and to check for amendments, without creating an export batch.
+- A line item with no HSN/SAC code (true of every Part/LabourItem seeded
+  before this phase) groups under an explicit `"UNSPECIFIED"` bucket
+  rather than being dropped or blocking the export — the response's
+  `warnings` array says how many lines are affected.
+- **Reconciliation**: the sales export and `GET /reports/gst-summary`
+  fetch invoices with the identical date-range filter and reduce them
+  through the same `summarizeInvoiceGst()` — they cannot disagree on the
+  same period.
+- **Idempotent re-export**: re-requesting an unchanged period (same
+  `side`, exact same `from`/`to`) reattaches to the SAME batch number
+  (`X-Export-Batch-Number` header) instead of minting a new one — repeat
+  downloads of a file you already have don't produce a second,
+  indistinguishable batch. A genuinely changed manifest (only possible on
+  the purchase side today — sales `Invoice` rows have no edit path at
+  all) mints a new batch and both the response's `amended` array and a
+  `warnings` entry flag exactly which voucher changed and by how much,
+  rather than silently blending the correction into an unflagged number.
+
+### 11. Smoke-test before declaring it live
 
 - `POST /auth/login` against the deployed API with a real account
 - Confirm the frontend can reach it (no CORS errors in the browser console)
@@ -340,6 +534,23 @@ proactive reminders" checkbox.
   `vehicle.insurance-expiring` (or `.puc-expiring`) row appears in
   `/deliveries` with a `dedupeKey` set — then confirm running the cron
   again the same day does **not** produce a second row for that vehicle
+- Sell a service package to a test customer+vehicle, confirm the sale
+  produced exactly one invoice; redeem it on a job card, add a covered and
+  an uncovered line, delivered it, generate the invoice, and confirm only
+  the uncovered line is billed and the package's `visitsUsed` incremented
+  by exactly 1
+- Pay an invoice in full and confirm the customer's loyalty balance
+  increased in `GET /loyalty/transactions`; redeem points on a later
+  invoice and confirm its GST is computed on the discounted (not full)
+  subtotal
+- Hit `GET /reports/export/gst?...&side=sales&format=gstr-csv` and
+  `GET /reports/gst-summary` for the identical `from`/`to` and confirm the
+  totals match exactly; download `format=tally-xml` for the same period
+  and confirm the `X-Export-Batch-Number` header is the SAME batch number
+  as the CSV download (idempotent re-export, no new batch minted); edit a
+  purchase invoice's total, re-export `side=purchases`, and confirm the
+  changed invoice appears in the response's `amended` array with its old
+  and new amounts, and that a new batch number is issued for that period
 
 ## Seeded accounts (local dev only)
 

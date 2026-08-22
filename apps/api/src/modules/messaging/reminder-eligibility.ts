@@ -16,10 +16,11 @@ function isoDate(date: Date): string {
  * date (renewal, or a recomputed service-due date after a new service)
  * produces a new key, so the reminder cycle can fire again — see
  * DeliveryLog.dedupeKey's doc comment for why this is necessary instead of
- * deduping on vehicleId alone.
+ * deduping on the entity id alone. `entityId` is a vehicle id for
+ * insurance/PUC/serviceDue, a CustomerServicePackage id for packageExpiry.
  */
-export function buildDateDedupeKey(vehicleId: string, field: 'insuranceExpiry' | 'pucExpiry' | 'serviceDue', date: Date, thresholdDays: number): string {
-  return `${vehicleId}:${field}:${isoDate(date)}:${thresholdDays}d`;
+export function buildDateDedupeKey(entityId: string, field: 'insuranceExpiry' | 'pucExpiry' | 'serviceDue' | 'packageExpiry', date: Date, thresholdDays: number): string {
+  return `${entityId}:${field}:${isoDate(date)}:${thresholdDays}d`;
 }
 
 /**

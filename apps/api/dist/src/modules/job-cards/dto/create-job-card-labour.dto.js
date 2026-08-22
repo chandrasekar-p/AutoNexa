@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateJobCardLabourDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const uuid_like_1 = require("../../../common/validators/uuid-like");
 class CreateJobCardLabourDto {
 }
 exports.CreateJobCardLabourDto = CreateJobCardLabourDto;
@@ -33,4 +34,10 @@ __decorate([
     (0, class_validator_1.Min)(0.01),
     __metadata("design:type", Number)
 ], CreateJobCardLabourDto.prototype, "hours", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'An open warranty claim on THIS job card that this line is the fix for — makes it non-billable if the claim is approved as free' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
+    __metadata("design:type", String)
+], CreateJobCardLabourDto.prototype, "warrantyClaimId", void 0);
 //# sourceMappingURL=create-job-card-labour.dto.js.map

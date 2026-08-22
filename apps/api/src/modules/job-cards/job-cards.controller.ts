@@ -8,6 +8,7 @@ import { ListJobCardsQueryDto } from './dto/list-job-cards-query.dto';
 import { CreateJobCardLabourDto } from './dto/create-job-card-labour.dto';
 import { CreateJobCardNoteDto } from './dto/create-job-card-note.dto';
 import { CreateJobCardPartDto } from './dto/create-job-card-part.dto';
+import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Audit } from '../../common/interceptors/audit-log.interceptor';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -103,7 +104,7 @@ export class JobCardsController {
   @Permissions('invoice:create')
   @Post(':id/generate-invoice')
   @Audit('job-card.generate-invoice', 'Invoice')
-  generateInvoice(@Param('id') id: string) {
-    return this.jobCardsService.generateInvoice(id);
+  generateInvoice(@Param('id') id: string, @Body() dto: GenerateInvoiceDto) {
+    return this.jobCardsService.generateInvoice(id, dto);
   }
 }

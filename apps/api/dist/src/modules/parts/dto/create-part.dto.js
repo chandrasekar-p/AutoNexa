@@ -103,12 +103,19 @@ __decorate([
     __metadata("design:type", String)
 ], CreatePartDto.prototype, "binLocation", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)(),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Snapshotted onto JobCardPart.warrantyMonths when this part is added to a job card' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreatePartDto.prototype, "warrantyPeriodMonths", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Whichever comes first with warrantyPeriodMonths — snapshotted onto JobCardPart.warrantyKm' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreatePartDto.prototype, "warrantyKm", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: true }),
     (0, class_validator_1.IsOptional)(),

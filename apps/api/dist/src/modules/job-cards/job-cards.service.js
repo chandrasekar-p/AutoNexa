@@ -21,6 +21,7 @@ const templates_1 = require("../messaging/templates");
 const job_card_status_transitions_1 = require("./job-card-status-transitions");
 const resolve_converted_labour_line_1 = require("./resolve-converted-labour-line");
 const stock_guard_1 = require("./stock-guard");
+const package_eligibility_1 = require("../service-packages/package-eligibility");
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const JOB_CARD_INCLUDE = {
@@ -46,6 +47,8 @@ let JobCardsService = class JobCardsService {
             await this.assertTechnicianExists(dto.technicianId);
         if (dto.inspectionId)
             await this.assertInspectionExists(dto.inspectionId);
+        if (dto.redeemedPackageId)
+            await this.assertPackageRedeemable(dto.redeemedPackageId, dto.customerId, dto.vehicleId);
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
         const db = this.prisma.forTenant();
         const jobCard = await db.$transaction(async (tx) => {
@@ -62,6 +65,7 @@ let JobCardsService = class JobCardsService {
                     complaint: dto.complaint,
                     customerRequest: dto.customerRequest,
                     estimatedWork: dto.estimatedWork,
+                    redeemedPackageId: dto.redeemedPackageId,
                     startAt: dto.startAt ? new Date(dto.startAt) : undefined,
                     expectedDelivery: dto.expectedDelivery ? new Date(dto.expectedDelivery) : undefined,
                     jobCardNumber,
@@ -171,11 +175,13 @@ let JobCardsService = class JobCardsService {
         return jobCard;
     }
     async update(id, dto, currentUserId) {
-        await this.assertExists(id, currentUserId);
+        const jobCard = await this.assertExists(id, currentUserId);
         if (dto.technicianId)
             await this.assertTechnicianExists(dto.technicianId);
         if (dto.inspectionId)
             await this.assertInspectionExists(dto.inspectionId);
+        if (dto.redeemedPackageId)
+            await this.assertPackageRedeemable(dto.redeemedPackageId, jobCard.customerId, jobCard.vehicleId);
         return this.prisma.forTenant().jobCard.update({
             where: { id },
             data: {
@@ -208,6 +214,16 @@ let JobCardsService = class JobCardsService {
                     notes: dto.notes,
                 },
             });
+            if (dto.status === client_1.JobCardStatus.DELIVERED && jobCard.redeemedPackageId) {
+                const pkg = await tx.customerServicePackage.findUniqueOrThrow({ where: { id: jobCard.redeemedPackageId } });
+                const guardedWhere = pkg.visitLimit === null
+                    ? { id: jobCard.redeemedPackageId, status: 'ACTIVE' }
+                    : { id: jobCard.redeemedPackageId, status: 'ACTIVE', visitsUsed: { lt: pkg.visitLimit } };
+                const updated = await tx.customerServicePackage.updateMany({ where: guardedWhere, data: { visitsUsed: { increment: 1 } } });
+                if (updated.count === 0) {
+                    throw new common_1.BadRequestException('This service package is no longer active or has no visits remaining');
+                }
+            }
             if (dto.status === client_1.JobCardStatus.READY_FOR_DELIVERY) {
                 await tx.notification.create({
                     data: {
@@ -246,6 +262,8 @@ let JobCardsService = class JobCardsService {
         });
         if (!labourItem)
             throw new common_1.NotFoundException('Labour item not found');
+        if (dto.warrantyClaimId)
+            await this.assertClaimBelongsToJobCard(dto.warrantyClaimId, jobCardId);
         const hours = dto.hours ?? labourItem.standardHours;
         const rate = labourItem.labourRate;
         const gstRate = labourItem.gstRate;
@@ -259,6 +277,8 @@ let JobCardsService = class JobCardsService {
                 gstRate,
                 hsnSac: labourItem.sacCode,
                 lineTotal: new client_1.Prisma.Decimal(hours).mul(rate).toDecimalPlaces(2),
+                warrantyMonths: labourItem.warrantyPeriodMonths,
+                warrantyClaimId: dto.warrantyClaimId,
             },
         });
         return this.findOne(jobCardId);
@@ -271,6 +291,8 @@ let JobCardsService = class JobCardsService {
     }
     async addPart(jobCardId, dto, currentUserId) {
         await this.assertExists(jobCardId, currentUserId);
+        if (dto.warrantyClaimId)
+            await this.assertClaimBelongsToJobCard(dto.warrantyClaimId, jobCardId);
         const db = this.prisma.forTenant();
         await db.$transaction(async (tx) => {
             const part = await tx.part.findFirst({ where: { id: dto.partId, deletedAt: null, isActive: true } });
@@ -295,6 +317,9 @@ let JobCardsService = class JobCardsService {
                     gstRate: part.gstRate,
                     hsnSac: part.hsnCode,
                     lineTotal: new client_1.Prisma.Decimal(dto.quantity).mul(part.sellingPrice).toDecimalPlaces(2),
+                    warrantyMonths: part.warrantyPeriodMonths,
+                    warrantyKm: part.warrantyKm,
+                    warrantyClaimId: dto.warrantyClaimId,
                 },
             });
             await tx.inventoryTransaction.create({
@@ -348,8 +373,8 @@ let JobCardsService = class JobCardsService {
             orderBy: { changedAt: 'desc' },
         });
     }
-    generateInvoice(jobCardId) {
-        return this.invoicesService.generateFromJobCard(jobCardId);
+    generateInvoice(jobCardId, dto) {
+        return this.invoicesService.generateFromJobCard(jobCardId, dto);
     }
     async assertExists(id, currentUserId) {
         const jobCard = await this.prisma.forTenant().jobCard.findFirst({ where: { id, deletedAt: null } });
@@ -401,6 +426,19 @@ let JobCardsService = class JobCardsService {
         const inspection = await this.prisma.forTenant().inspection.findFirst({ where: { id: inspectionId } });
         if (!inspection)
             throw new common_1.NotFoundException('Inspection not found for this job card');
+    }
+    async assertPackageRedeemable(packageId, customerId, vehicleId) {
+        const pkg = await this.prisma.forTenant().customerServicePackage.findFirst({ where: { id: packageId, customerId, vehicleId } });
+        if (!pkg)
+            throw new common_1.NotFoundException('Service package not found for this customer and vehicle');
+        if (!(0, package_eligibility_1.isPackageRedeemable)(pkg.status, pkg.endDate, pkg.visitsUsed, pkg.visitLimit)) {
+            throw new common_1.BadRequestException('This service package is not active or has no visits remaining');
+        }
+    }
+    async assertClaimBelongsToJobCard(warrantyClaimId, jobCardId) {
+        const claim = await this.prisma.forTenant().warrantyClaim.findFirst({ where: { id: warrantyClaimId, claimJobCardId: jobCardId } });
+        if (!claim)
+            throw new common_1.NotFoundException('Warranty claim not found on this job card');
     }
 };
 exports.JobCardsService = JobCardsService;

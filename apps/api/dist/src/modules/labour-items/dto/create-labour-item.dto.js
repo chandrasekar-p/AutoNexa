@@ -59,6 +59,13 @@ __decorate([
     __metadata("design:type", String)
 ], CreateLabourItemDto.prototype, "technicianCategory", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Snapshotted onto JobCardLabour.warrantyMonths when this labour item is added to a job card' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreateLabourItemDto.prototype, "warrantyPeriodMonths", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: true }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

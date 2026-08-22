@@ -50,6 +50,10 @@ const storage_module_1 = require("./modules/storage/storage.module");
 const uploads_module_1 = require("./modules/uploads/uploads.module");
 const messaging_module_1 = require("./modules/messaging/messaging.module");
 const attendance_module_1 = require("./modules/attendance/attendance.module");
+const service_packages_module_1 = require("./modules/service-packages/service-packages.module");
+const loyalty_module_1 = require("./modules/loyalty/loyalty.module");
+const warranty_module_1 = require("./modules/warranty/warranty.module");
+const export_module_1 = require("./modules/export/export.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -91,6 +95,10 @@ exports.AppModule = AppModule = __decorate([
             uploads_module_1.UploadsModule,
             messaging_module_1.MessagingModule,
             attendance_module_1.AttendanceModule,
+            service_packages_module_1.ServicePackagesModule,
+            loyalty_module_1.LoyaltyModule,
+            warranty_module_1.WarrantyModule,
+            export_module_1.ExportModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_2.ThrottlerGuard },

@@ -25,79 +25,94 @@ model Tenant {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  settings          TenantSettings?
-  branches          Branch[]
-  users             User[]
-  roles             Role[]
-  auditLogs         AuditLog[]
-  customers         Customer[]
-  vehicles          Vehicle[]
-  appointments      Appointment[]
-  inspections       Inspection[]
-  estimates         Estimate[]
-  labourItems       LabourItem[]
-  technicians       Technician[]
-  jobCards          JobCard[]
-  partCategories    PartCategory[]
-  parts             Part[]
-  suppliers         Supplier[]
-  purchaseOrders    PurchaseOrder[]
-  purchaseInvoices  PurchaseInvoice[]
-  supplierPayments  SupplierPayment[]
-  invoices          Invoice[]
-  notifications     Notification[]
-  deliveryLogs      DeliveryLog[]
-  attendanceRecords AttendanceRecord[]
+  settings                TenantSettings?
+  branches                Branch[]
+  users                   User[]
+  roles                   Role[]
+  auditLogs               AuditLog[]
+  customers               Customer[]
+  vehicles                Vehicle[]
+  appointments            Appointment[]
+  inspections             Inspection[]
+  estimates               Estimate[]
+  labourItems             LabourItem[]
+  technicians             Technician[]
+  jobCards                JobCard[]
+  partCategories          PartCategory[]
+  parts                   Part[]
+  suppliers               Supplier[]
+  purchaseOrders          PurchaseOrder[]
+  purchaseInvoices        PurchaseInvoice[]
+  supplierPayments        SupplierPayment[]
+  invoices                Invoice[]
+  notifications           Notification[]
+  deliveryLogs            DeliveryLog[]
+  attendanceRecords       AttendanceRecord[]
+  servicePackages         ServicePackage[]
+  customerServicePackages CustomerServicePackage[]
+  loyaltyTransactions     LoyaltyTransaction[]
+  warrantyClaims          WarrantyClaim[]
+  gstExportBatches        GstExportBatch[]
 
   @@map("tenants")
 }
 
 model TenantSettings {
-  id              String   @id @default(uuid())
-  tenantId        String   @unique
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  jobCardPrefix   String   @default("JC")
-  invoicePrefix   String   @default("INV")
-  estimatePrefix  String   @default("EST")
-  poPrefix        String   @default("PO")
-  defaultGstRate  Decimal  @default(18) @db.Decimal(5, 2)
-  timezone        String   @default("Asia/Kolkata")
-  currency        String   @default("INR")
+  id                           String   @id @default(uuid())
+  tenantId                     String   @unique
+  tenant                       Tenant   @relation(fields: [tenantId], references: [id])
+  jobCardPrefix                String   @default("JC")
+  invoicePrefix                String   @default("INV")
+  estimatePrefix               String   @default("EST")
+  poPrefix                     String   @default("PO")
+  defaultGstRate               Decimal  @default(18) @db.Decimal(5, 2)
+  timezone                     String   @default("Asia/Kolkata")
+  currency                     String   @default("INR")
   // The workshop's own home state — determines CGST+SGST (same state as
   // the customer) vs IGST (different state) on generated invoices. See
   // calculateGstSplit in modules/invoices/gst-split.ts for the fallback
   // behavior when this (or the customer's own state) is unset.
-  state           String?
+  state                        String?
   // Set via POST /uploads then PATCH /tenants/me/settings — a relative
   // path like /uploads/<tenantId>/<uuid>.png (see upload-storage.ts), not
   // a bare filename. Printed on this workshop's own exported PDF reports
   // (their branding, not the AutoNexa platform's).
-  logoUrl         String?
+  logoUrl                      String?
   // Incoming webhook URL for this workshop's own Slack — internal ops
   // pings only (new appointment, invoice issued, etc.), never customer-facing.
   // Sent via POST to the URL with a plain {"text": "..."} body.
-  slackWebhookUrl String?
+  slackWebhookUrl              String?
   // "HH:mm" 24h, e.g. "09:00"/"19:00" — both null (the default) means the
   // workshop hasn't set business hours, and the dashboard/sidebar simply
   // don't show an Open/Closed indicator at all rather than guessing.
   // Compared against the server's local time via is-workshop-open.ts, same
   // documented "no per-tenant timezone-aware date math" simplification as
   // dashboard.service.ts's todayRange().
-  businessHoursOpen  String?
-  businessHoursClose String?
+  businessHoursOpen            String?
+  businessHoursClose           String?
   // Customer-facing reminder cron (see reminder-cron.service.ts) — each
   // type independently toggleable; thresholdDays is shared by all three
   // date-based checks (insurance/PUC expiry, service-due-by-date), each
   // firing once per vehicle per threshold crossing (dedup via
   // DeliveryLog.dedupeKey). serviceIntervalMonths/Km are the tenant-wide
   // default next-service-due rule; Vehicle may override either.
-  reminderInsuranceEnabled  Boolean @default(true)
-  reminderPucEnabled        Boolean @default(true)
-  reminderServiceDueEnabled Boolean @default(true)
-  reminderThresholdDays     Int[]   @default([30, 15, 7])
-  serviceIntervalMonths     Int     @default(6)
-  serviceIntervalKm         Int     @default(5000)
-  updatedAt       DateTime @updatedAt
+  reminderInsuranceEnabled     Boolean  @default(true)
+  reminderPucEnabled           Boolean  @default(true)
+  reminderServiceDueEnabled    Boolean  @default(true)
+  reminderThresholdDays        Int[]    @default([30, 15, 7])
+  serviceIntervalMonths        Int      @default(6)
+  serviceIntervalKm            Int      @default(5000)
+  // Reuses reminderThresholdDays above — one more date-based check, same
+  // threshold/dedup mechanics, no new threshold config needed.
+  reminderPackageExpiryEnabled Boolean  @default(true)
+  // Loyalty program — master on/off plus the two conversion rates. Both
+  // rates apply platform-wide-simple, not tiered/promotional; see the
+  // architecture doc for why a flat rate was chosen over a points-tier
+  // model for this phase.
+  loyaltyEnabled               Boolean  @default(true)
+  loyaltyPointsPerRupee        Decimal  @default(0.01) @db.Decimal(6, 4) // 1 point per ₹100 spent (on Invoice.subtotal), by default
+  loyaltyPointValueRupees      Decimal  @default(1) @db.Decimal(6, 2) // 1 point = ₹1 of discount, by default
+  updatedAt                    DateTime @updatedAt
 
   @@map("tenant_settings")
 }
@@ -168,8 +183,11 @@ model User {
   goodsReceiptsReceived GoodsReceipt[]
   notifications         Notification[]
 
-  attendanceRecords       AttendanceRecord[] @relation("AttendanceOwner")
-  attendanceRecordsMarked AttendanceRecord[] @relation("AttendanceMarkedBy")
+  attendanceRecords       AttendanceRecord[]   @relation("AttendanceOwner")
+  attendanceRecordsMarked AttendanceRecord[]   @relation("AttendanceMarkedBy")
+  loyaltyAdjustmentsMade  LoyaltyTransaction[]
+  warrantyClaimsApproved  WarrantyClaim[]
+  gstExportBatches        GstExportBatch[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -265,32 +283,40 @@ model AuditLog {
 // ───────────────────────── CRM (Phase 3) ─────────────────────────
 
 model Customer {
-  id           String    @id @default(uuid())
-  tenantId     String
-  tenant       Tenant    @relation(fields: [tenantId], references: [id])
-  name         String
-  mobile       String
-  altMobile    String?
-  email        String?
-  address      String?
-  city         String?
-  state        String?
-  gstin        String?
-  customerType String    @default("individual") // "individual" | "business"
-  notes        String?
+  id                   String    @id @default(uuid())
+  tenantId             String
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  name                 String
+  mobile               String
+  altMobile            String?
+  email                String?
+  address              String?
+  city                 String?
+  state                String?
+  gstin                String?
+  customerType         String    @default("individual") // "individual" | "business"
+  notes                String?
   // Opts out of the proactive insurance/PUC/service-due reminder cron only
   // (see reminder-cron.service.ts) — transactional messages (invoice,
   // payment, estimate, appointment) are never gated by this.
-  reminderOptOut Boolean @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  reminderOptOut       Boolean   @default(false)
+  // Guarded-cache running total, kept in sync with LoyaltyTransaction
+  // (the audit-of-record ledger) inside the same transaction on every
+  // change — same "mutable cache next to an append-only ledger" pattern
+  // as Part.currentStock next to InventoryTransaction. Never write one
+  // without the other.
+  loyaltyPointsBalance Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
 
-  vehicles     Vehicle[]
-  appointments Appointment[]
-  estimates    Estimate[]
-  jobCards     JobCard[]
-  invoices     Invoice[]
+  vehicles            Vehicle[]
+  appointments        Appointment[]
+  estimates           Estimate[]
+  jobCards            JobCard[]
+  invoices            Invoice[]
+  servicePackages     CustomerServicePackage[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@index([tenantId])
   @@index([tenantId, mobile])
@@ -299,43 +325,44 @@ model Customer {
 }
 
 model Vehicle {
-  id              String    @id @default(uuid())
-  tenantId        String
-  tenant          Tenant    @relation(fields: [tenantId], references: [id])
-  customerId      String
-  customer        Customer  @relation(fields: [customerId], references: [id])
-  registrationNo  String
-  vin             String?
-  brand           String
-  model           String
-  variant         String?
-  manufactureYear Int?
-  fuelType        String? // "petrol" | "diesel" | "electric" | "hybrid" | "cng"
-  transmission    String? // "manual" | "automatic"
-  colour          String?
-  odometerReading Int?
-  insuranceExpiry DateTime?
-  pucExpiry       DateTime?
-  warrantyInfo    String?
-  purchaseDate    DateTime?
-  notes           String?
+  id                            String    @id @default(uuid())
+  tenantId                      String
+  tenant                        Tenant    @relation(fields: [tenantId], references: [id])
+  customerId                    String
+  customer                      Customer  @relation(fields: [customerId], references: [id])
+  registrationNo                String
+  vin                           String?
+  brand                         String
+  model                         String
+  variant                       String?
+  manufactureYear               Int?
+  fuelType                      String? // "petrol" | "diesel" | "electric" | "hybrid" | "cng"
+  transmission                  String? // "manual" | "automatic"
+  colour                        String?
+  odometerReading               Int?
+  insuranceExpiry               DateTime?
+  pucExpiry                     DateTime?
+  warrantyInfo                  String?
+  purchaseDate                  DateTime?
+  notes                         String?
   // Bare /uploads/... path from POST /uploads (see resolveUploadUrl on the
   // frontend) — null means no photo has been uploaded yet, in which case
   // callers show a generic placeholder rather than treating it as an error.
-  photoUrl        String?
+  photoUrl                      String?
   // Null means "use the tenant's default" (TenantSettings.serviceInterval*)
   // — see next-service-due.ts's computeServiceDue.
   serviceIntervalMonthsOverride Int?
   serviceIntervalKmOverride     Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
+  deletedAt                     DateTime?
 
-  documents    VehicleDocument[]
-  appointments Appointment[]
-  inspections  Inspection[]
-  estimates    Estimate[]
-  jobCards     JobCard[]
+  documents       VehicleDocument[]
+  appointments    Appointment[]
+  inspections     Inspection[]
+  estimates       Estimate[]
+  jobCards        JobCard[]
+  servicePackages CustomerServicePackage[]
 
   @@index([tenantId])
   @@index([tenantId, registrationNo])
@@ -511,8 +538,8 @@ model Estimate {
   updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
 
-  lineItems EstimateLineItem[]
-  jobCard   JobCard?
+  lineItems      EstimateLineItem[]
+  jobCard        JobCard?
   approvalEvents EstimateApprovalEvent[]
 
   @@index([tenantId])
@@ -533,14 +560,14 @@ model Estimate {
 // (TOKEN_EXPIRED/TOKEN_INVALID) are the one exception — see
 // estimate-approval.service.ts.
 model EstimateApprovalEvent {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   tenantId   String?
   estimateId String?
   estimate   Estimate? @relation(fields: [estimateId], references: [id])
   action     String // "VIEWED" | "APPROVED" | "REJECTED" | "TOKEN_EXPIRED" | "TOKEN_INVALID" | "ALREADY_DECIDED"
   ipAddress  String?
   userAgent  String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([tenantId, estimateId])
   @@map("estimate_approval_events")
@@ -575,22 +602,30 @@ model EstimateLineItem {
 // ─────────────── OPERATIONAL CORE (Phase 5) ───────────────
 
 model LabourItem {
-  id                 String    @id @default(uuid())
-  tenantId           String
-  tenant             Tenant    @relation(fields: [tenantId], references: [id])
-  code               String
-  description        String
-  standardHours      Decimal   @db.Decimal(6, 2)
-  labourRate         Decimal   @db.Decimal(10, 2)
-  gstRate            Decimal   @default(18) @db.Decimal(5, 2)
-  sacCode            String? // GST Services Accounting Code — printed per line item on invoices (see JobCardLabour.hsnSac/InvoiceLineItem.hsnSac)
-  technicianCategory String?
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  deletedAt          DateTime?
+  id                   String    @id @default(uuid())
+  tenantId             String
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  code                 String
+  description          String
+  standardHours        Decimal   @db.Decimal(6, 2)
+  labourRate           Decimal   @db.Decimal(10, 2)
+  gstRate              Decimal   @default(18) @db.Decimal(5, 2)
+  sacCode              String? // GST Services Accounting Code — printed per line item on invoices (see JobCardLabour.hsnSac/InvoiceLineItem.hsnSac)
+  technicianCategory   String?
+  // Default workshop-repair-warranty term for this labour item — null
+  // means no warranty offered. Snapshotted onto JobCardLabour.warrantyMonths
+  // at add-labour time, same discipline as labourRate/gstRate above; a
+  // later edit here never retroactively changes a job already performed.
+  // No km-based counterpart (unlike Part) — a labour warranty isn't
+  // naturally mileage-bound the way a part's wear life is.
+  warrantyPeriodMonths Int?
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
 
-  jobCardLabours JobCardLabour[]
+  jobCardLabours           JobCardLabour[]
+  servicePackageInclusions ServicePackageLabourItem[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -665,6 +700,17 @@ model JobCard {
   serviceAdvisorId String?
   serviceAdvisor   User?   @relation(fields: [serviceAdvisorId], references: [id])
 
+  // Set when this visit redeems against an active AMC/service package —
+  // see AMC-loyalty-architecture notes on JobCardLabour/JobCardPart: those
+  // two models gain NO new columns, coverage is derived at read/invoice
+  // time by joining through here to the package's included-items lists,
+  // not stored per-line (a stored flag could go stale if the link changed;
+  // deriving fresh can't). The visit-used counter on
+  // CustomerServicePackage increments once, on this job card's DELIVERED
+  // transition, not per line added.
+  redeemedPackageId String?
+  redeemedPackage   CustomerServicePackage? @relation(fields: [redeemedPackageId], references: [id])
+
   odometer        Int?
   complaint       String?
   customerRequest String?
@@ -679,11 +725,18 @@ model JobCard {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  labourItems   JobCardLabour[]
-  statusHistory JobCardStatusHistory[]
-  notes         JobCardNote[]
-  parts         JobCardPart[]
-  invoice       Invoice?
+  labourItems    JobCardLabour[]
+  statusHistory  JobCardStatusHistory[]
+  notes          JobCardNote[]
+  parts          JobCardPart[]
+  invoice        Invoice?
+  // Claims raised in the context of THIS job card (the comeback visit) —
+  // not the claims against lines originally performed on this job card
+  // (that's JobCardLabour/JobCardPart.originalOfClaims instead). No new
+  // JobCardStatus values and no isWarrantyClaim flag — whether this job
+  // card is "a warranty claim visit" is simply whether this list is
+  // non-empty, derived, never stored.
+  warrantyClaims WarrantyClaim[]        @relation("WarrantyClaimJobCard")
 
   @@unique([tenantId, jobCardNumber])
   @@index([tenantId])
@@ -691,6 +744,7 @@ model JobCard {
   @@index([tenantId, vehicleId])
   @@index([tenantId, customerId])
   @@index([tenantId, technicianId])
+  @@index([tenantId, redeemedPackageId])
   @@map("job_cards")
 }
 
@@ -705,20 +759,37 @@ model JobCard {
 // endpoint with no estimate behind it, uses live catalogue pricing and
 // still requires labourItemId via its DTO.
 model JobCardLabour {
-  id           String      @id @default(uuid())
-  tenantId     String
-  jobCardId    String
-  jobCard      JobCard     @relation(fields: [jobCardId], references: [id])
-  labourItemId String?
-  labourItem   LabourItem? @relation(fields: [labourItemId], references: [id])
-  description  String?
-  hours        Decimal     @db.Decimal(6, 2)
-  rate         Decimal     @db.Decimal(10, 2)
-  gstRate      Decimal     @db.Decimal(5, 2)
-  hsnSac       String? // snapshotted from LabourItem.sacCode at add-labour/convert time, same discipline as gstRate above
-  lineTotal    Decimal     @db.Decimal(12, 2)
+  id               String          @id @default(uuid())
+  tenantId         String
+  jobCardId        String
+  jobCard          JobCard         @relation(fields: [jobCardId], references: [id])
+  labourItemId     String?
+  labourItem       LabourItem?     @relation(fields: [labourItemId], references: [id])
+  description      String?
+  hours            Decimal         @db.Decimal(6, 2)
+  rate             Decimal         @db.Decimal(10, 2)
+  gstRate          Decimal         @db.Decimal(5, 2)
+  hsnSac           String? // snapshotted from LabourItem.sacCode at add-labour/convert time, same discipline as gstRate above
+  lineTotal        Decimal         @db.Decimal(12, 2)
+  // Snapshotted from LabourItem.warrantyPeriodMonths at add time — null
+  // means no warranty was offered on this line. Expiry is never stored;
+  // computed on read from JobCard.actualDelivery + this, see
+  // warranty-status.ts's computeWarrantyExpiry.
+  warrantyMonths   Int?
+  // Set when this line IS the fix for an open warranty claim raised
+  // against a prior line — see WarrantyClaim's doc comment. Null for the
+  // overwhelming majority of ordinary billable lines.
+  warrantyClaimId  String?
+  warrantyClaim    WarrantyClaim?  @relation("ClaimCoveredLabour", fields: [warrantyClaimId], references: [id])
+  // The other side of WarrantyClaim.originalJobCardLabourId — onDelete:
+  // Restrict there means Postgres blocks deleting this row once a claim
+  // references it as the ORIGINAL defective line (separate from the
+  // warrantyClaimId above, which marks this row as a CLAIM'S FIX, not
+  // its target).
+  originalOfClaims WarrantyClaim[] @relation("ClaimOriginalLabour")
 
   @@index([tenantId, jobCardId])
+  @@index([tenantId, warrantyClaimId])
   @@map("job_card_labour")
 }
 
@@ -764,7 +835,8 @@ model PartCategory {
   name      String
   deletedAt DateTime?
 
-  parts Part[]
+  parts                    Part[]
+  servicePackageInclusions ServicePackagePartCategory[]
 
   @@index([tenantId])
   @@map("part_categories")
@@ -791,15 +863,25 @@ model Part {
   minStock             Int           @default(0)
   maxStock             Int?
   binLocation          String?
+  // Default workshop-repair-warranty term for this part — null means no
+  // warranty offered. Snapshotted onto JobCardPart.warrantyMonths/
+  // warrantyKm at add-part time, same discipline as sellingPrice/gstRate;
+  // a later edit here never retroactively changes a job already done.
+  // Was previously declared but never actually read anywhere — this
+  // phase is the first to snapshot/use it.
   warrantyPeriodMonths Int?
+  // Whichever comes first — same "months or km" shape as
+  // TenantSettings.serviceIntervalMonths/Km.
+  warrantyKm           Int?
   isActive             Boolean       @default(true)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   deletedAt            DateTime?
 
-  transactions       InventoryTransaction[]
-  purchaseOrderItems PurchaseOrderItem[]
-  jobCardParts       JobCardPart[]
+  transactions             InventoryTransaction[]
+  purchaseOrderItems       PurchaseOrderItem[]
+  jobCardParts             JobCardPart[]
+  servicePackageInclusions ServicePackagePart[]
 
   @@unique([tenantId, partNumber])
   @@index([tenantId])
@@ -999,19 +1081,30 @@ model SupplierPayment {
 // paperwork is generated. This is a deliberate deviation from the Phase 1
 // doc's literal "Job Card Invoiced -> Inventory Reduced" wording.
 model JobCardPart {
-  id        String  @id @default(uuid())
-  tenantId  String
-  jobCardId String
-  jobCard   JobCard @relation(fields: [jobCardId], references: [id])
-  partId    String
-  part      Part    @relation(fields: [partId], references: [id])
-  quantity  Int
-  unitPrice Decimal @db.Decimal(12, 2)
-  gstRate   Decimal @db.Decimal(5, 2)
-  hsnSac    String? // snapshotted from Part.hsnCode at add-part time, same discipline as gstRate above
-  lineTotal Decimal @db.Decimal(12, 2)
+  id               String          @id @default(uuid())
+  tenantId         String
+  jobCardId        String
+  jobCard          JobCard         @relation(fields: [jobCardId], references: [id])
+  partId           String
+  part             Part            @relation(fields: [partId], references: [id])
+  quantity         Int
+  unitPrice        Decimal         @db.Decimal(12, 2)
+  gstRate          Decimal         @db.Decimal(5, 2)
+  hsnSac           String? // snapshotted from Part.hsnCode at add-part time, same discipline as gstRate above
+  lineTotal        Decimal         @db.Decimal(12, 2)
+  // Snapshotted from Part.warrantyPeriodMonths/warrantyKm at add time —
+  // both null means no warranty was offered on this line. Expiry is
+  // never stored; computed on read, see warranty-status.ts.
+  warrantyMonths   Int?
+  warrantyKm       Int?
+  // Set when this line IS the fix for an open warranty claim — see
+  // JobCardLabour.warrantyClaimId's identical doc comment.
+  warrantyClaimId  String?
+  warrantyClaim    WarrantyClaim?  @relation("ClaimCoveredParts", fields: [warrantyClaimId], references: [id])
+  originalOfClaims WarrantyClaim[] @relation("ClaimOriginalPart")
 
   @@index([tenantId, jobCardId])
+  @@index([tenantId, warrantyClaimId])
   @@map("job_card_parts")
 }
 
@@ -1045,6 +1138,15 @@ model Invoice {
   roundOff   Decimal @default(0) @db.Decimal(12, 2)
   grandTotal Decimal @default(0) @db.Decimal(12, 2)
 
+  // Loyalty-points redemption applied to this invoice, if any — informational/
+  // audit fields; the actual pre-tax proration already happened before
+  // subtotal/GST above were computed (see discount.ts's applyProRataDiscount).
+  // The LoyaltyTransaction row (type REDEEMED) linked via invoiceId is the
+  // ledger entry of record; these two columns just make it visible on the
+  // invoice itself without a join.
+  loyaltyPointsRedeemed Int     @default(0)
+  loyaltyDiscountAmount Decimal @default(0) @db.Decimal(12, 2)
+
   status InvoiceStatus @default(UNPAID)
 
   // Set when a Razorpay Payment Link is generated for this invoice, cleared
@@ -1062,8 +1164,10 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lineItems InvoiceLineItem[]
-  payments  Payment[]
+  lineItems           InvoiceLineItem[]
+  payments            Payment[]
+  soldPackage         CustomerServicePackage?
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId])
@@ -1139,9 +1243,9 @@ model Payment {
 // TENANT_SCOPED_MODELS — because a signature failure or an event for an
 // unrecognized order never learns a tenant at all.
 model PaymentGatewayEvent {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   tenantId        String?
-  provider        String   @default("razorpay")
+  provider        String    @default("razorpay")
   eventId         String // Razorpay's own event id — the idempotency key (Razorpay retries webhook delivery)
   eventType       String // "payment.captured" | "payment.failed" | "payment_link.expired" | "payment_link.cancelled" | ...
   providerOrderId String?
@@ -1149,7 +1253,7 @@ model PaymentGatewayEvent {
   processedAt     DateTime? // null = received but not (yet, or ever) applied — see processingError
   processingError String?
   rawPayload      Json
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@unique([provider, eventId])
   @@index([tenantId, createdAt])
@@ -1279,4 +1383,266 @@ model AttendanceRecord {
   @@index([tenantId, date])
   @@index([tenantId, userId])
   @@map("attendance_records")
+}
+
+// ─────────────── AMC / SERVICE PACKAGES + LOYALTY (Phase 11) ───────────────
+// ServicePackage is the tenant-defined template (catalogue item);
+// CustomerServicePackage is one specific sale of it to one customer+
+// vehicle. A JobCard redeems against an active CustomerServicePackage via
+// JobCard.redeemedPackageId — JobCardLabour/JobCardPart deliberately gain
+// NO new columns: whether a given line is package-covered is derived at
+// read/invoice time by joining through to these three inclusion lists,
+// not stored per-line (see JobCard.redeemedPackageId's doc comment).
+
+model ServicePackage {
+  id             String    @id @default(uuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  name           String
+  description    String?
+  price          Decimal   @db.Decimal(12, 2)
+  gstRate        Decimal   @db.Decimal(5, 2)
+  validityMonths Int
+  // null = unlimited visits within the validity window.
+  visitLimit     Int?
+  // Retiring a template (stop selling it) without deleting it — sold
+  // CustomerServicePackage rows reference it forever for display, same
+  // reasoning as Part.isActive/LabourItem.isActive.
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  includedLabourItems    ServicePackageLabourItem[]
+  includedParts          ServicePackagePart[]
+  includedPartCategories ServicePackagePartCategory[]
+  soldPackages           CustomerServicePackage[]
+
+  @@index([tenantId])
+  @@map("service_packages")
+}
+
+// Three small many-to-many join tables, same shape as RolePermission —
+// together they define exactly what redeeming this package covers for free.
+model ServicePackageLabourItem {
+  id               String         @id @default(uuid())
+  tenantId         String
+  servicePackageId String
+  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id])
+  labourItemId     String
+  labourItem       LabourItem     @relation(fields: [labourItemId], references: [id])
+
+  @@unique([servicePackageId, labourItemId])
+  @@map("service_package_labour_items")
+}
+
+model ServicePackagePart {
+  id               String         @id @default(uuid())
+  tenantId         String
+  servicePackageId String
+  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id])
+  partId           String
+  part             Part           @relation(fields: [partId], references: [id])
+
+  @@unique([servicePackageId, partId])
+  @@map("service_package_parts")
+}
+
+model ServicePackagePartCategory {
+  id               String         @id @default(uuid())
+  tenantId         String
+  servicePackageId String
+  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id])
+  partCategoryId   String
+  partCategory     PartCategory   @relation(fields: [partCategoryId], references: [id])
+
+  @@unique([servicePackageId, partCategoryId])
+  @@map("service_package_part_categories")
+}
+
+enum CustomerPackageStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model CustomerServicePackage {
+  id               String         @id @default(uuid())
+  tenantId         String
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  servicePackageId String
+  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id])
+  customerId       String
+  customer         Customer       @relation(fields: [customerId], references: [id])
+  vehicleId        String
+  vehicle          Vehicle        @relation(fields: [vehicleId], references: [id])
+
+  // The standalone (jobCardId: null) invoice that recorded this sale —
+  // price/GST live there as an InvoiceLineItem, not duplicated here.
+  purchaseInvoiceId String  @unique
+  purchaseInvoice   Invoice @relation(fields: [purchaseInvoiceId], references: [id])
+
+  startDate  DateTime              @default(now())
+  // = startDate + ServicePackage.validityMonths, computed once at purchase.
+  endDate    DateTime
+  // SNAPSHOTTED from ServicePackage.visitLimit at purchase time — a later
+  // template edit must not retroactively change a sold package's terms,
+  // same snapshot-pricing discipline as every other line-item field in
+  // this codebase.
+  visitLimit Int?
+  visitsUsed Int                   @default(0)
+  status     CustomerPackageStatus @default(ACTIVE)
+
+  // Renewal chain — a renewal is a new row (new sale, new invoice), linked
+  // back for continuity/reporting, not a mutation of the expiring one.
+  renewedFromId String?                 @unique
+  renewedFrom   CustomerServicePackage? @relation("PackageRenewal", fields: [renewedFromId], references: [id])
+  renewedTo     CustomerServicePackage? @relation("PackageRenewal")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Every job card that redeemed a visit against this package — this IS
+  // the redemption audit trail; no separate log table needed.
+  jobCards JobCard[]
+
+  @@index([tenantId, customerId])
+  @@index([tenantId, vehicleId])
+  @@index([tenantId, status, endDate])
+  @@map("customer_service_packages")
+}
+
+enum LoyaltyTransactionType {
+  EARNED
+  REDEEMED
+  ADJUSTED
+}
+
+// Append-only ledger — the source of truth for audit/reporting, paired
+// with Customer.loyaltyPointsBalance (a guarded-cache running total kept
+// in sync inside the same transaction as every insert here). Same
+// "mutable cache next to an append-only ledger" pattern as
+// Part.currentStock next to InventoryTransaction.
+model LoyaltyTransaction {
+  id               String                 @id @default(uuid())
+  tenantId         String
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id])
+  customerId       String
+  customer         Customer               @relation(fields: [customerId], references: [id])
+  // The invoice that earned/redeemed these points — null only for a
+  // manual ADJUSTED correction (goodwill points, error fix, ...).
+  invoiceId        String?
+  invoice          Invoice?               @relation(fields: [invoiceId], references: [id])
+  type             LoyaltyTransactionType
+  // Positive for EARNED/upward ADJUSTED, negative for REDEEMED/downward ADJUSTED.
+  points           Int
+  // Snapshot of Customer.loyaltyPointsBalance immediately after this entry
+  // — lets "what was the balance at time X" be read directly off the
+  // ledger row without re-summing history.
+  balanceAfter     Int
+  // Effectively required for ADJUSTED; self-explanatory via invoiceId for
+  // EARNED/REDEEMED.
+  note             String?
+  // Who made a manual correction — same spirit as
+  // JobCardStatusHistory.changedByUserId. Null for EARNED/REDEEMED.
+  adjustedByUserId String?
+  adjustedByUser   User?                  @relation(fields: [adjustedByUserId], references: [id])
+  createdAt        DateTime               @default(now())
+
+  @@index([tenantId, customerId, createdAt])
+  @@map("loyalty_transactions")
+}
+
+// ─────────────── WARRANTY TRACKING & COMEBACK CLAIMS (Phase 12) ───────────────
+// JobCard.status/job-card-status-transitions.ts are completely untouched —
+// a warranty-claim visit is an ordinary job card; whether it "is" one is
+// simply whether warrantyClaims (below) is non-empty, never a stored flag.
+
+enum WarrantyClaimStatus {
+  OPEN
+  APPROVED
+  REJECTED
+  RESOLVED
+}
+
+model WarrantyClaim {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  // The NEW job card where the comeback repair happens.
+  claimJobCardId String
+  claimJobCard   JobCard @relation("WarrantyClaimJobCard", fields: [claimJobCardId], references: [id])
+
+  // Exactly one of these two is set (app-validated, not a DB constraint —
+  // consistent with this codebase never using raw-SQL CHECK constraints).
+  // onDelete: Restrict on both — once a claim references an original
+  // line, that line can no longer be hard-deleted via
+  // removeLabour/removePart; it's now evidence.
+  originalJobCardPartId   String?
+  originalJobCardPart     JobCardPart?   @relation("ClaimOriginalPart", fields: [originalJobCardPartId], references: [id], onDelete: Restrict)
+  originalJobCardLabourId String?
+  originalJobCardLabour   JobCardLabour? @relation("ClaimOriginalLabour", fields: [originalJobCardLabourId], references: [id], onDelete: Restrict)
+
+  status           WarrantyClaimStatus @default(OPEN)
+  // Locked in at approval, not derived from status alone — a manager
+  // could approve a claim as a partial-goodwill gesture that's still
+  // partly billed. Defaults to true (billable) until a manager says
+  // otherwise, so nothing is given away for free before sign-off.
+  isBillable       Boolean             @default(true)
+  resolutionNotes  String?
+  approvedByUserId String?
+  approvedByUser   User?               @relation(fields: [approvedByUserId], references: [id])
+  approvedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  // The new line(s) added to the claim job card that ARE the fix — tagged
+  // manually by staff, not derived (unlike AMC package coverage, there's
+  // no template to match a comeback fix against).
+  coveredLabourLines JobCardLabour[] @relation("ClaimCoveredLabour")
+  coveredPartLines   JobCardPart[]   @relation("ClaimCoveredParts")
+
+  @@index([tenantId, claimJobCardId])
+  @@index([tenantId, status])
+  @@map("warranty_claims")
+}
+
+// ───────────────────────── GST EXPORT ─────────────────────────
+
+// Append-only log of every GST/Tally export actually downloaded (not
+// preview requests) — no update/delete, same discipline as AuditLog/
+// DeliveryLog. Exists so a re-export of an overlapping period can be
+// diffed against what was already handed to the accountant (see
+// export-manifest-diff.ts) rather than silently producing a second,
+// undistinguished batch that risks double-import in Tally.
+model GstExportBatch {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  // Human-readable, e.g. "GSTEXP-0004" — via the shared generateSequenceNumber
+  // helper (entityType "GST_EXPORT"), same convention as invoice/job-card numbers.
+  batchNumber String
+
+  side   String // "sales" | "purchases"
+  format String // "tally-xml" | "gstr-csv"
+
+  periodFrom DateTime
+  periodTo   DateTime
+
+  generatedByUserId String
+  generatedByUser   User     @relation(fields: [generatedByUserId], references: [id])
+  generatedAt       DateTime @default(now())
+
+  // One entry per voucher included in this export — {type, sourceId,
+  // referenceNumber, amount} — used only to detect amendments on the NEXT
+  // export covering an overlapping period (see export-manifest-diff.ts).
+  // Not queried structurally, so a Json blob (not a child table) is the
+  // right fit here.
+  manifest Json
+
+  @@unique([tenantId, batchNumber])
+  @@index([tenantId, side, periodFrom, periodTo])
+  @@map("gst_export_batches")
 }

@@ -16,6 +16,8 @@ import {
   UserCog,
   ShieldCheck,
   CalendarDays,
+  PackageCheck,
+  ShieldAlert,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -51,6 +53,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Estimates', href: '/estimates', resource: 'estimate', icon: FileText },
       { label: 'Job Cards', href: '/job-cards', resource: 'job-card', icon: ClipboardList },
       { label: 'Technicians', href: '/technicians', resource: 'technician', icon: Wrench },
+      { label: 'Service Packages', href: '/service-packages', resource: 'service-package', icon: PackageCheck },
+      { label: 'Warranty Claims', href: '/warranty-claims', resource: 'warranty-claim', icon: ShieldAlert },
     ],
   },
   {

@@ -9,6 +9,7 @@ import { PaginatedDateRangeQueryDto } from './dto/paginated-date-range-query.dto
 import { PurchasesReportQueryDto } from './dto/purchases-report-query.dto';
 import { LabourRevenueReportQueryDto } from './dto/labour-revenue-report-query.dto';
 import { DateRangeQueryDto } from './dto/date-range-query.dto';
+import { ComebackRateQueryDto } from './dto/comeback-rate-query.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
 // Every route here is read-only aggregation over data owned by other
@@ -90,5 +91,30 @@ export class ReportsController {
   @Get('job-card-status')
   jobCardStatus(@Query() query: DateRangeQueryDto) {
     return this.reportsService.jobCardStatus(query);
+  }
+
+  @Get('packages-summary')
+  packagesSummary(@Query() query: PaginationQueryDto) {
+    return this.reportsService.packagesSummary(query);
+  }
+
+  @Get('loyalty-liability')
+  loyaltyLiability() {
+    return this.reportsService.loyaltyLiability();
+  }
+
+  @Get('warranty-liability')
+  warrantyLiability() {
+    return this.reportsService.warrantyLiability();
+  }
+
+  @Get('warranty-claims-summary')
+  warrantyClaimsSummary(@Query() query: PaginationQueryDto) {
+    return this.reportsService.warrantyClaimsSummary(query);
+  }
+
+  @Get('comeback-rate')
+  comebackRate(@Query() query: ComebackRateQueryDto) {
+    return this.reportsService.comebackRate(query);
   }
 }

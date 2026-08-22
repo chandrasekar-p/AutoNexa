@@ -11,6 +11,7 @@ import type { EstimateListItem, InspectionListItem, PaginatedResult, VehicleDeta
 import { InspectionStatusBadge } from '@/components/domain/inspection-status-badge';
 import { EstimateStatusBadge } from '@/components/domain/estimate-status-badge';
 import { VehicleThumbnail } from '@/components/domain/vehicle-thumbnail';
+import { VehicleWarrantyStatusCard } from '@/components/domain/vehicle-warranty-status-card';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -89,6 +90,7 @@ export default function VehicleDetailPage() {
   const canCreateEstimate = usePermission('estimate:create');
   const canReadEstimates = usePermission('estimate:read');
   const canCreateJobCard = usePermission('job-card:create');
+  const canRaiseWarrantyClaim = usePermission('warranty-claim:create');
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -315,6 +317,8 @@ export default function VehicleDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      <VehicleWarrantyStatusCard vehicleId={vehicle.id} canRaiseClaim={canRaiseWarrantyClaim} />
     </div>
   );
 }

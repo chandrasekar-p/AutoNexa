@@ -7,8 +7,8 @@ exports.shouldSendOdometerReminder = shouldSendOdometerReminder;
 function isoDate(date) {
     return date.toISOString().slice(0, 10);
 }
-function buildDateDedupeKey(vehicleId, field, date, thresholdDays) {
-    return `${vehicleId}:${field}:${isoDate(date)}:${thresholdDays}d`;
+function buildDateDedupeKey(entityId, field, date, thresholdDays) {
+    return `${entityId}:${field}:${isoDate(date)}:${thresholdDays}d`;
 }
 function buildOdometerDedupeKey(vehicleId, lastServiceOdometer) {
     return `${vehicleId}:odometer:${lastServiceOdometer}`;

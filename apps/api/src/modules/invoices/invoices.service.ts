@@ -5,13 +5,19 @@ import { TenantContext } from '../../prisma/tenant-context';
 import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
 import { rollupPaymentStatus } from '../../common/billing/rollup-payment-status';
 import { MessagingService } from '../messaging/messaging.service';
-import { invoiceIssuedMessage, paymentReceivedMessage } from '../messaging/templates';
+import { invoiceIssuedMessage, paymentReceivedMessage, pointsEarnedMessage } from '../messaging/templates';
 import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
+import { isLabourCoveredByPackage, isPartCoveredByPackage, PackageInclusions } from '../service-packages/package-coverage';
+import { isLineFreeUnderWarrantyClaim } from '../warranty/warranty-claim-coverage';
+import { hasSufficientPoints, computePointsEarned, computeRedemptionValue } from '../loyalty/loyalty-eligibility';
+import { adjustLoyaltyBalance } from '../loyalty/loyalty-ledger';
 import { calculateGstSplit, computeRoundOff, GstSplitLineItem } from './gst-split';
+import { applyProRataDiscount } from './discount';
 import { isOverpayment } from './payment-guard';
 import { buildInvoicePdf } from './invoice-pdf';
 import { CreateInvoicePaymentDto } from './dto/create-invoice-payment.dto';
 import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
+import { GenerateInvoiceDto } from '../job-cards/dto/generate-invoice.dto';
 
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true } as const;
 const INVOICE_INCLUDE = {
@@ -47,7 +53,7 @@ export class InvoicesService {
    * being POST /job-cards/:id/generate-invoice — not its own /invoices
    * route, matching the Estimate -> JobCard conversion's shape.
    */
-  async generateFromJobCard(jobCardId: string) {
+  async generateFromJobCard(jobCardId: string, dto: GenerateInvoiceDto = {}) {
     const db = this.prisma.forTenant();
 
     const jobCard = await db.jobCard.findFirst({ where: { id: jobCardId, deletedAt: null } });
@@ -71,11 +77,31 @@ export class InvoicesService {
       db.customer.findFirstOrThrow({ where: { id: jobCard.customerId } }),
       db.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
       db.jobCardLabour.findMany({ where: { jobCardId }, include: { labourItem: { select: { description: true } } } }),
-      db.jobCardPart.findMany({ where: { jobCardId }, include: { part: { select: { partNumber: true, name: true } } } }),
+      db.jobCardPart.findMany({ where: { jobCardId }, include: { part: { select: { partNumber: true, name: true, categoryId: true } } } }),
     ]);
 
+    // Lines covered by a redeemed package OR a non-billable warranty claim
+    // are excluded from the invoice entirely — they never reach
+    // calculateGstSplit, so neither contributes incremental tax (the
+    // package's GST was already charged in full at sale time; a warranty
+    // fix isn't a new sale at all). They stay on the job card at full
+    // snapshotted value for the service record. See package-coverage.ts
+    // and warranty-claim-coverage.ts's doc comments for why each kind of
+    // coverage is determined differently (derived-from-template vs
+    // explicitly-tagged).
+    const inclusions = await this.loadPackageInclusions(jobCard.redeemedPackageId);
+    const isBillableByClaimId = await this.loadClaimBillability([...labourLines, ...partLines]);
+    const chargeableLabourLines = labourLines.filter(
+      (l) => !(inclusions && isLabourCoveredByPackage(l.labourItemId, inclusions)) && !isLineFreeUnderWarrantyClaim(l.warrantyClaimId, isBillableByClaimId),
+    );
+    const chargeablePartLines = partLines.filter(
+      (p) =>
+        !(inclusions && isPartCoveredByPackage(p.partId, p.part.categoryId, inclusions)) &&
+        !isLineFreeUnderWarrantyClaim(p.warrantyClaimId, isBillableByClaimId),
+    );
+
     const lineItemInputs: InvoiceLineItemInput[] = [
-      ...labourLines.map((l) => ({
+      ...chargeableLabourLines.map((l) => ({
         description: l.description ?? l.labourItem?.description ?? 'Labour',
         quantity: l.hours,
         unitPrice: l.rate,
@@ -83,7 +109,7 @@ export class InvoicesService {
         hsnSac: l.hsnSac,
         lineTotal: l.lineTotal,
       })),
-      ...partLines.map((p) => ({
+      ...chargeablePartLines.map((p) => ({
         description: `${p.part.partNumber} — ${p.part.name}`,
         quantity: new Prisma.Decimal(p.quantity),
         unitPrice: p.unitPrice,
@@ -94,66 +120,159 @@ export class InvoicesService {
     ];
 
     if (lineItemInputs.length === 0) {
-      throw new BadRequestException('Job card has no labour or parts to invoice');
+      throw new BadRequestException(
+        inclusions || isBillableByClaimId.size > 0
+          ? 'Everything on this job card is covered by the redeemed package or a free warranty claim — nothing left to invoice'
+          : 'Job card has no labour or parts to invoice',
+      );
     }
 
-    const { subtotal, cgstAmount, sgstAmount, igstAmount } = calculateGstSplit(
-      lineItemInputs,
-      tenantSettings.state,
-      customer.state,
-    );
-    const unroundedGrandTotal = subtotal.add(cgstAmount).add(sgstAmount).add(igstAmount);
-    const { roundOff, grandTotal } = computeRoundOff(unroundedGrandTotal);
+    const loyaltyPointsRedeemed = dto.redeemLoyaltyPoints ?? 0;
+    const loyaltyDiscountAmount = loyaltyPointsRedeemed > 0 ? await this.resolveLoyaltyDiscount(tenantSettings, jobCard.customerId, loyaltyPointsRedeemed, lineItemInputs) : new Prisma.Decimal(0);
 
     const invoice = await db.$transaction(async (tx) => {
-      // Cast needed because `tx` here is forTenant()'s extended-client
-      // transaction type, structurally distinct from the generated
-      // Prisma.TransactionClient type generateSequenceNumber expects —
-      // functionally identical at runtime (verified in job-cards.service.ts).
-      const invoiceNumber = await generateSequenceNumber(
-        tx as unknown as Prisma.TransactionClient,
+      const created = await this.createInvoiceInTransaction(tx as unknown as Prisma.TransactionClient, {
         tenantId,
-        'INVOICE',
-        tenantSettings.invoicePrefix,
-      );
-
-      const created = await tx.invoice.create({
-        data: {
-          customerId: jobCard.customerId,
-          jobCardId,
-          invoiceNumber,
-          subtotal,
-          cgstAmount,
-          sgstAmount,
-          igstAmount,
-          roundOff,
-          grandTotal,
-          status: InvoiceStatus.UNPAID,
-        } as unknown as Prisma.InvoiceUncheckedCreateInput,
+        tenantSettings,
+        customerId: jobCard.customerId,
+        customerState: customer.state,
+        jobCardId,
+        lineItemInputs,
+        loyaltyPointsRedeemed,
+        loyaltyDiscountAmount,
       });
-
-      await tx.invoiceLineItem.createMany({
-        data: lineItemInputs.map((item) => ({
+      // Balance already pre-validated by resolveLoyaltyDiscount above —
+      // this guarded adjustment is the concurrency-safe backstop for the
+      // rare concurrent-redemption race, not the primary check. Runs
+      // AFTER invoice creation so the ledger row can reference the real
+      // invoice id directly; if it fails, the whole transaction (invoice
+      // included) rolls back together.
+      if (loyaltyPointsRedeemed > 0) {
+        await adjustLoyaltyBalance(tx as unknown as Prisma.TransactionClient, jobCard.customerId, -loyaltyPointsRedeemed, {
           invoiceId: created.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          gstRate: item.gstRate,
-          hsnSac: item.hsnSac,
-          lineTotal: item.lineTotal,
-        })) as unknown as Prisma.InvoiceLineItemCreateManyInput[],
-      });
-
+          type: 'REDEEMED',
+        });
+      }
       return created;
     });
 
-    await this.sendInvoiceIssued(tenantId, customer, invoice.id, invoice.invoiceNumber, grandTotal);
+    await this.sendInvoiceIssued(tenantId, customer, invoice.id, invoice.invoiceNumber, invoice.grandTotal);
 
     return this.findOne(invoice.id);
   }
 
-  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
-  private async sendInvoiceIssued(
+  /** Null when the job card redeems no package — every caller checks this before treating any line as covered. */
+  private async loadPackageInclusions(redeemedPackageId: string | null): Promise<PackageInclusions | null> {
+    if (!redeemedPackageId) return null;
+    const pkg = await this.prisma.forTenant().customerServicePackage.findUnique({
+      where: { id: redeemedPackageId },
+      include: { servicePackage: { include: { includedLabourItems: true, includedParts: true, includedPartCategories: true } } },
+    });
+    if (!pkg) return null;
+    return {
+      labourItemIds: new Set(pkg.servicePackage.includedLabourItems.map((i) => i.labourItemId)),
+      partIds: new Set(pkg.servicePackage.includedParts.map((i) => i.partId)),
+      partCategoryIds: new Set(pkg.servicePackage.includedPartCategories.map((i) => i.partCategoryId)),
+    };
+  }
+
+  /** Empty map when no line on this job card is tagged against a claim — the common case, no extra query beyond the initial findMany([]).*/
+  private async loadClaimBillability(lines: { warrantyClaimId: string | null }[]): Promise<Map<string, boolean>> {
+    const claimIds = [...new Set(lines.map((l) => l.warrantyClaimId).filter((id): id is string => id !== null))];
+    if (claimIds.length === 0) return new Map();
+
+    const claims = await this.prisma.forTenant().warrantyClaim.findMany({ where: { id: { in: claimIds } }, select: { id: true, isBillable: true } });
+    return new Map(claims.map((c) => [c.id, c.isBillable]));
+  }
+
+  /** Validates a requested points redemption against both the customer's balance and this invoice's own subtotal, returning the rupee discount to apply — never silently caps, rejects outright so a customer never "loses" points to an over-request. */
+  private async resolveLoyaltyDiscount(
+    tenantSettings: { loyaltyEnabled: boolean; loyaltyPointValueRupees: Prisma.Decimal },
+    customerId: string,
+    requestedPoints: number,
+    lineItemInputs: GstSplitLineItem[],
+  ): Promise<Prisma.Decimal> {
+    if (!tenantSettings.loyaltyEnabled) throw new BadRequestException('Loyalty program is not enabled for this workshop');
+
+    const customer = await this.prisma.forTenant().customer.findFirstOrThrow({ where: { id: customerId } });
+    if (!hasSufficientPoints(customer.loyaltyPointsBalance, requestedPoints)) {
+      throw new BadRequestException('Requested points exceed the customer\'s loyalty balance');
+    }
+
+    const discount = computeRedemptionValue(requestedPoints, tenantSettings.loyaltyPointValueRupees);
+    const subtotal = lineItemInputs.reduce((sum, item) => sum.add(item.lineTotal), new Prisma.Decimal(0));
+    if (discount.gt(subtotal)) {
+      throw new BadRequestException('Requested points are worth more than this invoice\'s subtotal — redeem fewer points');
+    }
+    return discount;
+  }
+
+
+  /**
+   * Public — called from within CustomerServicePackagesService.sell()'s
+   * OWN transaction, so a package sale and the invoice that pays for it
+   * are created atomically together (never a phantom invoice with no
+   * linked package, or vice versa). Same core generateFromJobCard uses
+   * for job-card invoices, just with `jobCardId: null` and a single
+   * synthetic line item instead of JobCardLabour/Part-derived ones —
+   * Invoice.jobCardId has been nullable since Phase 7 specifically for
+   * this kind of non-job-card invoicing.
+   */
+  async createInvoiceInTransaction(
+    tx: Prisma.TransactionClient,
+    params: {
+      tenantId: string;
+      tenantSettings: { state: string | null; invoicePrefix: string };
+      customerId: string;
+      customerState: string | null;
+      jobCardId: string | null;
+      lineItemInputs: InvoiceLineItemInput[];
+      loyaltyPointsRedeemed?: number;
+      loyaltyDiscountAmount?: Prisma.Decimal;
+    },
+  ) {
+    const discountedLines = params.loyaltyDiscountAmount?.gt(0) ? applyProRataDiscount(params.lineItemInputs, params.loyaltyDiscountAmount) : params.lineItemInputs;
+
+    const { subtotal, cgstAmount, sgstAmount, igstAmount } = calculateGstSplit(discountedLines, params.tenantSettings.state, params.customerState);
+    const unroundedGrandTotal = subtotal.add(cgstAmount).add(sgstAmount).add(igstAmount);
+    const { roundOff, grandTotal } = computeRoundOff(unroundedGrandTotal);
+
+    const invoiceNumber = await generateSequenceNumber(tx, params.tenantId, 'INVOICE', params.tenantSettings.invoicePrefix);
+
+    const created = await tx.invoice.create({
+      data: {
+        customerId: params.customerId,
+        jobCardId: params.jobCardId,
+        invoiceNumber,
+        subtotal,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        roundOff,
+        grandTotal,
+        loyaltyPointsRedeemed: params.loyaltyPointsRedeemed ?? 0,
+        loyaltyDiscountAmount: params.loyaltyDiscountAmount ?? 0,
+        status: InvoiceStatus.UNPAID,
+      } as unknown as Prisma.InvoiceUncheckedCreateInput,
+    });
+
+    await tx.invoiceLineItem.createMany({
+      data: discountedLines.map((item) => ({
+        invoiceId: created.id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        gstRate: item.gstRate,
+        hsnSac: item.hsnSac,
+        lineTotal: item.lineTotal,
+      })) as unknown as Prisma.InvoiceLineItemCreateManyInput[],
+    });
+
+    return created;
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. Public: also called from CustomerServicePackagesService.sell() after a package-sale invoice is created. */
+  async sendInvoiceIssued(
     tenantId: string,
     customer: { name: string; mobile: string; email: string | null },
     invoiceId: string,
@@ -377,9 +496,52 @@ export class InvoicesService {
       data: { invoiceId, ...data } as unknown as Prisma.PaymentUncheckedCreateInput,
     });
 
+    const wasAlreadyPaid = invoice.status === InvoiceStatus.PAID;
     const updated = await this.recalculateStatus(invoiceId);
     await this.sendPaymentReceived(updated, Number(data.amount));
+
+    // Earn on "just became fully paid," not on generation — an unpaid or
+    // cancelled invoice earns nothing. `wasAlreadyPaid` guards against
+    // double-earning if this is ever reached again on an already-paid
+    // invoice (e.g. a zero-amount reconciliation entry).
+    if (!wasAlreadyPaid && updated.status === InvoiceStatus.PAID) {
+      await this.earnLoyaltyPoints(updated);
+    }
     return updated;
+  }
+
+  /**
+   * Best-effort in the messaging sense (see MessagingService's doc comment)
+   * but the ledger write itself must not silently fail — a caught/logged
+   * error here would mean a customer paid in full and earned nothing with
+   * no trace. Uses forTenant() (not `platform`) for the Customer/
+   * LoyaltyTransaction writes specifically because those ARE tenant-scoped
+   * models needing the auto-injected tenantId — `platform` is only for the
+   * genuinely platform-level Tenant name lookup below, same split
+   * sendPaymentReceived already uses.
+   */
+  private async earnLoyaltyPoints(invoice: { id: string; customerId: string; subtotal: Prisma.Decimal; customer: { name: string; mobile: string; email: string | null } }): Promise<void> {
+    const tenantId = TenantContext.requireTenantId();
+    const db = this.prisma.forTenant();
+    const settings = await db.tenantSettings.findUniqueOrThrow({ where: { tenantId } });
+    if (!settings.loyaltyEnabled) return;
+
+    const pointsEarned = computePointsEarned(invoice.subtotal, settings.loyaltyPointsPerRupee);
+    if (pointsEarned <= 0) return;
+
+    await db.$transaction(async (tx) => {
+      await adjustLoyaltyBalance(tx as unknown as Prisma.TransactionClient, invoice.customerId, pointsEarned, { invoiceId: invoice.id, type: 'EARNED' });
+    });
+
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const customer = await db.customer.findUnique({ where: { id: invoice.customerId } });
+    const content = pointsEarnedMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: invoice.customer.name,
+      points: String(pointsEarned),
+      balance: String(customer?.loyaltyPointsBalance ?? pointsEarned),
+    });
+    await this.messaging.notifyCustomer(tenantId, 'loyalty.points-earned', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
   }
 
   /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */

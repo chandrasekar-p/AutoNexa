@@ -15,6 +15,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "migrate:uploads-to-s3": "ts-node scripts/migrate-uploads-to-s3.ts",
+    "backfill:role-permissions": "ts-node scripts/backfill-role-permissions.ts",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config jest.config.js"
   },

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateLabourItemDto {
   @ApiProperty({ example: 'LBR-001' })
@@ -37,6 +37,12 @@ export class CreateLabourItemDto {
   @IsOptional()
   @IsString()
   technicianCategory?: string;
+
+  @ApiPropertyOptional({ description: 'Snapshotted onto JobCardLabour.warrantyMonths when this labour item is added to a job card' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  warrantyPeriodMonths?: number;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

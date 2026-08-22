@@ -29,6 +29,10 @@ export const RESOURCES = [
   'audit-log',
   'settings',
   'attendance',
+  'service-package',
+  'loyalty',
+  'warranty-claim',
+  'gst-export',
 ] as const;
 
 export const ACTIONS = ['create', 'read', 'update', 'delete'] as const;
@@ -56,6 +60,10 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     'audit-log': ['read'],
     settings: ['read', 'update'],
     attendance: '*',
+    'service-package': '*',
+    loyalty: '*',
+    'warranty-claim': '*',
+    'gst-export': ['read'],
   },
   'Service Advisor': {
     customer: '*',
@@ -68,6 +76,11 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     part: ['read'],
     invoice: ['create', 'read'],
     report: ['read'],
+    'service-package': ['create', 'read', 'update'],
+    loyalty: ['read', 'update'],
+    // create+read only — raising a suspected comeback is fine for anyone
+    // doing intake, but approving/rejecting it (:update) is manager-only.
+    'warranty-claim': ['create', 'read'],
   },
   Accountant: {
     customer: ['read'],
@@ -80,6 +93,10 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     invoice: '*',
     payment: '*',
     report: ['read'],
+    'service-package': ['read'],
+    loyalty: ['read', 'update'],
+    'warranty-claim': ['read'],
+    'gst-export': ['read'],
   },
   'Inventory Manager': {
     part: '*',
@@ -95,6 +112,8 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     inspection: ['create', 'read', 'update'],
     'job-card': ['read', 'update'],
     part: ['read'],
+    // Same create+read-only tier as Service Advisor — approval stays manager-only.
+    'warranty-claim': ['create', 'read'],
   },
   Receptionist: {
     customer: ['create', 'read'],
@@ -102,5 +121,6 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     appointment: ['create', 'read', 'update'],
     'job-card': ['read'],
     invoice: ['read'],
+    'service-package': ['read'],
   },
 };

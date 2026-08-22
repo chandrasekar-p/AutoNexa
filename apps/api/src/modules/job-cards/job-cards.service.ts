@@ -16,6 +16,8 @@ import { ListJobCardsQueryDto } from './dto/list-job-cards-query.dto';
 import { CreateJobCardLabourDto } from './dto/create-job-card-labour.dto';
 import { CreateJobCardNoteDto } from './dto/create-job-card-note.dto';
 import { CreateJobCardPartDto } from './dto/create-job-card-part.dto';
+import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
+import { isPackageRedeemable } from '../service-packages/package-eligibility';
 
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
@@ -50,6 +52,7 @@ export class JobCardsService {
     await this.assertCustomerExists(dto.customerId);
     if (dto.technicianId) await this.assertTechnicianExists(dto.technicianId);
     if (dto.inspectionId) await this.assertInspectionExists(dto.inspectionId);
+    if (dto.redeemedPackageId) await this.assertPackageRedeemable(dto.redeemedPackageId, dto.customerId, dto.vehicleId);
 
     const tenantId = TenantContext.requireTenantId();
     const db = this.prisma.forTenant();
@@ -79,6 +82,7 @@ export class JobCardsService {
           complaint: dto.complaint,
           customerRequest: dto.customerRequest,
           estimatedWork: dto.estimatedWork,
+          redeemedPackageId: dto.redeemedPackageId,
           startAt: dto.startAt ? new Date(dto.startAt) : undefined,
           expectedDelivery: dto.expectedDelivery ? new Date(dto.expectedDelivery) : undefined,
           jobCardNumber,
@@ -243,9 +247,10 @@ export class JobCardsService {
   }
 
   async update(id: string, dto: UpdateJobCardDto, currentUserId: string) {
-    await this.assertExists(id, currentUserId);
+    const jobCard = await this.assertExists(id, currentUserId);
     if (dto.technicianId) await this.assertTechnicianExists(dto.technicianId);
     if (dto.inspectionId) await this.assertInspectionExists(dto.inspectionId);
+    if (dto.redeemedPackageId) await this.assertPackageRedeemable(dto.redeemedPackageId, jobCard.customerId, jobCard.vehicleId);
 
     return this.prisma.forTenant().jobCard.update({
       where: { id },
@@ -282,6 +287,25 @@ export class JobCardsService {
           notes: dto.notes,
         } as unknown as Prisma.JobCardStatusHistoryUncheckedCreateInput,
       });
+
+      // Visit consumption happens once per job card, at actual completion —
+      // not per labour/part line added, and not at invoice generation
+      // (a job card can be delivered without ever being invoiced, e.g.
+      // warranty work). Guarded UPDATE, same shape as stock-guard.ts's
+      // part-stock decrement: the WHERE clause is re-checked atomically at
+      // UPDATE time, so two concurrent requests can't both pass a stale
+      // "visits remaining" read and drive visitsUsed past the limit.
+      if (dto.status === JobCardStatus.DELIVERED && jobCard.redeemedPackageId) {
+        const pkg = await tx.customerServicePackage.findUniqueOrThrow({ where: { id: jobCard.redeemedPackageId } });
+        const guardedWhere =
+          pkg.visitLimit === null
+            ? { id: jobCard.redeemedPackageId, status: 'ACTIVE' as const }
+            : { id: jobCard.redeemedPackageId, status: 'ACTIVE' as const, visitsUsed: { lt: pkg.visitLimit } };
+        const updated = await tx.customerServicePackage.updateMany({ where: guardedWhere, data: { visitsUsed: { increment: 1 } } });
+        if (updated.count === 0) {
+          throw new BadRequestException('This service package is no longer active or has no visits remaining');
+        }
+      }
 
       if (dto.status === JobCardStatus.READY_FOR_DELIVERY) {
         // Recipient is the job card's service advisor if one is assigned;
@@ -350,6 +374,7 @@ export class JobCardsService {
       where: { id: dto.labourItemId, deletedAt: null, isActive: true },
     });
     if (!labourItem) throw new NotFoundException('Labour item not found');
+    if (dto.warrantyClaimId) await this.assertClaimBelongsToJobCard(dto.warrantyClaimId, jobCardId);
 
     const hours = dto.hours ?? labourItem.standardHours;
     const rate = labourItem.labourRate;
@@ -365,6 +390,11 @@ export class JobCardsService {
         gstRate,
         hsnSac: labourItem.sacCode,
         lineTotal: new Prisma.Decimal(hours).mul(rate).toDecimalPlaces(2),
+        // Snapshotted at add time — a later edit to LabourItem never
+        // retroactively changes a job already performed, same discipline
+        // as rate/gstRate above.
+        warrantyMonths: labourItem.warrantyPeriodMonths,
+        warrantyClaimId: dto.warrantyClaimId,
       } as unknown as Prisma.JobCardLabourUncheckedCreateInput,
     });
 
@@ -388,6 +418,7 @@ export class JobCardsService {
    */
   async addPart(jobCardId: string, dto: CreateJobCardPartDto, currentUserId: string) {
     await this.assertExists(jobCardId, currentUserId);
+    if (dto.warrantyClaimId) await this.assertClaimBelongsToJobCard(dto.warrantyClaimId, jobCardId);
     const db = this.prisma.forTenant();
 
     await db.$transaction(async (tx) => {
@@ -420,6 +451,12 @@ export class JobCardsService {
           gstRate: part.gstRate,
           hsnSac: part.hsnCode,
           lineTotal: new Prisma.Decimal(dto.quantity).mul(part.sellingPrice).toDecimalPlaces(2),
+          // Snapshotted at add time — a later edit to Part never
+          // retroactively changes a job already done, same discipline as
+          // sellingPrice/gstRate above.
+          warrantyMonths: part.warrantyPeriodMonths,
+          warrantyKm: part.warrantyKm,
+          warrantyClaimId: dto.warrantyClaimId,
         } as unknown as Prisma.JobCardPartUncheckedCreateInput,
       });
 
@@ -488,8 +525,8 @@ export class JobCardsService {
    * line-item snapshotting) lives in InvoicesService since Invoice isn't
    * owned by this module, same shape as Estimate -> JobCard conversion.
    */
-  generateInvoice(jobCardId: string) {
-    return this.invoicesService.generateFromJobCard(jobCardId);
+  generateInvoice(jobCardId: string, dto: GenerateInvoiceDto) {
+    return this.invoicesService.generateFromJobCard(jobCardId, dto);
   }
 
   private async assertExists(id: string, currentUserId: string) {
@@ -558,5 +595,20 @@ export class JobCardsService {
   private async assertInspectionExists(inspectionId: string) {
     const inspection = await this.prisma.forTenant().inspection.findFirst({ where: { id: inspectionId } });
     if (!inspection) throw new NotFoundException('Inspection not found for this job card');
+  }
+
+  /** A job card can only redeem a package sold to the SAME customer+vehicle, and only while it's still active with visits remaining — a fast-fail check; the guarded visit-decrement at DELIVERED (see updateStatus) is the actual concurrency-safe enforcement. */
+  private async assertPackageRedeemable(packageId: string, customerId: string, vehicleId: string) {
+    const pkg = await this.prisma.forTenant().customerServicePackage.findFirst({ where: { id: packageId, customerId, vehicleId } });
+    if (!pkg) throw new NotFoundException('Service package not found for this customer and vehicle');
+    if (!isPackageRedeemable(pkg.status, pkg.endDate, pkg.visitsUsed, pkg.visitLimit)) {
+      throw new BadRequestException('This service package is not active or has no visits remaining');
+    }
+  }
+
+  /** A line can only be tagged against a claim raised on THIS SAME job card — prevents accidentally (or maliciously) marking a line free against an unrelated vehicle's claim. */
+  private async assertClaimBelongsToJobCard(warrantyClaimId: string, jobCardId: string) {
+    const claim = await this.prisma.forTenant().warrantyClaim.findFirst({ where: { id: warrantyClaimId, claimJobCardId: jobCardId } });
+    if (!claim) throw new NotFoundException('Warranty claim not found on this job card');
   }
 }

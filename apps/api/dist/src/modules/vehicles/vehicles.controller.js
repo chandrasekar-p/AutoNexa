@@ -38,6 +38,9 @@ let VehiclesController = class VehiclesController {
     getServiceHistory(id) {
         return this.vehiclesService.getServiceHistory(id);
     }
+    getWarrantyStatus(id) {
+        return this.vehiclesService.getWarrantyStatus(id);
+    }
     update(id, dto) {
         return this.vehiclesService.update(id, dto);
     }
@@ -82,6 +85,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], VehiclesController.prototype, "getServiceHistory", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('vehicle:read'),
+    (0, common_1.Get)(':id/warranty-status'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], VehiclesController.prototype, "getWarrantyStatus", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('vehicle:update'),
     (0, common_1.Patch)(':id'),

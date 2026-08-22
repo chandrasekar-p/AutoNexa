@@ -1,0 +1,1 @@
+{"version":3,"file":"warranty-claim-coverage.js","sourceRoot":"","sources":["../../../../src/modules/warranty/warranty-claim-coverage.ts"],"names":[],"mappings":";;AAUA,oEAIC;AAJD,SAAgB,4BAA4B,CAAC,eAA8B,EAAE,mBAAyC;IACpH,IAAI,CAAC,eAAe;QAAE,OAAO,KAAK,CAAC;IACnC,MAAM,UAAU,GAAG,mBAAmB,CAAC,GAAG,CAAC,eAAe,CAAC,CAAC;IAC5D,OAAO,UAAU,KAAK,KAAK,CAAC;AAC9B,CAAC"}

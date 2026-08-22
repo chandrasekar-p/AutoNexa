@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Download, FileText } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
@@ -25,6 +26,8 @@ interface ReportConfig {
   endpoint: string;
   supportsDateRange: boolean;
   shape: 'table' | 'object';
+  /** When present, renders a "Group By" select and appends `groupBy=` to the query — currently only comeback-rate needs this. */
+  groupByOptions?: { value: string; label: string }[];
 }
 
 // One representative report per SRS §22 category, not all 13 backend
@@ -98,6 +101,51 @@ const REPORTS: ReportConfig[] = [
     endpoint: '/reports/profit-margin',
     supportsDateRange: true,
     shape: 'object',
+  },
+  {
+    key: 'loyalty-liability',
+    label: 'Loyalty Liability',
+    category: 'Finance',
+    endpoint: '/reports/loyalty-liability',
+    supportsDateRange: false,
+    shape: 'object',
+  },
+  {
+    key: 'packages-summary',
+    label: 'Service Packages Summary',
+    category: 'Workshop',
+    endpoint: '/reports/packages-summary',
+    supportsDateRange: false,
+    shape: 'table',
+  },
+  {
+    key: 'warranty-liability',
+    label: 'Warranty Liability',
+    category: 'Finance',
+    endpoint: '/reports/warranty-liability',
+    supportsDateRange: false,
+    shape: 'object',
+  },
+  {
+    key: 'warranty-claims-summary',
+    label: 'Warranty Claims Summary',
+    category: 'Workshop',
+    endpoint: '/reports/warranty-claims-summary',
+    supportsDateRange: false,
+    shape: 'table',
+  },
+  {
+    key: 'comeback-rate',
+    label: 'Comeback Rate',
+    category: 'Workshop',
+    endpoint: '/reports/comeback-rate',
+    supportsDateRange: false,
+    shape: 'table',
+    groupByOptions: [
+      { value: 'technician', label: 'Technician' },
+      { value: 'part', label: 'Part' },
+      { value: 'supplier', label: 'Supplier' },
+    ],
   },
 ];
 
@@ -248,9 +296,16 @@ export default function ReportsPage() {
   const [reportKey, setReportKey] = useState(REPORTS[0]!.key);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [groupBy, setGroupBy] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const report = REPORTS.find((r) => r.key === reportKey)!;
+  const effectiveGroupBy = groupBy || report.groupByOptions?.[0]?.value || '';
+
+  function handleReportChange(key: string) {
+    setReportKey(key);
+    setGroupBy('');
+  }
 
   const query = useApiQuery<unknown>(() => {
     const params = new URLSearchParams();
@@ -258,14 +313,16 @@ export default function ReportsPage() {
       if (from) params.set('from', from);
       if (to) params.set('to', to);
     }
+    if (report.groupByOptions) params.set('groupBy', effectiveGroupBy);
     const qs = params.toString();
     return apiGet(`${report.endpoint}${qs ? `?${qs}` : ''}`);
-  }, [report.endpoint, report.supportsDateRange, from, to]);
+  }, [report.endpoint, report.supportsDateRange, from, to, report.groupByOptions, effectiveGroupBy]);
 
   // Best-effort — GET /tenants/me requires tenant:read (Workshop Owner by
   // default, see WorkshopSettingsCard's same gate); exports still work
   // without it, just without a workshop name/logo on the PDF.
   const canReadTenant = usePermission('tenant:read');
+  const canExportGst = usePermission('gst-export:read');
   const tenant = useApiQuery<CurrentTenant>(
     () => (canReadTenant ? apiGet('/tenants/me') : Promise.reject(new Error('n/a'))),
     [canReadTenant],
@@ -297,15 +354,22 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink">Reports</h1>
-        <p className="text-sm text-ink-secondary">One representative report per category — see each module for full detail.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">Reports</h1>
+          <p className="text-sm text-ink-secondary">One representative report per category — see each module for full detail.</p>
+        </div>
+        {canExportGst ? (
+          <Link href="/reports/export" className="text-sm font-medium text-accent-600 hover:underline">
+            GST / Tally Export →
+          </Link>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-64">
-            <Select label="Report" value={reportKey} onChange={(e) => setReportKey(e.target.value)}>
+            <Select label="Report" value={reportKey} onChange={(e) => handleReportChange(e.target.value)}>
               {CATEGORIES.map((category) => (
                 <optgroup key={category} label={category}>
                   {REPORTS.filter((r) => r.category === category).map((r) => (
@@ -317,6 +381,17 @@ export default function ReportsPage() {
               ))}
             </Select>
           </div>
+          {report.groupByOptions ? (
+            <div className="w-44">
+              <Select label="Group By" value={effectiveGroupBy} onChange={(e) => setGroupBy(e.target.value)}>
+                {report.groupByOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
           {report.supportsDateRange ? (
             <>
               <Input label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />

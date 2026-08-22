@@ -140,3 +140,32 @@ export function serviceDueMessage(ctx: ServiceDueTemplateContext): MessageConten
     body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel} is due for its next service ${ctx.dueReason}. Book an appointment at your convenience. — ${ctx.workshopName}`,
   };
 }
+
+export interface PackageExpiringTemplateContext {
+  workshopName: string;
+  customerName: string;
+  packageName: string;
+  vehicleLabel: string;
+  expiryDate: string;
+}
+
+export function packageExpiringMessage(ctx: PackageExpiringTemplateContext): MessageContent {
+  return {
+    subject: `Your service package is expiring soon — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your "${ctx.packageName}" package for ${ctx.vehicleLabel} expires on ${ctx.expiryDate}. Contact us to renew it. — ${ctx.workshopName}`,
+  };
+}
+
+export interface PointsEarnedTemplateContext {
+  workshopName: string;
+  customerName: string;
+  points: string;
+  balance: string;
+}
+
+export function pointsEarnedMessage(ctx: PointsEarnedTemplateContext): MessageContent {
+  return {
+    subject: `You earned loyalty points — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, you earned ${ctx.points} loyalty points on your recent visit. Your balance is now ${ctx.balance} points. — ${ctx.workshopName}`,
+  };
+}

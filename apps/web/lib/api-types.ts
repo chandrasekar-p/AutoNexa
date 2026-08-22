@@ -608,6 +608,10 @@ export interface JobCardLabourLine {
   rate: string;
   gstRate: string;
   lineTotal: string;
+  /** Snapshotted from LabourItem.warrantyPeriodMonths at add-time — null means no warranty on this line. */
+  warrantyMonths: number | null;
+  /** Set when this line is the fix for an open warranty claim raised on THIS job card — see CreateJobCardLabourDto.warrantyClaimId. */
+  warrantyClaimId: string | null;
 }
 
 /** quantity is Int; unitPrice/gstRate/lineTotal are Decimal → strings. Same add/remove-only discipline as JobCardLabourLine — removing restores stock (see VehiclesService.removePart). */
@@ -618,6 +622,73 @@ export interface JobCardPartLine {
   unitPrice: string;
   gstRate: string;
   lineTotal: string;
+  /** Snapshotted from Part.warrantyPeriodMonths/warrantyKm at add-time — whichever comes first. */
+  warrantyMonths: number | null;
+  warrantyKm: number | null;
+  /** Set when this line is the fix for an open warranty claim raised on THIS job card. */
+  warrantyClaimId: string | null;
+}
+
+/** One row of GET /vehicles/:id/warranty-status's `labour` array — computed fresh on every read, never stored. */
+export interface VehicleWarrantyLabourLine {
+  jobCardLabourId: string;
+  jobCardId: string;
+  jobCardNumber: string;
+  description: string;
+  warrantyMonths: number | null;
+  expiresAt: string | null;
+  isActive: boolean;
+  /** An existing WarrantyClaim already raised against this line, if any — set to disable "Raise Claim" a second time (or show it as a link) rather than block silently. */
+  existingClaimId: string | null;
+}
+
+/** One row of GET /vehicles/:id/warranty-status's `parts` array. */
+export interface VehicleWarrantyPartLine {
+  jobCardPartId: string;
+  jobCardId: string;
+  jobCardNumber: string;
+  partName: string;
+  warrantyMonths: number | null;
+  warrantyKm: number | null;
+  expiresAt: string | null;
+  expiredByKm: boolean;
+  isActive: boolean;
+  existingClaimId: string | null;
+}
+
+export interface VehicleWarrantyStatus {
+  labour: VehicleWarrantyLabourLine[];
+  parts: VehicleWarrantyPartLine[];
+}
+
+export type WarrantyClaimStatus = 'OPEN' | 'APPROVED' | 'REJECTED' | 'RESOLVED';
+
+/** GET /warranty-claims(/:id) — links a NEW comeback job card back to the original line it's claiming against. Exactly one of originalJobCardPart/originalJobCardLabour is set. */
+export interface WarrantyClaim {
+  id: string;
+  claimJobCardId: string;
+  claimJobCard: { id: string; jobCardNumber: string; vehicleId: string; customerId: string };
+  originalJobCardPartId: string | null;
+  originalJobCardPart: {
+    id: string;
+    part: { id: string; partNumber: string; name: string };
+    jobCard: { id: string; jobCardNumber: string; actualDelivery: string | null; odometer: number | null };
+  } | null;
+  originalJobCardLabourId: string | null;
+  originalJobCardLabour: {
+    id: string;
+    description: string | null;
+    labourItem: { id: string; code: string; description: string } | null;
+    jobCard: { id: string; jobCardNumber: string; actualDelivery: string | null; odometer: number | null };
+  } | null;
+  status: WarrantyClaimStatus;
+  isBillable: boolean;
+  resolutionNotes: string | null;
+  approvedByUserId: string | null;
+  approvedByUser: { id: string; name: string } | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface JobCardStatusHistoryEntry {
@@ -796,4 +867,119 @@ export interface AttendanceRecord {
   updatedAt: string;
   user?: { id: string; name: string };
   markedBy?: { id: string; name: string } | null;
+}
+
+/** A single {labourItem}/{part}/{partCategory} join row from GET /service-packages(/:id) — only the nested ref is ever rendered, the join row's own id isn't used. */
+export interface ServicePackageLabourItemRef {
+  labourItem: { id: string; code: string; description: string };
+}
+export interface ServicePackagePartRef {
+  part: { id: string; partNumber: string; name: string };
+}
+export interface ServicePackagePartCategoryRef {
+  partCategory: { id: string; name: string };
+}
+
+/** GET /service-packages(/:id) — the sellable template, not a specific sale (see CustomerServicePackage for that). Included-items arrays define what redeeming this package covers for free on a job card. */
+export interface ServicePackage {
+  id: string;
+  name: string;
+  description: string | null;
+  price: string;
+  gstRate: string;
+  validityMonths: number;
+  visitLimit: number | null;
+  isActive: boolean;
+  createdAt: string;
+  includedLabourItems: ServicePackageLabourItemRef[];
+  includedParts: ServicePackagePartRef[];
+  includedPartCategories: ServicePackagePartCategoryRef[];
+}
+
+export type CustomerPackageStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+
+/** GET /customer-service-packages(/:id) — one specific sale of a ServicePackage template to a customer+vehicle. visitLimit here is SNAPSHOTTED at sale time — a later edit to the template doesn't change it. */
+export interface CustomerServicePackage {
+  id: string;
+  servicePackageId: string;
+  servicePackage: { id: string; name: string; price: string; gstRate: string; validityMonths: number };
+  customerId: string;
+  customer: CustomerRef;
+  vehicleId: string;
+  vehicle: { id: string; registrationNo: string; brand: string; model: string };
+  purchaseInvoiceId: string;
+  purchaseInvoice: { id: string; invoiceNumber: string; grandTotal: string; status: InvoiceStatus };
+  startDate: string;
+  endDate: string;
+  visitLimit: number | null;
+  visitsUsed: number;
+  status: CustomerPackageStatus;
+  renewedFromId: string | null;
+  createdAt: string;
+}
+
+/** GET /loyalty/customers/:customerId/balance */
+export interface LoyaltyBalance {
+  customerId: string;
+  customerName: string;
+  balance: number;
+}
+
+export type LoyaltyTransactionType = 'EARNED' | 'REDEEMED' | 'ADJUSTED';
+
+/** One row of GET /loyalty/transactions — append-only ledger; `balanceAfter` is the running balance snapshot right after this entry, so history never needs re-summing. */
+export interface LoyaltyTransaction {
+  id: string;
+  customerId: string;
+  customer: { id: string; name: string };
+  invoiceId: string | null;
+  type: LoyaltyTransactionType;
+  points: number;
+  balanceAfter: number;
+  note: string | null;
+  adjustedByUserId: string | null;
+  adjustedByUser: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export type GstExportSide = 'sales' | 'purchases';
+export type GstExportFormat = 'tally-xml' | 'gstr-csv';
+
+/** One entry of a GET /reports/export/gst preview's `amended` array — a voucher whose amount changed since the last export covering an overlapping period (see export-manifest-diff.ts). */
+export interface GstExportAmendedEntry {
+  sourceId: string;
+  referenceNumber: string;
+  previousAmount: string;
+  currentAmount: string;
+}
+
+/** `?preview=true`, side=sales response — same totals shape as GET /reports/gst-summary, by construction (both share summarizeInvoiceGst on the backend). */
+export interface GstExportSalesPreview {
+  warnings: string[];
+  amended: GstExportAmendedEntry[];
+  supersedesBatchNumber: string | null;
+  invoiceCount: number;
+  gstTotals: {
+    invoiceCount: number;
+    subtotal: string;
+    cgstAmount: string;
+    sgstAmount: string;
+    igstAmount: string;
+    totalGst: string;
+    grandTotal: string;
+  };
+}
+
+/** `?preview=true`, side=purchases response — itcTotals is aggregate-only, see the export's own `warnings` for the approximation this carries. */
+export interface GstExportPurchasesPreview {
+  warnings: string[];
+  amended: GstExportAmendedEntry[];
+  supersedesBatchNumber: string | null;
+  invoiceCount: number;
+  itcTotals: {
+    invoiceCount: number;
+    taxableValue: string;
+    taxAmount: string;
+    total: string;
+  };
 }

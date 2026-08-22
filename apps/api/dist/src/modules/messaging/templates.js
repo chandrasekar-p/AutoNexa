@@ -10,6 +10,8 @@ exports.paymentLinkMessage = paymentLinkMessage;
 exports.insuranceExpiringMessage = insuranceExpiringMessage;
 exports.pucExpiringMessage = pucExpiringMessage;
 exports.serviceDueMessage = serviceDueMessage;
+exports.packageExpiringMessage = packageExpiringMessage;
+exports.pointsEarnedMessage = pointsEarnedMessage;
 function appointmentConfirmedMessage(ctx) {
     return {
         subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -68,6 +70,18 @@ function serviceDueMessage(ctx) {
     return {
         subject: `Service due soon — ${ctx.workshopName}`,
         body: `Hi ${ctx.customerName}, your ${ctx.vehicleLabel} is due for its next service ${ctx.dueReason}. Book an appointment at your convenience. — ${ctx.workshopName}`,
+    };
+}
+function packageExpiringMessage(ctx) {
+    return {
+        subject: `Your service package is expiring soon — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your "${ctx.packageName}" package for ${ctx.vehicleLabel} expires on ${ctx.expiryDate}. Contact us to renew it. — ${ctx.workshopName}`,
+    };
+}
+function pointsEarnedMessage(ctx) {
+    return {
+        subject: `You earned loyalty points — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, you earned ${ctx.points} loyalty points on your recent visit. Your balance is now ${ctx.balance} points. — ${ctx.workshopName}`,
     };
 }
 //# sourceMappingURL=templates.js.map

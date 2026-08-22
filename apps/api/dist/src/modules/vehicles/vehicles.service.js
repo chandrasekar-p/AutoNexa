@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const storage_types_1 = require("../storage/storage.types");
 const resolve_display_url_1 = require("../storage/resolve-display-url");
+const warranty_status_1 = require("../warranty/warranty-status");
 let VehiclesService = class VehiclesService {
     constructor(prisma, storage) {
         this.prisma = prisma;
@@ -123,6 +124,58 @@ let VehiclesService = class VehiclesService {
         return {
             vehicleId: id,
             timeline: timeline.map((entry) => ({ ...entry, date: entry.date.toISOString() })),
+        };
+    }
+    async getWarrantyStatus(id) {
+        const vehicle = await this.assertExists(id);
+        const db = this.prisma.forTenant();
+        const [labourLines, partLines] = await Promise.all([
+            db.jobCardLabour.findMany({
+                where: { jobCard: { vehicleId: id, deletedAt: null, actualDelivery: { not: null } } },
+                include: {
+                    labourItem: { select: { description: true } },
+                    jobCard: { select: { id: true, jobCardNumber: true, actualDelivery: true } },
+                    originalOfClaims: { select: { id: true }, take: 1 },
+                },
+            }),
+            db.jobCardPart.findMany({
+                where: { jobCard: { vehicleId: id, deletedAt: null, actualDelivery: { not: null } } },
+                include: {
+                    part: { select: { name: true, partNumber: true } },
+                    jobCard: { select: { id: true, jobCardNumber: true, actualDelivery: true, odometer: true } },
+                    originalOfClaims: { select: { id: true }, take: 1 },
+                },
+            }),
+        ]);
+        return {
+            labour: labourLines.map((l) => {
+                const result = (0, warranty_status_1.computeWarrantyStatus)(l.jobCard.actualDelivery, l.warrantyMonths, null, null, null);
+                return {
+                    jobCardLabourId: l.id,
+                    jobCardId: l.jobCard.id,
+                    jobCardNumber: l.jobCard.jobCardNumber,
+                    description: l.description ?? l.labourItem?.description ?? 'Labour',
+                    warrantyMonths: l.warrantyMonths,
+                    expiresAt: result.expiresAt,
+                    isActive: result.isActive,
+                    existingClaimId: l.originalOfClaims[0]?.id ?? null,
+                };
+            }),
+            parts: partLines.map((p) => {
+                const result = (0, warranty_status_1.computeWarrantyStatus)(p.jobCard.actualDelivery, p.warrantyMonths, p.warrantyKm, p.jobCard.odometer, vehicle.odometerReading);
+                return {
+                    jobCardPartId: p.id,
+                    jobCardId: p.jobCard.id,
+                    jobCardNumber: p.jobCard.jobCardNumber,
+                    partName: `${p.part.partNumber} — ${p.part.name}`,
+                    warrantyMonths: p.warrantyMonths,
+                    warrantyKm: p.warrantyKm,
+                    expiresAt: result.expiresAt,
+                    expiredByKm: result.expiredByKm,
+                    isActive: result.isActive,
+                    existingClaimId: p.originalOfClaims[0]?.id ?? null,
+                };
+            }),
         };
     }
     async update(id, dto) {

@@ -22,7 +22,12 @@ const rollup_payment_status_1 = require("../../common/billing/rollup-payment-sta
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
 const storage_types_1 = require("../storage/storage.types");
+const package_coverage_1 = require("../service-packages/package-coverage");
+const warranty_claim_coverage_1 = require("../warranty/warranty-claim-coverage");
+const loyalty_eligibility_1 = require("../loyalty/loyalty-eligibility");
+const loyalty_ledger_1 = require("../loyalty/loyalty-ledger");
 const gst_split_1 = require("./gst-split");
+const discount_1 = require("./discount");
 const payment_guard_1 = require("./payment-guard");
 const invoice_pdf_1 = require("./invoice-pdf");
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true };
@@ -44,7 +49,7 @@ let InvoicesService = class InvoicesService {
         this.messaging = messaging;
         this.storage = storage;
     }
-    async generateFromJobCard(jobCardId) {
+    async generateFromJobCard(jobCardId, dto = {}) {
         const db = this.prisma.forTenant();
         const jobCard = await db.jobCard.findFirst({ where: { id: jobCardId, deletedAt: null } });
         if (!jobCard)
@@ -60,10 +65,15 @@ let InvoicesService = class InvoicesService {
             db.customer.findFirstOrThrow({ where: { id: jobCard.customerId } }),
             db.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
             db.jobCardLabour.findMany({ where: { jobCardId }, include: { labourItem: { select: { description: true } } } }),
-            db.jobCardPart.findMany({ where: { jobCardId }, include: { part: { select: { partNumber: true, name: true } } } }),
+            db.jobCardPart.findMany({ where: { jobCardId }, include: { part: { select: { partNumber: true, name: true, categoryId: true } } } }),
         ]);
+        const inclusions = await this.loadPackageInclusions(jobCard.redeemedPackageId);
+        const isBillableByClaimId = await this.loadClaimBillability([...labourLines, ...partLines]);
+        const chargeableLabourLines = labourLines.filter((l) => !(inclusions && (0, package_coverage_1.isLabourCoveredByPackage)(l.labourItemId, inclusions)) && !(0, warranty_claim_coverage_1.isLineFreeUnderWarrantyClaim)(l.warrantyClaimId, isBillableByClaimId));
+        const chargeablePartLines = partLines.filter((p) => !(inclusions && (0, package_coverage_1.isPartCoveredByPackage)(p.partId, p.part.categoryId, inclusions)) &&
+            !(0, warranty_claim_coverage_1.isLineFreeUnderWarrantyClaim)(p.warrantyClaimId, isBillableByClaimId));
         const lineItemInputs = [
-            ...labourLines.map((l) => ({
+            ...chargeableLabourLines.map((l) => ({
                 description: l.description ?? l.labourItem?.description ?? 'Labour',
                 quantity: l.hours,
                 unitPrice: l.rate,
@@ -71,7 +81,7 @@ let InvoicesService = class InvoicesService {
                 hsnSac: l.hsnSac,
                 lineTotal: l.lineTotal,
             })),
-            ...partLines.map((p) => ({
+            ...chargeablePartLines.map((p) => ({
                 description: `${p.part.partNumber} — ${p.part.name}`,
                 quantity: new client_1.Prisma.Decimal(p.quantity),
                 unitPrice: p.unitPrice,
@@ -81,42 +91,104 @@ let InvoicesService = class InvoicesService {
             })),
         ];
         if (lineItemInputs.length === 0) {
-            throw new common_1.BadRequestException('Job card has no labour or parts to invoice');
+            throw new common_1.BadRequestException(inclusions || isBillableByClaimId.size > 0
+                ? 'Everything on this job card is covered by the redeemed package or a free warranty claim — nothing left to invoice'
+                : 'Job card has no labour or parts to invoice');
         }
-        const { subtotal, cgstAmount, sgstAmount, igstAmount } = (0, gst_split_1.calculateGstSplit)(lineItemInputs, tenantSettings.state, customer.state);
-        const unroundedGrandTotal = subtotal.add(cgstAmount).add(sgstAmount).add(igstAmount);
-        const { roundOff, grandTotal } = (0, gst_split_1.computeRoundOff)(unroundedGrandTotal);
+        const loyaltyPointsRedeemed = dto.redeemLoyaltyPoints ?? 0;
+        const loyaltyDiscountAmount = loyaltyPointsRedeemed > 0 ? await this.resolveLoyaltyDiscount(tenantSettings, jobCard.customerId, loyaltyPointsRedeemed, lineItemInputs) : new client_1.Prisma.Decimal(0);
         const invoice = await db.$transaction(async (tx) => {
-            const invoiceNumber = await (0, generate_sequence_number_1.generateSequenceNumber)(tx, tenantId, 'INVOICE', tenantSettings.invoicePrefix);
-            const created = await tx.invoice.create({
-                data: {
-                    customerId: jobCard.customerId,
-                    jobCardId,
-                    invoiceNumber,
-                    subtotal,
-                    cgstAmount,
-                    sgstAmount,
-                    igstAmount,
-                    roundOff,
-                    grandTotal,
-                    status: client_1.InvoiceStatus.UNPAID,
-                },
+            const created = await this.createInvoiceInTransaction(tx, {
+                tenantId,
+                tenantSettings,
+                customerId: jobCard.customerId,
+                customerState: customer.state,
+                jobCardId,
+                lineItemInputs,
+                loyaltyPointsRedeemed,
+                loyaltyDiscountAmount,
             });
-            await tx.invoiceLineItem.createMany({
-                data: lineItemInputs.map((item) => ({
+            if (loyaltyPointsRedeemed > 0) {
+                await (0, loyalty_ledger_1.adjustLoyaltyBalance)(tx, jobCard.customerId, -loyaltyPointsRedeemed, {
                     invoiceId: created.id,
-                    description: item.description,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    gstRate: item.gstRate,
-                    hsnSac: item.hsnSac,
-                    lineTotal: item.lineTotal,
-                })),
-            });
+                    type: 'REDEEMED',
+                });
+            }
             return created;
         });
-        await this.sendInvoiceIssued(tenantId, customer, invoice.id, invoice.invoiceNumber, grandTotal);
+        await this.sendInvoiceIssued(tenantId, customer, invoice.id, invoice.invoiceNumber, invoice.grandTotal);
         return this.findOne(invoice.id);
+    }
+    async loadPackageInclusions(redeemedPackageId) {
+        if (!redeemedPackageId)
+            return null;
+        const pkg = await this.prisma.forTenant().customerServicePackage.findUnique({
+            where: { id: redeemedPackageId },
+            include: { servicePackage: { include: { includedLabourItems: true, includedParts: true, includedPartCategories: true } } },
+        });
+        if (!pkg)
+            return null;
+        return {
+            labourItemIds: new Set(pkg.servicePackage.includedLabourItems.map((i) => i.labourItemId)),
+            partIds: new Set(pkg.servicePackage.includedParts.map((i) => i.partId)),
+            partCategoryIds: new Set(pkg.servicePackage.includedPartCategories.map((i) => i.partCategoryId)),
+        };
+    }
+    async loadClaimBillability(lines) {
+        const claimIds = [...new Set(lines.map((l) => l.warrantyClaimId).filter((id) => id !== null))];
+        if (claimIds.length === 0)
+            return new Map();
+        const claims = await this.prisma.forTenant().warrantyClaim.findMany({ where: { id: { in: claimIds } }, select: { id: true, isBillable: true } });
+        return new Map(claims.map((c) => [c.id, c.isBillable]));
+    }
+    async resolveLoyaltyDiscount(tenantSettings, customerId, requestedPoints, lineItemInputs) {
+        if (!tenantSettings.loyaltyEnabled)
+            throw new common_1.BadRequestException('Loyalty program is not enabled for this workshop');
+        const customer = await this.prisma.forTenant().customer.findFirstOrThrow({ where: { id: customerId } });
+        if (!(0, loyalty_eligibility_1.hasSufficientPoints)(customer.loyaltyPointsBalance, requestedPoints)) {
+            throw new common_1.BadRequestException('Requested points exceed the customer\'s loyalty balance');
+        }
+        const discount = (0, loyalty_eligibility_1.computeRedemptionValue)(requestedPoints, tenantSettings.loyaltyPointValueRupees);
+        const subtotal = lineItemInputs.reduce((sum, item) => sum.add(item.lineTotal), new client_1.Prisma.Decimal(0));
+        if (discount.gt(subtotal)) {
+            throw new common_1.BadRequestException('Requested points are worth more than this invoice\'s subtotal — redeem fewer points');
+        }
+        return discount;
+    }
+    async createInvoiceInTransaction(tx, params) {
+        const discountedLines = params.loyaltyDiscountAmount?.gt(0) ? (0, discount_1.applyProRataDiscount)(params.lineItemInputs, params.loyaltyDiscountAmount) : params.lineItemInputs;
+        const { subtotal, cgstAmount, sgstAmount, igstAmount } = (0, gst_split_1.calculateGstSplit)(discountedLines, params.tenantSettings.state, params.customerState);
+        const unroundedGrandTotal = subtotal.add(cgstAmount).add(sgstAmount).add(igstAmount);
+        const { roundOff, grandTotal } = (0, gst_split_1.computeRoundOff)(unroundedGrandTotal);
+        const invoiceNumber = await (0, generate_sequence_number_1.generateSequenceNumber)(tx, params.tenantId, 'INVOICE', params.tenantSettings.invoicePrefix);
+        const created = await tx.invoice.create({
+            data: {
+                customerId: params.customerId,
+                jobCardId: params.jobCardId,
+                invoiceNumber,
+                subtotal,
+                cgstAmount,
+                sgstAmount,
+                igstAmount,
+                roundOff,
+                grandTotal,
+                loyaltyPointsRedeemed: params.loyaltyPointsRedeemed ?? 0,
+                loyaltyDiscountAmount: params.loyaltyDiscountAmount ?? 0,
+                status: client_1.InvoiceStatus.UNPAID,
+            },
+        });
+        await tx.invoiceLineItem.createMany({
+            data: discountedLines.map((item) => ({
+                invoiceId: created.id,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                gstRate: item.gstRate,
+                hsnSac: item.hsnSac,
+                lineTotal: item.lineTotal,
+            })),
+        });
+        return created;
     }
     async sendInvoiceIssued(tenantId, customer, invoiceId, invoiceNumber, grandTotal) {
         const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
@@ -247,9 +319,35 @@ let InvoicesService = class InvoicesService {
         await db.payment.create({
             data: { invoiceId, ...data },
         });
+        const wasAlreadyPaid = invoice.status === client_1.InvoiceStatus.PAID;
         const updated = await this.recalculateStatus(invoiceId);
         await this.sendPaymentReceived(updated, Number(data.amount));
+        if (!wasAlreadyPaid && updated.status === client_1.InvoiceStatus.PAID) {
+            await this.earnLoyaltyPoints(updated);
+        }
         return updated;
+    }
+    async earnLoyaltyPoints(invoice) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const db = this.prisma.forTenant();
+        const settings = await db.tenantSettings.findUniqueOrThrow({ where: { tenantId } });
+        if (!settings.loyaltyEnabled)
+            return;
+        const pointsEarned = (0, loyalty_eligibility_1.computePointsEarned)(invoice.subtotal, settings.loyaltyPointsPerRupee);
+        if (pointsEarned <= 0)
+            return;
+        await db.$transaction(async (tx) => {
+            await (0, loyalty_ledger_1.adjustLoyaltyBalance)(tx, invoice.customerId, pointsEarned, { invoiceId: invoice.id, type: 'EARNED' });
+        });
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const customer = await db.customer.findUnique({ where: { id: invoice.customerId } });
+        const content = (0, templates_1.pointsEarnedMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: invoice.customer.name,
+            points: String(pointsEarned),
+            balance: String(customer?.loyaltyPointsBalance ?? pointsEarned),
+        });
+        await this.messaging.notifyCustomer(tenantId, 'loyalty.points-earned', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
     }
     async sendPaymentReceived(invoice, amount) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();

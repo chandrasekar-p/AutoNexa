@@ -24,6 +24,10 @@ exports.RESOURCES = [
     'audit-log',
     'settings',
     'attendance',
+    'service-package',
+    'loyalty',
+    'warranty-claim',
+    'gst-export',
 ];
 exports.ACTIONS = ['create', 'read', 'update', 'delete'];
 exports.DEFAULT_ROLE_GRANTS = {
@@ -49,6 +53,10 @@ exports.DEFAULT_ROLE_GRANTS = {
         'audit-log': ['read'],
         settings: ['read', 'update'],
         attendance: '*',
+        'service-package': '*',
+        loyalty: '*',
+        'warranty-claim': '*',
+        'gst-export': ['read'],
     },
     'Service Advisor': {
         customer: '*',
@@ -61,6 +69,9 @@ exports.DEFAULT_ROLE_GRANTS = {
         part: ['read'],
         invoice: ['create', 'read'],
         report: ['read'],
+        'service-package': ['create', 'read', 'update'],
+        loyalty: ['read', 'update'],
+        'warranty-claim': ['create', 'read'],
     },
     Accountant: {
         customer: ['read'],
@@ -73,6 +84,10 @@ exports.DEFAULT_ROLE_GRANTS = {
         invoice: '*',
         payment: '*',
         report: ['read'],
+        'service-package': ['read'],
+        loyalty: ['read', 'update'],
+        'warranty-claim': ['read'],
+        'gst-export': ['read'],
     },
     'Inventory Manager': {
         part: '*',
@@ -88,6 +103,7 @@ exports.DEFAULT_ROLE_GRANTS = {
         inspection: ['create', 'read', 'update'],
         'job-card': ['read', 'update'],
         part: ['read'],
+        'warranty-claim': ['create', 'read'],
     },
     Receptionist: {
         customer: ['create', 'read'],
@@ -95,6 +111,7 @@ exports.DEFAULT_ROLE_GRANTS = {
         appointment: ['create', 'read', 'update'],
         'job-card': ['read'],
         invoice: ['read'],
+        'service-package': ['read'],
     },
 };
 //# sourceMappingURL=default-role-grants.js.map

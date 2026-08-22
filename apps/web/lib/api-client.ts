@@ -180,10 +180,28 @@ export function apiGet<T>(path: string, options?: ApiFetchOptions): Promise<T> {
  * success, which would throw on a PDF body.
  */
 export async function apiGetBlob(path: string): Promise<Blob> {
-  return doFetchBlob(path, false);
+  const res = await fetchBinary(path, false);
+  return res.blob();
 }
 
-async function doFetchBlob(path: string, alreadyRetried: boolean): Promise<Blob> {
+export interface FileDownloadResult {
+  blob: Blob;
+  /** Parsed from Content-Disposition's filename="..." — null if the server didn't set one. */
+  filename: string | null;
+  /** Raw response headers — for endpoints that carry extra metadata alongside the file (e.g. GST export's X-Export-Batch-Number). */
+  headers: Headers;
+}
+
+/** Like apiGetBlob, but also surfaces the filename and raw headers — for a download whose response carries metadata the caller needs (a batch/reference number, counts, etc.) that a plain Blob would discard. */
+export async function apiGetFile(path: string): Promise<FileDownloadResult> {
+  const res = await fetchBinary(path, false);
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition');
+  const filenameMatch = disposition ? /filename="([^"]+)"/.exec(disposition) : null;
+  return { blob, filename: filenameMatch?.[1] ?? null, headers: res.headers };
+}
+
+async function fetchBinary(path: string, alreadyRetried: boolean): Promise<Response> {
   const headers = new Headers();
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
@@ -198,7 +216,7 @@ async function doFetchBlob(path: string, alreadyRetried: boolean): Promise<Blob>
 
   if (decision === 'start-refresh' || decision === 'await-inflight') {
     const newToken = await refreshAccessToken();
-    if (newToken) return doFetchBlob(path, true);
+    if (newToken) return fetchBinary(path, true);
     onUnauthorized?.();
     throw new ApiError(401, undefined, 'Session expired — please log in again.');
   }
@@ -217,7 +235,7 @@ async function doFetchBlob(path: string, alreadyRetried: boolean): Promise<Blob>
     throw new ApiError(res.status, responseBody, extractMessage(responseBody, res.statusText));
   }
 
-  return res.blob();
+  return res;
 }
 
 export function apiPost<T>(path: string, body?: unknown, options?: ApiFetchOptions): Promise<T> {

@@ -1,16 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { apiDelete, apiPost, ApiError } from '@/lib/api-client';
+import { apiDelete, apiGet, apiPost, ApiError } from '@/lib/api-client';
+import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { formatMoney } from '@/lib/format';
-import type { JobCardPartLine, PartRef } from '@/lib/api-types';
+import { warrantyClaimOriginalLabel } from '@/lib/warranty-claim-label';
+import type { JobCardPartLine, PartRef, PaginatedResult, WarrantyClaim } from '@/lib/api-types';
 import { PartPicker } from '@/components/domain/part-picker';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '@/components/ui/table';
 
 interface JobCardPartLinesProps {
   jobCardId: string;
+  vehicleId: string;
   lines: JobCardPartLine[];
   readOnly: boolean;
   onUpdated: () => void;
@@ -22,11 +27,18 @@ interface JobCardPartLinesProps {
  * deferred to invoicing), removing restores it — see the backend's
  * addPart/removePart and the note on the JobCardPart schema model.
  */
-export function JobCardPartLines({ jobCardId, lines, readOnly, onUpdated }: JobCardPartLinesProps) {
+export function JobCardPartLines({ jobCardId, vehicleId, lines, readOnly, onUpdated }: JobCardPartLinesProps) {
   const [picked, setPicked] = useState<PartRef | null>(null);
   const [quantity, setQuantity] = useState('1');
+  const [warrantyClaimId, setWarrantyClaimId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const openClaims = useApiQuery<PaginatedResult<WarrantyClaim>>(
+    () => (readOnly ? Promise.resolve({ items: [], total: 0, page: 1, pageSize: 50, totalPages: 0 }) : apiGet(`/warranty-claims?vehicleId=${vehicleId}&status=OPEN&pageSize=50`)),
+    [vehicleId, readOnly],
+  );
+  const claimsOnThisJobCard = (openClaims.data?.items ?? []).filter((c) => c.claimJobCardId === jobCardId);
 
   const total = lines.reduce((sum, l) => sum + Number(l.lineTotal), 0);
 
@@ -40,9 +52,10 @@ export function JobCardPartLines({ jobCardId, lines, readOnly, onUpdated }: JobC
     setIsSaving(true);
     setError(null);
     try {
-      await apiPost(`/job-cards/${jobCardId}/parts`, { partId: picked.id, quantity: qty });
+      await apiPost(`/job-cards/${jobCardId}/parts`, { partId: picked.id, quantity: qty, warrantyClaimId: warrantyClaimId || undefined });
       setPicked(null);
       setQuantity('1');
+      setWarrantyClaimId('');
       onUpdated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not add part — check available stock.');
@@ -75,6 +88,7 @@ export function JobCardPartLines({ jobCardId, lines, readOnly, onUpdated }: JobC
             <tr>
               <TableHeaderCell>Qty</TableHeaderCell>
               <TableHeaderCell>Unit Price</TableHeaderCell>
+              <TableHeaderCell>Warranty</TableHeaderCell>
               <TableHeaderCell>Line Total</TableHeaderCell>
               {!readOnly ? <TableHeaderCell className="w-16" /> : null}
             </tr>
@@ -84,6 +98,22 @@ export function JobCardPartLines({ jobCardId, lines, readOnly, onUpdated }: JobC
               <TableRow key={line.id}>
                 <TableCell className="num">{line.quantity}</TableCell>
                 <TableCell className="num">{formatMoney(line.unitPrice)}</TableCell>
+                <TableCell>
+                  {line.warrantyMonths || line.warrantyKm ? (
+                    <span className="text-ink-secondary">
+                      {line.warrantyMonths ? `${line.warrantyMonths} mo` : null}
+                      {line.warrantyMonths && line.warrantyKm ? ' / ' : null}
+                      {line.warrantyKm ? `${line.warrantyKm} km` : null}
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
+                  {line.warrantyClaimId ? (
+                    <Badge tone="accent" className="ml-1.5">
+                      Claim fix
+                    </Badge>
+                  ) : null}
+                </TableCell>
                 <TableCell className="num font-medium">{formatMoney(line.lineTotal)}</TableCell>
                 {!readOnly ? (
                   <TableCell className="text-right">
@@ -116,6 +146,16 @@ export function JobCardPartLines({ jobCardId, lines, readOnly, onUpdated }: JobC
             className="h-9 w-24"
             aria-label="Quantity"
           />
+          {claimsOnThisJobCard.length > 0 ? (
+            <Select value={warrantyClaimId} onChange={(e) => setWarrantyClaimId(e.target.value)} className="h-9 w-48" aria-label="Resolves warranty claim">
+              <option value="">Not a warranty fix</option>
+              {claimsOnThisJobCard.map((claim) => (
+                <option key={claim.id} value={claim.id}>
+                  Resolves: {warrantyClaimOriginalLabel(claim)}
+                </option>
+              ))}
+            </Select>
+          ) : null}
           <Button type="button" variant="secondary" size="sm" onClick={handleAdd} isLoading={isSaving} disabled={!picked}>
             Add
           </Button>

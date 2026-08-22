@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, PurchaseInvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../prisma/tenant-context';
 import { computeInvoiceOutstanding, sumOutstanding } from '../../common/billing/outstanding';
 import { computeTechnicianPerformance } from '../technicians/technician-performance';
 import { bucketSales } from './sales-bucketing';
 import { calculatePartMargin, calculateTotalMargin } from './profit-margin';
+import { calculateLoyaltyLiability } from '../loyalty/loyalty-liability';
+import { computeWarrantyStatus } from '../warranty/warranty-status';
+import { aggregateComebackRate, ComebackClaimInput } from './comeback-rate';
+import { summarizeInvoiceGst } from './gst-summary';
+import { ComebackRateQueryDto } from './dto/comeback-rate-query.dto';
 import { SalesReportQueryDto } from './dto/sales-report-query.dto';
 import { InvoicesReportQueryDto } from './dto/invoices-report-query.dto';
 import { PaymentsReportQueryDto } from './dto/payments-report-query.dto';
@@ -15,8 +21,14 @@ import { LabourRevenueReportQueryDto } from './dto/labour-revenue-report-query.d
 import { DateRangeQueryDto } from './dto/date-range-query.dto';
 import { computeColumnTotals } from './column-totals';
 
-/** `{ [field]: { gte, lte } }`, or `{}` when neither bound is given — reused across every report below. */
-function dateRangeWhere(field: string, from?: string, to?: string): Record<string, unknown> {
+/**
+ * `{ [field]: { gte, lte } }`, or `{}` when neither bound is given — reused
+ * across every report below. Exported so ExportService's GST/Tally export
+ * filters invoices with the EXACT same date-range logic gstSummary() uses —
+ * the export and the report must never disagree on which invoices are "in
+ * the period", and sharing this function is what guarantees that.
+ */
+export function dateRangeWhere(field: string, from?: string, to?: string): Record<string, unknown> {
   if (!from && !to) return {};
   return {
     [field]: {
@@ -475,28 +487,22 @@ export class ReportsService {
     };
   }
 
-  /** Standard GST-filing-prep summary: CGST/SGST/IGST totals across invoices in range. */
+  /**
+   * Standard GST-filing-prep summary: CGST/SGST/IGST totals across invoices
+   * in range. Fetches rows (rather than a Prisma-side aggregate) and
+   * reduces them via summarizeInvoiceGst() specifically so ExportService's
+   * GST/Tally export — which needs the same rows anyway for its line-level
+   * breakdown — can share this exact function and never disagree with this
+   * report on the same period.
+   */
   async gstSummary(query: DateRangeQueryDto) {
     const db = this.prisma.forTenant();
-    const agg = await db.invoice.aggregate({
+    const invoices = await db.invoice.findMany({
       where: dateRangeWhere('createdAt', query.from, query.to),
-      _sum: { subtotal: true, cgstAmount: true, sgstAmount: true, igstAmount: true, grandTotal: true },
-      _count: { _all: true },
+      select: { subtotal: true, cgstAmount: true, sgstAmount: true, igstAmount: true, grandTotal: true },
     });
 
-    const cgst = agg._sum.cgstAmount ?? new Prisma.Decimal(0);
-    const sgst = agg._sum.sgstAmount ?? new Prisma.Decimal(0);
-    const igst = agg._sum.igstAmount ?? new Prisma.Decimal(0);
-
-    return {
-      invoiceCount: agg._count._all,
-      subtotal: agg._sum.subtotal ?? new Prisma.Decimal(0),
-      cgstAmount: cgst,
-      sgstAmount: sgst,
-      igstAmount: igst,
-      totalGst: cgst.add(sgst).add(igst).toDecimalPlaces(2),
-      grandTotal: agg._sum.grandTotal ?? new Prisma.Decimal(0),
-    };
+    return summarizeInvoiceGst(invoices);
   }
 
   async jobCardStatus(query: DateRangeQueryDto) {
@@ -510,5 +516,189 @@ export class ReportsService {
     return grouped
       .map((g) => ({ status: g.status, count: g._count._all }))
       .sort((a, b) => b.count - a.count);
+  }
+
+  /** Counts by status plus a paginated list — same "summary + list" shape as outstanding() above. "Expiring soon" reuses whichever threshold the tenant's already configured for package-expiry reminders, so this report and the reminder cron agree on what "soon" means. */
+  async packagesSummary(query: PaginationQueryDto) {
+    const db = this.prisma.forTenant();
+    const tenantId = TenantContext.requireTenantId();
+    const [settings, packages] = await Promise.all([
+      db.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
+      db.customerServicePackage.findMany({
+        include: {
+          servicePackage: { select: { name: true } },
+          customer: { select: { id: true, name: true } },
+          vehicle: { select: { id: true, registrationNo: true } },
+        },
+        orderBy: { endDate: 'asc' },
+      }),
+    ]);
+
+    const soonestThresholdDays = Math.max(...settings.reminderThresholdDays);
+    const expiringHorizon = new Date(Date.now() + soonestThresholdDays * 24 * 60 * 60 * 1000);
+    const now = new Date();
+
+    const counts = {
+      active: packages.filter((p) => p.status === 'ACTIVE' && p.endDate > expiringHorizon).length,
+      expiringSoon: packages.filter((p) => p.status === 'ACTIVE' && p.endDate <= expiringHorizon && p.endDate > now).length,
+      expired: packages.filter((p) => p.status === 'EXPIRED').length,
+      cancelled: packages.filter((p) => p.status === 'CANCELLED').length,
+    };
+
+    const rows = packages.map((p) => ({
+      id: p.id,
+      packageName: p.servicePackage.name,
+      customerName: p.customer.name,
+      vehicleRegistrationNo: p.vehicle.registrationNo,
+      status: p.status,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      visitsUsed: p.visitsUsed,
+      visitLimit: p.visitLimit,
+    }));
+
+    return { counts, ...paginate(rows, query.page ?? 1, query.pageSize ?? 20) };
+  }
+
+  /** Total outstanding loyalty points across every customer, converted to rupees at the tenant's current redemption rate — see loyalty-liability.ts's doc comment on what this number does and doesn't represent. */
+  async loyaltyLiability() {
+    const db = this.prisma.forTenant();
+    const tenantId = TenantContext.requireTenantId();
+    const [settings, customers] = await Promise.all([
+      db.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
+      db.customer.findMany({ where: { deletedAt: null, loyaltyPointsBalance: { gt: 0 } }, select: { loyaltyPointsBalance: true } }),
+    ]);
+
+    const pointValueRupees = settings.loyaltyPointValueRupees;
+    const totalPointsOutstanding = customers.reduce((sum, c) => sum + c.loyaltyPointsBalance, 0);
+
+    return {
+      totalPointsOutstanding,
+      customersWithBalance: customers.length,
+      liabilityRupees: calculateLoyaltyLiability(customers.map((c) => c.loyaltyPointsBalance), pointValueRupees),
+    };
+  }
+
+  /**
+   * Every currently-active-warranty labour/part line, tenant-wide — cost
+   * exposure if every one of them came back as a valid free claim
+   * tomorrow. Parts use purchasePrice (the workshop's replacement cost,
+   * not lost retail revenue); labour uses its full snapshotted lineTotal,
+   * with the same "no per-technician cost data" caveat profit-margin.ts
+   * already documents for labour margin.
+   */
+  async warrantyLiability() {
+    const db = this.prisma.forTenant();
+
+    const [labourLines, partLines] = await Promise.all([
+      db.jobCardLabour.findMany({
+        where: { warrantyMonths: { not: null }, jobCard: { deletedAt: null, actualDelivery: { not: null } } },
+        select: { warrantyMonths: true, lineTotal: true, jobCard: { select: { actualDelivery: true } } },
+      }),
+      db.jobCardPart.findMany({
+        where: {
+          OR: [{ warrantyMonths: { not: null } }, { warrantyKm: { not: null } }],
+          jobCard: { deletedAt: null, actualDelivery: { not: null } },
+        },
+        select: {
+          warrantyMonths: true,
+          warrantyKm: true,
+          quantity: true,
+          part: { select: { purchasePrice: true } },
+          jobCard: { select: { actualDelivery: true, odometer: true, vehicle: { select: { odometerReading: true } } } },
+        },
+      }),
+    ]);
+
+    const activeLabour = labourLines.filter((l) => computeWarrantyStatus(l.jobCard.actualDelivery, l.warrantyMonths, null, null, null).isActive);
+    const activeParts = partLines.filter(
+      (p) => computeWarrantyStatus(p.jobCard.actualDelivery, p.warrantyMonths, p.warrantyKm, p.jobCard.odometer, p.jobCard.vehicle.odometerReading).isActive,
+    );
+
+    const labourExposure = activeLabour.reduce((sum, l) => sum.add(l.lineTotal), new Prisma.Decimal(0));
+    const partsExposure = activeParts.reduce((sum, p) => sum.add(new Prisma.Decimal(p.part.purchasePrice).mul(p.quantity)), new Prisma.Decimal(0));
+
+    return {
+      labourLinesUnderWarranty: activeLabour.length,
+      partsLinesUnderWarranty: activeParts.length,
+      labourExposure: labourExposure.toDecimalPlaces(2),
+      partsExposure: partsExposure.toDecimalPlaces(2),
+      totalExposure: labourExposure.add(partsExposure).toDecimalPlaces(2),
+    };
+  }
+
+  /** Counts by status + a paginated list, same "summary + list" shape as packagesSummary. */
+  async warrantyClaimsSummary(query: PaginationQueryDto) {
+    const db = this.prisma.forTenant();
+    const claims = await db.warrantyClaim.findMany({
+      include: {
+        claimJobCard: { select: { jobCardNumber: true } },
+        originalJobCardPart: { select: { part: { select: { name: true } } } },
+        originalJobCardLabour: { select: { description: true, labourItem: { select: { description: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const counts = {
+      open: claims.filter((c) => c.status === 'OPEN').length,
+      approved: claims.filter((c) => c.status === 'APPROVED').length,
+      rejected: claims.filter((c) => c.status === 'REJECTED').length,
+      resolved: claims.filter((c) => c.status === 'RESOLVED').length,
+    };
+
+    const rows = claims.map((c) => ({
+      id: c.id,
+      claimJobCardNumber: c.claimJobCard.jobCardNumber,
+      originalItem: c.originalJobCardPart?.part.name ?? c.originalJobCardLabour?.labourItem?.description ?? c.originalJobCardLabour?.description ?? 'Unknown',
+      status: c.status,
+      isBillable: c.isBillable,
+      createdAt: c.createdAt,
+    }));
+
+    return { counts, ...paginate(rows, query.page ?? 1, query.pageSize ?? 20) };
+  }
+
+  /**
+   * One endpoint with a groupBy, mirroring the sales report's own
+   * groupBy day|month convention rather than three near-duplicate
+   * endpoints. `supplier` groups by Part.supplierId — the part's
+   * configured PREFERRED supplier, not a record of which specific
+   * purchase batch a given unit came from (this system has no lot/batch
+   * tracking); a documented approximation, same spirit as
+   * profit-margin.ts's own "approximation, not exact" caveats. Returns
+   * raw counts, not a computed percentage rate — same "counts, not a
+   * derived ratio" choice jobCardStatus() already makes above.
+   */
+  async comebackRate(query: ComebackRateQueryDto) {
+    const db = this.prisma.forTenant();
+    const claims = await db.warrantyClaim.findMany({
+      where: dateRangeWhere('createdAt', query.from, query.to),
+      include: {
+        originalJobCardPart: {
+          select: {
+            partId: true,
+            part: { select: { name: true, supplierId: true, supplier: { select: { name: true } } } },
+            jobCard: { select: { technicianId: true, technician: { select: { user: { select: { name: true } } } } } },
+          },
+        },
+        originalJobCardLabour: {
+          select: { jobCard: { select: { technicianId: true, technician: { select: { user: { select: { name: true } } } } } } },
+        },
+      },
+    });
+
+    const inputs: ComebackClaimInput[] = claims.map((claim) => {
+      const jobCard = claim.originalJobCardPart?.jobCard ?? claim.originalJobCardLabour?.jobCard;
+      return {
+        technicianId: jobCard?.technicianId ?? null,
+        technicianName: jobCard?.technician?.user.name ?? null,
+        partId: claim.originalJobCardPart?.partId ?? null,
+        partName: claim.originalJobCardPart?.part.name ?? null,
+        supplierId: claim.originalJobCardPart?.part.supplierId ?? null,
+        supplierName: claim.originalJobCardPart?.part.supplier?.name ?? null,
+      };
+    });
+
+    return aggregateComebackRate(inputs, query.groupBy);
   }
 }

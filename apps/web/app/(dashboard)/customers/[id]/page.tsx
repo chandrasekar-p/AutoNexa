@@ -8,6 +8,8 @@ import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate, formatMoney } from '@/lib/format';
 import type { CustomerDetail } from '@/lib/api-types';
+import { CustomerServicePackagesCard } from '@/components/domain/customer-service-packages-card';
+import { CustomerLoyaltyCard } from '@/components/domain/customer-loyalty-card';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,11 @@ export default function CustomerDetailPage() {
   const canUpdate = usePermission('customer:update');
   const canDelete = usePermission('customer:delete');
   const canCreateVehicle = usePermission('vehicle:create');
+  const canReadPackages = usePermission('service-package:read');
+  const canSellPackage = usePermission('service-package:create');
+  const canUpdatePackage = usePermission('service-package:update');
+  const canReadLoyalty = usePermission('loyalty:read');
+  const canAdjustLoyalty = usePermission('loyalty:update');
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -191,6 +198,18 @@ export default function CustomerDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {canReadPackages ? (
+          <CustomerServicePackagesCard
+            customerId={customer.id}
+            vehicles={customer.vehicles}
+            canSell={canSellPackage}
+            canUpdate={canUpdatePackage}
+          />
+        ) : null}
+        <CustomerLoyaltyCard customerId={customer.id} canRead={canReadLoyalty} canAdjust={canAdjustLoyalty} />
+      </div>
     </div>
   );
 }

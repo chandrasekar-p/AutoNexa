@@ -39,6 +39,15 @@ export class VehiclesController {
     return this.vehiclesService.getServiceHistory(id);
   }
 
+  // Gated on vehicle:read (not warranty-claim:read) — this is vehicle
+  // profile information every role that can see the vehicle at all should
+  // see, not a warranty-claims-resource action.
+  @Permissions('vehicle:read')
+  @Get(':id/warranty-status')
+  getWarrantyStatus(@Param('id') id: string) {
+    return this.vehiclesService.getWarrantyStatus(id);
+  }
+
   @Permissions('vehicle:update')
   @Patch(':id')
   @Audit('vehicle.update', 'Vehicle')

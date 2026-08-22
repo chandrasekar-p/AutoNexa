@@ -79,11 +79,17 @@ export class CreatePartDto {
   @IsString()
   binLocation?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Snapshotted onto JobCardPart.warrantyMonths when this part is added to a job card' })
   @IsOptional()
   @IsInt()
   @Min(0)
   warrantyPeriodMonths?: number;
+
+  @ApiPropertyOptional({ description: 'Whichever comes first with warrantyPeriodMonths — snapshotted onto JobCardPart.warrantyKm' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  warrantyKm?: number;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

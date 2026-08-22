@@ -23,6 +23,7 @@ const list_job_cards_query_dto_1 = require("./dto/list-job-cards-query.dto");
 const create_job_card_labour_dto_1 = require("./dto/create-job-card-labour.dto");
 const create_job_card_note_dto_1 = require("./dto/create-job-card-note.dto");
 const create_job_card_part_dto_1 = require("./dto/create-job-card-part.dto");
+const generate_invoice_dto_1 = require("./dto/generate-invoice.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
@@ -63,8 +64,8 @@ let JobCardsController = class JobCardsController {
     addNote(id, dto, user) {
         return this.jobCardsService.addNote(id, dto, user.userId);
     }
-    generateInvoice(id) {
-        return this.jobCardsService.generateInvoice(id);
+    generateInvoice(id, dto) {
+        return this.jobCardsService.generateInvoice(id, dto);
     }
 };
 exports.JobCardsController = JobCardsController;
@@ -186,8 +187,9 @@ __decorate([
     (0, common_1.Post)(':id/generate-invoice'),
     (0, audit_log_interceptor_1.Audit)('job-card.generate-invoice', 'Invoice'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, generate_invoice_dto_1.GenerateInvoiceDto]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "generateInvoice", null);
 exports.JobCardsController = JobCardsController = __decorate([

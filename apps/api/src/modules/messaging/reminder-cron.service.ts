@@ -9,6 +9,7 @@ import { buildDateDedupeKey, buildOdometerDedupeKey, shouldSendDateReminder, sho
 import {
   appointmentReminderMessage,
   insuranceExpiringMessage,
+  packageExpiringMessage,
   pucExpiringMessage,
   serviceDueMessage,
   MessageContent,
@@ -261,5 +262,87 @@ export class ReminderCronService {
     }
 
     this.logger.log(`${sentCount} service-due reminder(s) sent`);
+  }
+
+  /**
+   * Same date-threshold/dedup mechanics as the expiry reminders above,
+   * second consumer of that exact module now. No payment link in the
+   * message — renewal is a deliberate staff action (create a renewal +
+   * invoice, then send that invoice's existing "Send Payment Link" like
+   * any other invoice), not something this cron can generate on its own.
+   */
+  @Cron('0 8 * * *')
+  async sendPackageExpiryReminders(): Promise<void> {
+    const now = new Date();
+    const event = 'package.expiring';
+
+    const packages = await this.prisma.platform.customerServicePackage.findMany({
+      where: { status: 'ACTIVE', endDate: { gt: now } },
+      include: {
+        servicePackage: { select: { name: true } },
+        customer: { select: { id: true, name: true, email: true, mobile: true, reminderOptOut: true } },
+        vehicle: { select: { registrationNo: true, brand: true, model: true } },
+        tenant: { select: { id: true, name: true, settings: true } },
+      },
+    });
+
+    let sentCount = 0;
+
+    for (const pkg of packages) {
+      const settings = pkg.tenant.settings;
+      if (!settings || !settings.reminderPackageExpiryEnabled) continue;
+
+      for (const thresholdDays of settings.reminderThresholdDays) {
+        const dedupeKey = buildDateDedupeKey(pkg.id, 'packageExpiry', pkg.endDate, thresholdDays);
+        const alreadySent = await this.messaging.wasReminded(pkg.tenantId, event, dedupeKey);
+        const eligible = shouldSendDateReminder({
+          optedOut: pkg.customer.reminderOptOut,
+          enabled: settings.reminderPackageExpiryEnabled,
+          now,
+          targetDate: pkg.endDate,
+          thresholdDays,
+          alreadySent,
+        });
+        if (!eligible) continue;
+
+        const content = packageExpiringMessage({
+          workshopName: pkg.tenant.name,
+          customerName: pkg.customer.name,
+          packageName: pkg.servicePackage.name,
+          vehicleLabel: `${pkg.vehicle.registrationNo} ${pkg.vehicle.brand} ${pkg.vehicle.model}`,
+          expiryDate: pkg.endDate.toLocaleDateString('en-IN', DATE_FORMAT),
+        });
+
+        await this.messaging.notifyCustomer(
+          pkg.tenantId,
+          event,
+          { email: pkg.customer.email, mobile: pkg.customer.mobile },
+          content,
+          { type: 'CustomerServicePackage', id: pkg.id },
+          undefined,
+          dedupeKey,
+        );
+        sentCount++;
+      }
+    }
+
+    this.logger.log(`${sentCount} package-expiring reminder(s) sent`);
+  }
+
+  /**
+   * Pure hygiene, no notification — the redemption guard
+   * (isPackageValidNow) already blocks redeeming a past-endDate package
+   * regardless of its stored status, so this doesn't change behavior; it
+   * just keeps `status` truthful for reports/filters (packagesSummary's
+   * "expired" count would otherwise always read 0 for packages nobody
+   * ever touched again after they lapsed).
+   */
+  @Cron('0 8 * * *')
+  async markExpiredPackages(): Promise<void> {
+    const result = await this.prisma.platform.customerServicePackage.updateMany({
+      where: { status: 'ACTIVE', endDate: { lt: new Date() } },
+      data: { status: 'EXPIRED' },
+    });
+    this.logger.log(`${result.count} package(s) marked EXPIRED`);
   }
 }

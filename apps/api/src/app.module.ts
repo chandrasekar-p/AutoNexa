@@ -38,6 +38,10 @@ import { StorageModule } from './modules/storage/storage.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { ServicePackagesModule } from './modules/service-packages/service-packages.module';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { WarrantyModule } from './modules/warranty/warranty.module';
+import { ExportModule } from './modules/export/export.module';
 
 @Module({
   imports: [
@@ -76,6 +80,10 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     UploadsModule,
     MessagingModule,
     AttendanceModule,
+    ServicePackagesModule,
+    LoyaltyModule,
+    WarrantyModule,
+    ExportModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

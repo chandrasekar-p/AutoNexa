@@ -50,6 +50,14 @@ const TENANT_SCOPED_MODELS = new Set([
   'Notification',
   'DeliveryLog',
   'AttendanceRecord',
+  'ServicePackage',
+  'ServicePackageLabourItem',
+  'ServicePackagePart',
+  'ServicePackagePartCategory',
+  'CustomerServicePackage',
+  'LoyaltyTransaction',
+  'WarrantyClaim',
+  'GstExportBatch',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows
