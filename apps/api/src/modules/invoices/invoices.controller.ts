@@ -42,7 +42,10 @@ export class InvoicesController {
 
   @Permissions('payment:create')
   @Post(':id/payments')
-  @Audit('invoice.payment.record', 'Payment')
+  // Entity type is 'Invoice', not 'Payment' — recordPayment() returns the
+  // updated Invoice (its recalculated status/balance), not the created
+  // Payment row, so @Audit's result.id read must match that shape.
+  @Audit('invoice.payment.record', 'Invoice')
   recordPayment(@Param('id') id: string, @Body() dto: CreateInvoicePaymentDto) {
     return this.invoicesService.recordPayment(id, dto);
   }

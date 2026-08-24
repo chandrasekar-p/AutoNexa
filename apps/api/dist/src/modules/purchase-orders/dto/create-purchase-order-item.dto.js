@@ -36,6 +36,7 @@ __decorate([
     (0, swagger_1.ApiProperty)(),
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(100),
     __metadata("design:type", Number)
 ], CreatePurchaseOrderItemDto.prototype, "gstRate", void 0);
 //# sourceMappingURL=create-purchase-order-item.dto.js.map

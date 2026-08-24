@@ -169,3 +169,51 @@ export function pointsEarnedMessage(ctx: PointsEarnedTemplateContext): MessageCo
     body: `Hi ${ctx.customerName}, you earned ${ctx.points} loyalty points on your recent visit. Your balance is now ${ctx.balance} points. — ${ctx.workshopName}`,
   };
 }
+
+export interface WarrantyClaimDecidedTemplateContext {
+  workshopName: string;
+  customerName: string;
+  itemLabel: string;
+  approved: boolean;
+  isBillable: boolean;
+}
+
+export function warrantyClaimDecidedMessage(ctx: WarrantyClaimDecidedTemplateContext): MessageContent {
+  const outcome = ctx.approved
+    ? ctx.isBillable
+      ? 'approved — this will be billed as a regular repair'
+      : 'approved and covered under warranty at no charge'
+    : 'not covered under warranty';
+  return {
+    subject: `Your warranty claim has been reviewed — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your warranty claim for "${ctx.itemLabel}" has been ${outcome}. — ${ctx.workshopName}`,
+  };
+}
+
+export interface PackageCancelledTemplateContext {
+  workshopName: string;
+  customerName: string;
+  packageName: string;
+}
+
+export function packageCancelledMessage(ctx: PackageCancelledTemplateContext): MessageContent {
+  return {
+    subject: `Your service package has been cancelled — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your "${ctx.packageName}" package has been cancelled. Contact us if you have any questions. — ${ctx.workshopName}`,
+  };
+}
+
+export interface LoyaltyAdjustmentTemplateContext {
+  workshopName: string;
+  customerName: string;
+  points: number;
+  balance: string;
+}
+
+export function loyaltyAdjustmentMessage(ctx: LoyaltyAdjustmentTemplateContext): MessageContent {
+  const direction = ctx.points > 0 ? `credited with ${ctx.points}` : `debited ${Math.abs(ctx.points)}`;
+  return {
+    subject: `Your loyalty points balance was updated — ${ctx.workshopName}`,
+    body: `Hi ${ctx.customerName}, your loyalty account was ${direction} points. Your balance is now ${ctx.balance} points. — ${ctx.workshopName}`,
+  };
+}

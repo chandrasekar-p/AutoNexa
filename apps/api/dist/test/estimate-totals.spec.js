@@ -34,6 +34,12 @@ describe('calculateEstimateTotals', () => {
         expect(totals.taxAmount.toString()).toBe('180');
         expect(totals.total.toString()).toBe('1080');
     });
+    it('clamps total at 0 when discountAmount exceeds subtotal+tax', () => {
+        const totals = (0, estimate_totals_1.calculateEstimateTotals)([{ quantity: 1, unitPrice: 1000, gstRate: 18 }], 5000);
+        expect(totals.subtotal.toString()).toBe('1000');
+        expect(totals.taxAmount.toString()).toBe('180');
+        expect(totals.total.toString()).toBe('0');
+    });
     it('accepts Prisma.Decimal inputs the same as numbers/strings', () => {
         const totals = (0, estimate_totals_1.calculateEstimateTotals)([
             { quantity: new client_1.Prisma.Decimal('1.5'), unitPrice: new client_1.Prisma.Decimal('200'), gstRate: new client_1.Prisma.Decimal('18') },

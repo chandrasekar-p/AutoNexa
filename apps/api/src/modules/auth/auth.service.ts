@@ -137,6 +137,20 @@ export class AuthService {
     }
 
     const user = stored.user;
+
+    // A deactivated/deleted account must not be able to mint a fresh access
+    // token just because its refresh token hasn't expired yet — mirrors the
+    // same check login() already does. Also revoke the whole token family
+    // here (not just this one token) so a deactivated user can't keep
+    // refreshing from a different already-issued token in the same family.
+    if (!user.isActive || user.deletedAt) {
+      await this.prisma.platform.refreshToken.updateMany({
+        where: { familyId: stored.familyId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Account is no longer active — please contact your workshop admin');
+    }
+
     const isSuperAdmin = isSuperAdminUser(user);
     const permissions = flattenPermissions(user);
 

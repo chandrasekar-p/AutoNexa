@@ -60,6 +60,7 @@ const TENANT_SCOPED_MODELS = new Set([
     'LoyaltyTransaction',
     'WarrantyClaim',
     'GstExportBatch',
+    'TenantSettings',
 ]);
 const NULLABLE_TENANT_MODELS = new Set(['Role']);
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {

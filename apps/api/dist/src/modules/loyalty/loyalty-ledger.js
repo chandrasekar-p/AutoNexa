@@ -15,7 +15,7 @@ async function adjustLoyaltyBalance(tx, customerId, delta, entry) {
         await tx.customer.update({ where: { id: customerId }, data: { loyaltyPointsBalance: { increment: delta } } });
     }
     const customer = await tx.customer.findUniqueOrThrow({ where: { id: customerId } });
-    await tx.loyaltyTransaction.create({
+    return tx.loyaltyTransaction.create({
         data: {
             customerId,
             points: delta,

@@ -5,6 +5,7 @@ import { TenantContext } from '../../prisma/tenant-context';
 import { computeInvoiceOutstanding, sumOutstanding } from '../../common/billing/outstanding';
 import { computeTechnicianPerformance } from '../technicians/technician-performance';
 import { bucketSales } from './sales-bucketing';
+import { computeSalesSummary, previousPeriodRange } from './sales-summary';
 import { calculatePartMargin, calculateTotalMargin } from './profit-margin';
 import { calculateLoyaltyLiability } from '../loyalty/loyalty-liability';
 import { computeWarrantyStatus } from '../warranty/warranty-status';
@@ -15,6 +16,7 @@ import { SalesReportQueryDto } from './dto/sales-report-query.dto';
 import { InvoicesReportQueryDto } from './dto/invoices-report-query.dto';
 import { PaymentsReportQueryDto } from './dto/payments-report-query.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { SalesSummaryQueryDto } from './dto/sales-summary-query.dto';
 import { PaginatedDateRangeQueryDto } from './dto/paginated-date-range-query.dto';
 import { PurchasesReportQueryDto } from './dto/purchases-report-query.dto';
 import { LabourRevenueReportQueryDto } from './dto/labour-revenue-report-query.dto';
@@ -69,6 +71,44 @@ export class ReportsService {
     );
 
     return paginate(buckets, query.page ?? 1, query.pageSize ?? 20);
+  }
+
+  /**
+   * Powers the redesigned Reports page's Sales KPI cards + chart + detail
+   * table (see computeSalesSummary's doc comment) — a separate endpoint
+   * from sales() above rather than extending it, so the dashboard's
+   * existing SalesTrendChart (which calls sales() directly) is unaffected.
+   * Defaults to the last 30 days when no range is given, since (unlike
+   * sales(), which is happy to bucket an unbounded query) this endpoint
+   * always needs a concrete previous-period window to compare against.
+   */
+  async salesSummary(query: SalesSummaryQueryDto) {
+    const db = this.prisma.forTenant();
+    const groupBy = query.groupBy ?? 'day';
+    // A caller-supplied `to` is a bare "YYYY-MM-DD" date, which Date()
+    // parses as that day's UTC midnight — pushed to the day's last instant
+    // so an explicit `to` actually includes every invoice created that
+    // day, not just ones at exactly 00:00:00. No such push for the
+    // no-`to`-given default: "now" is already inclusive of this instant.
+    const to = query.to ? new Date(new Date(query.to).getTime() + 24 * 60 * 60 * 1000 - 1) : new Date();
+    const from = query.from ? new Date(query.from) : new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+    const previousRange = previousPeriodRange(from, to);
+
+    const select = {
+      createdAt: true,
+      grandTotal: true,
+      jobCard: { select: { vehicleId: true } },
+    } as const;
+
+    const [currentInvoices, previousInvoices] = await Promise.all([
+      db.invoice.findMany({ where: { createdAt: { gte: from, lte: to } }, select }),
+      db.invoice.findMany({ where: { createdAt: { gte: previousRange.from, lte: previousRange.to } }, select }),
+    ]);
+
+    const toEntries = (rows: typeof currentInvoices) =>
+      rows.map((row) => ({ date: row.createdAt, amount: row.grandTotal, vehicleId: row.jobCard?.vehicleId ?? null }));
+
+    return computeSalesSummary(toEntries(currentInvoices), toEntries(previousInvoices), groupBy);
   }
 
   async invoices(query: InvoicesReportQueryDto) {

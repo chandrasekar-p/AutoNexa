@@ -45,6 +45,7 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(100),
     __metadata("design:type", Number)
 ], CreateEstimateLineItemDto.prototype, "gstRate", void 0);
 //# sourceMappingURL=create-estimate-line-item.dto.js.map

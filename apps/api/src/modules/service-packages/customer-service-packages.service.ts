@@ -3,6 +3,8 @@ import { CustomerPackageStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { InvoicesService } from '../invoices/invoices.service';
+import { MessagingService } from '../messaging/messaging.service';
+import { packageCancelledMessage } from '../messaging/templates';
 import { SellServicePackageDto } from './dto/sell-service-package.dto';
 import { ListCustomerServicePackagesQueryDto } from './dto/list-customer-service-packages-query.dto';
 
@@ -18,6 +20,7 @@ export class CustomerServicePackagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly invoicesService: InvoicesService,
+    private readonly messaging: MessagingService,
   ) {}
 
   /**
@@ -98,14 +101,43 @@ export class CustomerServicePackagesService {
    */
   async renew(id: string) {
     const existing = await this.findOne(id);
+    if (existing.status === CustomerPackageStatus.CANCELLED) {
+      throw new BadRequestException('This package was cancelled — sell a new package instead of renewing it');
+    }
     const sold = await this.sell({ servicePackageId: existing.servicePackageId, customerId: existing.customerId, vehicleId: existing.vehicleId });
     await this.prisma.forTenant().customerServicePackage.update({ where: { id: sold.id }, data: { renewedFromId: existing.id } });
     return this.findOne(sold.id);
   }
 
   async cancel(id: string) {
-    await this.assertExists(id);
-    return this.prisma.forTenant().customerServicePackage.update({ where: { id }, data: { status: CustomerPackageStatus.CANCELLED } });
+    const existing = await this.findOne(id);
+    if (existing.status !== CustomerPackageStatus.ACTIVE) {
+      throw new BadRequestException(`Cannot cancel a package that is already ${existing.status}`);
+    }
+    const cancelled = await this.prisma.forTenant().customerServicePackage.update({
+      where: { id },
+      data: { status: CustomerPackageStatus.CANCELLED },
+    });
+    await this.sendCancelledNotification(existing);
+    return cancelled;
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
+  private async sendCancelledNotification(pkg: Awaited<ReturnType<CustomerServicePackagesService['findOne']>>): Promise<void> {
+    const tenantId = TenantContext.requireTenantId();
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const content = packageCancelledMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: pkg.customer.name,
+      packageName: pkg.servicePackage.name,
+    });
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'service-package.cancelled',
+      { email: pkg.customer.email, mobile: pkg.customer.mobile },
+      content,
+      { type: 'CustomerServicePackage', id: pkg.id },
+    );
   }
 
   async findAll(query: ListCustomerServicePackagesQueryDto) {
@@ -135,12 +167,6 @@ export class CustomerServicePackagesService {
 
   async findOne(id: string) {
     const pkg = await this.prisma.forTenant().customerServicePackage.findFirst({ where: { id }, include: CUSTOMER_PACKAGE_INCLUDE });
-    if (!pkg) throw new NotFoundException('Customer service package not found');
-    return pkg;
-  }
-
-  private async assertExists(id: string) {
-    const pkg = await this.prisma.forTenant().customerServicePackage.findFirst({ where: { id } });
     if (!pkg) throw new NotFoundException('Customer service package not found');
     return pkg;
   }

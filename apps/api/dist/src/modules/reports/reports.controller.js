@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const reports_service_1 = require("./reports.service");
 const sales_report_query_dto_1 = require("./dto/sales-report-query.dto");
+const sales_summary_query_dto_1 = require("./dto/sales-summary-query.dto");
 const invoices_report_query_dto_1 = require("./dto/invoices-report-query.dto");
 const payments_report_query_dto_1 = require("./dto/payments-report-query.dto");
 const pagination_query_dto_1 = require("./dto/pagination-query.dto");
@@ -32,6 +33,9 @@ let ReportsController = class ReportsController {
     }
     sales(query) {
         return this.reportsService.sales(query);
+    }
+    salesSummary(query) {
+        return this.reportsService.salesSummary(query);
     }
     invoices(query) {
         return this.reportsService.invoices(query);
@@ -96,6 +100,13 @@ __decorate([
     __metadata("design:paramtypes", [sales_report_query_dto_1.SalesReportQueryDto]),
     __metadata("design:returntype", void 0)
 ], ReportsController.prototype, "sales", null);
+__decorate([
+    (0, common_1.Get)('sales-summary'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [sales_summary_query_dto_1.SalesSummaryQueryDto]),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "salesSummary", null);
 __decorate([
     (0, common_1.Get)('invoices'),
     __param(0, (0, common_1.Query)()),

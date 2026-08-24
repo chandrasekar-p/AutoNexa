@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarrantyModule = void 0;
 const common_1 = require("@nestjs/common");
+const messaging_module_1 = require("../messaging/messaging.module");
 const warranty_claims_service_1 = require("./warranty-claims.service");
 const warranty_claims_controller_1 = require("./warranty-claims.controller");
 let WarrantyModule = class WarrantyModule {
@@ -15,6 +16,7 @@ let WarrantyModule = class WarrantyModule {
 exports.WarrantyModule = WarrantyModule;
 exports.WarrantyModule = WarrantyModule = __decorate([
     (0, common_1.Module)({
+        imports: [messaging_module_1.MessagingModule],
         controllers: [warranty_claims_controller_1.WarrantyClaimsController],
         providers: [warranty_claims_service_1.WarrantyClaimsService],
         exports: [warranty_claims_service_1.WarrantyClaimsService],

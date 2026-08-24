@@ -22,7 +22,7 @@ export async function adjustLoyaltyBalance(
   customerId: string,
   delta: number,
   entry: { invoiceId: string | null; type: LoyaltyTransactionType; note?: string; adjustedByUserId?: string },
-): Promise<void> {
+) {
   if (delta < 0) {
     const updated = await tx.customer.updateMany({
       where: { id: customerId, loyaltyPointsBalance: { gte: -delta } },
@@ -34,7 +34,7 @@ export async function adjustLoyaltyBalance(
   }
 
   const customer = await tx.customer.findUniqueOrThrow({ where: { id: customerId } });
-  await tx.loyaltyTransaction.create({
+  return tx.loyaltyTransaction.create({
     data: {
       customerId,
       points: delta,

@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, WarrantyClaimStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../prisma/tenant-context';
+import { MessagingService } from '../messaging/messaging.service';
+import { warrantyClaimDecidedMessage } from '../messaging/templates';
 import { computeWarrantyStatus } from './warranty-status';
+import { isValidWarrantyClaimTransition } from './warranty-claim-status-transitions';
 import { CreateWarrantyClaimDto } from './dto/create-warranty-claim.dto';
 import { UpdateWarrantyClaimDto } from './dto/update-warranty-claim.dto';
 import { ListWarrantyClaimsQueryDto } from './dto/list-warranty-claims-query.dto';
@@ -15,7 +19,10 @@ const CLAIM_INCLUDE = {
 
 @Injectable()
 export class WarrantyClaimsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly messaging: MessagingService,
+  ) {}
 
   async create(dto: CreateWarrantyClaimDto) {
     const hasOne = !!dto.originalJobCardPartId !== !!dto.originalJobCardLabourId;
@@ -92,10 +99,15 @@ export class WarrantyClaimsService {
 
   /** Approve/reject/resolve — gated on warranty-claim:update (manager-only by default, see default-role-grants.ts), distinct from :create which any technician/service advisor has. */
   async update(id: string, dto: UpdateWarrantyClaimDto, approvedByUserId: string) {
-    await this.assertExists(id);
+    const claim = await this.assertExists(id);
+
+    if (dto.status && !isValidWarrantyClaimTransition(claim.status, dto.status)) {
+      throw new BadRequestException(`Cannot transition warranty claim from ${claim.status} to ${dto.status}`);
+    }
+
     const isDecision = dto.status === WarrantyClaimStatus.APPROVED || dto.status === WarrantyClaimStatus.REJECTED;
 
-    return this.prisma.forTenant().warrantyClaim.update({
+    const updated = await this.prisma.forTenant().warrantyClaim.update({
       where: { id },
       data: {
         ...dto,
@@ -103,6 +115,38 @@ export class WarrantyClaimsService {
       },
       include: CLAIM_INCLUDE,
     });
+
+    if (isDecision) {
+      await this.sendDecisionNotification(updated);
+    }
+
+    return updated;
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
+  private async sendDecisionNotification(claim: Awaited<ReturnType<WarrantyClaimsService['findOne']>>): Promise<void> {
+    const tenantId = TenantContext.requireTenantId();
+    const db = this.prisma.forTenant();
+    const customer = await db.customer.findUnique({ where: { id: claim.claimJobCard.customerId } });
+    if (!customer) return;
+
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const itemLabel = claim.originalJobCardPart?.part.name ?? claim.originalJobCardLabour?.labourItem?.description ?? claim.originalJobCardLabour?.description ?? 'the reported item';
+
+    const content = warrantyClaimDecidedMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: customer.name,
+      itemLabel,
+      approved: claim.status === WarrantyClaimStatus.APPROVED,
+      isBillable: claim.isBillable,
+    });
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'warranty-claim.decided',
+      { email: customer.email, mobile: customer.mobile },
+      content,
+      { type: 'WarrantyClaim', id: claim.id },
+    );
   }
 
   private async assertExists(id: string) {

@@ -44,7 +44,9 @@ export function calculateEstimateTotals(
 
   subtotal = subtotal.toDecimalPlaces(2);
   taxAmount = taxAmount.toDecimalPlaces(2);
-  const total = subtotal.add(taxAmount).sub(new Prisma.Decimal(discountAmount)).toDecimalPlaces(2);
+  // Clamped at 0 — a discount larger than subtotal+tax must not flip the
+  // estimate into an amount owed to the customer.
+  const total = Prisma.Decimal.max(0, subtotal.add(taxAmount).sub(new Prisma.Decimal(discountAmount))).toDecimalPlaces(2);
 
   return { subtotal, taxAmount, total };
 }

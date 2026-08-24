@@ -127,11 +127,18 @@ let UsersService = class UsersService {
     }
     async remove(id) {
         await this.findOne(id);
-        return this.prisma.forTenant().user.update({
-            where: { id },
-            data: { deletedAt: new Date(), isActive: false },
-            select: SAFE_SELECT,
-        });
+        const [user] = await Promise.all([
+            this.prisma.forTenant().user.update({
+                where: { id },
+                data: { deletedAt: new Date(), isActive: false },
+                select: SAFE_SELECT,
+            }),
+            this.prisma.platform.refreshToken.updateMany({
+                where: { userId: id, revokedAt: null },
+                data: { revokedAt: new Date() },
+            }),
+        ]);
+        return user;
     }
     findOwnProfile(userId) {
         return this.findOne(userId);

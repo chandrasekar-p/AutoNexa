@@ -1,13 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../prisma/tenant-context';
+import { MessagingService } from '../messaging/messaging.service';
+import { loyaltyAdjustmentMessage } from '../messaging/templates';
 import { adjustLoyaltyBalance } from './loyalty-ledger';
 import { AdjustLoyaltyPointsDto } from './dto/adjust-loyalty-points.dto';
 import { ListLoyaltyTransactionsQueryDto } from './dto/list-loyalty-transactions-query.dto';
 
 @Injectable()
 export class LoyaltyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly messaging: MessagingService,
+  ) {}
 
   async getBalance(customerId: string) {
     const customer = await this.prisma.forTenant().customer.findFirst({
@@ -45,8 +51,8 @@ export class LoyaltyService {
     const customer = await db.customer.findFirst({ where: { id: dto.customerId, deletedAt: null } });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    await db.$transaction(async (tx) => {
-      await adjustLoyaltyBalance(tx as unknown as Prisma.TransactionClient, dto.customerId, dto.points, {
+    const transaction = await db.$transaction(async (tx) => {
+      return adjustLoyaltyBalance(tx as unknown as Prisma.TransactionClient, dto.customerId, dto.points, {
         invoiceId: null,
         type: 'ADJUSTED',
         note: dto.note,
@@ -54,6 +60,31 @@ export class LoyaltyService {
       });
     });
 
-    return this.getBalance(dto.customerId);
+    await this.sendAdjustmentNotification(customer, transaction);
+
+    const balance = await this.getBalance(dto.customerId);
+    return { id: transaction.id, ...balance };
+  }
+
+  /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
+  private async sendAdjustmentNotification(
+    customer: Prisma.CustomerGetPayload<Record<string, never>>,
+    transaction: Prisma.LoyaltyTransactionGetPayload<Record<string, never>>,
+  ): Promise<void> {
+    const tenantId = TenantContext.requireTenantId();
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const content = loyaltyAdjustmentMessage({
+      workshopName: tenant?.name ?? 'AutoNexa',
+      customerName: customer.name,
+      points: transaction.points,
+      balance: String(transaction.balanceAfter),
+    });
+    await this.messaging.notifyCustomer(
+      tenantId,
+      'loyalty.adjusted',
+      { email: customer.email, mobile: customer.mobile },
+      content,
+      { type: 'Customer', id: customer.id },
+    );
   }
 }

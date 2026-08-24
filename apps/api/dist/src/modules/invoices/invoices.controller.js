@@ -70,7 +70,7 @@ __decorate([
 __decorate([
     (0, permissions_decorator_1.Permissions)('payment:create'),
     (0, common_1.Post)(':id/payments'),
-    (0, audit_log_interceptor_1.Audit)('invoice.payment.record', 'Payment'),
+    (0, audit_log_interceptor_1.Audit)('invoice.payment.record', 'Invoice'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

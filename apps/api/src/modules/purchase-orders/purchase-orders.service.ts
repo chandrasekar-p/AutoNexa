@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
 import { isOverReceiving, rollupPurchaseOrderStatus } from './purchase-order-receiving';
+import { isValidPurchaseOrderTransition } from './purchase-order-status-transitions';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { ListPurchaseOrdersQueryDto } from './dto/list-purchase-orders-query.dto';
@@ -112,11 +113,14 @@ export class PurchaseOrdersService {
   }
 
   async update(id: string, dto: UpdatePurchaseOrderDto) {
-    await this.assertExists(id);
+    const po = await this.assertExists(id);
     if (dto.status && RECEIVE_FLOW_ONLY_STATUSES.includes(dto.status)) {
       throw new BadRequestException(
         `${dto.status} is only set automatically by the goods receipt flow (POST :id/receive)`,
       );
+    }
+    if (dto.status && !isValidPurchaseOrderTransition(po.status, dto.status)) {
+      throw new BadRequestException(`Cannot transition purchase order from ${po.status} to ${dto.status}`);
     }
 
     return this.prisma.forTenant().purchaseOrder.update({
@@ -140,7 +144,13 @@ export class PurchaseOrdersService {
    * a line) is rejected before anything is written.
    */
   async receive(id: string, dto: ReceiveGoodsDto, receivedById: string) {
-    await this.assertExists(id);
+    const po = await this.assertExists(id);
+    if (po.status === PurchaseOrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot receive goods against a cancelled purchase order');
+    }
+    if (po.status === PurchaseOrderStatus.RECEIVED) {
+      throw new BadRequestException('This purchase order has already been fully received');
+    }
     const db = this.prisma.forTenant();
 
     await db.$transaction(async (tx) => {

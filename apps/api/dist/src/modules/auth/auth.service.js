@@ -118,6 +118,13 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Refresh token expired');
         }
         const user = stored.user;
+        if (!user.isActive || user.deletedAt) {
+            await this.prisma.platform.refreshToken.updateMany({
+                where: { familyId: stored.familyId, revokedAt: null },
+                data: { revokedAt: new Date() },
+            });
+            throw new common_1.UnauthorizedException('Account is no longer active — please contact your workshop admin');
+        }
         const isSuperAdmin = isSuperAdminUser(user);
         const permissions = flattenPermissions(user);
         const tokens = await this.issueTokens({ userId: user.id, tenantId: user.tenantId, email: user.email, permissions, isSuperAdmin }, meta, stored.familyId);

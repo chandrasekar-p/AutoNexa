@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EstimateLineItemType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateEstimateLineItemDto {
   @ApiProperty({ enum: EstimateLineItemType })
@@ -27,5 +27,6 @@ export class CreateEstimateLineItemDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(100)
   gstRate?: number;
 }

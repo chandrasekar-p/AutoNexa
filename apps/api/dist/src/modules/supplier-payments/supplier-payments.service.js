@@ -11,15 +11,23 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SupplierPaymentsService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const purchase_invoices_service_1 = require("../purchase-invoices/purchase-invoices.service");
+const payment_guard_1 = require("../invoices/payment-guard");
 let SupplierPaymentsService = class SupplierPaymentsService {
     constructor(prisma, purchaseInvoicesService) {
         this.prisma = prisma;
         this.purchaseInvoicesService = purchaseInvoicesService;
     }
     async create(dto) {
-        await this.assertInvoiceExists(dto.purchaseInvoiceId);
+        const db = this.prisma.forTenant();
+        const invoice = await this.assertInvoiceExists(dto.purchaseInvoiceId);
+        const existingPayments = await db.supplierPayment.findMany({ where: { purchaseInvoiceId: dto.purchaseInvoiceId } });
+        const totalPaidSoFar = existingPayments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
+        if ((0, payment_guard_1.isOverpayment)(totalPaidSoFar, invoice.total, dto.amount)) {
+            throw new common_1.BadRequestException('Payment would exceed the purchase invoice total');
+        }
         const payment = await this.prisma.forTenant().supplierPayment.create({
             data: {
                 purchaseInvoiceId: dto.purchaseInvoiceId,
@@ -62,6 +70,7 @@ let SupplierPaymentsService = class SupplierPaymentsService {
         });
         if (!invoice)
             throw new common_1.NotFoundException('Purchase invoice not found for this payment');
+        return invoice;
     }
 };
 exports.SupplierPaymentsService = SupplierPaymentsService;

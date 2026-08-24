@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm test *)",
+      "Bash(npx vitest *)",
+      "Bash(curl -s -X POST http://localhost:4000/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"tenantSlug\":\"demo-workshop\",\"email\":\"owner@demoworkshop.test\",\"password\":\"ChangeMe123!\"}' -o /tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/login_owner.json -w 'HTTP %{http_code}\\\\n')",
+      "Bash(python3 -c 'import json; d=json.load\\(open\\('\\\\''/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/login_owner.json'\\\\''\\)\\); open\\('\\\\''/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/token.txt'\\\\'','\\\\''w'\\\\''\\).write\\(d['\\\\''accessToken'\\\\'']\\); print\\('\\\\''ok'\\\\''\\)')",
+      "Bash(curl -s 'http://localhost:4000/api/v1/reports/sales-summary?from=2026-07-25&to=2026-08-24&groupBy=day' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -o /tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/sales_summary.json -w 'HTTP %{http_code}\\\\n')",
+      "Bash(python3 -m json.tool /tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/sales_summary.json)",
+      "Bash(curl -s 'http://localhost:4000/api/v1/reports/sales-summary?from=2026-08-19&to=2026-08-22&groupBy=day' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(python3 -m json.tool)",
+      "Bash(npx jest *)",
+      "Bash(curl -s -X POST http://localhost:4000/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"tenantSlug\":\"qa-audit-tenant-b\",\"email\":\"ownerb@qa-audit-b.test\",\"password\":\"ChangeMe123!\"}' -w '\\\\nHTTP %{http_code}\\\\n')",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"http://localhost:3000/reports\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"http://localhost:3000/reports/export\")",
+      "Bash(curl -sv \"http://localhost:3000/reports/export\")",
+      "Bash(SCRATCH=/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad *)",
+      "Read(//proc/805331/fd/**)",
+      "Bash(timeout 40 bash -c 'until grep -qi '\\\\''ready'\\\\'' '\\\\''/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/web-dev-check.log'\\\\'' 2>/dev/null; do sleep 1; done')",
+      "Bash(curl -s -o /dev/null -w \"reports: HTTP %{http_code}\\\\n\" \"http://localhost:3099/reports\")",
+      "Bash(curl -s -o /dev/null -w \"reports/export: HTTP %{http_code}\\\\n\" \"http://localhost:3099/reports/export\")",
+      "Bash(kill 920536)"
+    ]
+  }
+}

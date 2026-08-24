@@ -43,7 +43,10 @@ export class PurchaseOrdersController {
 
   @Permissions('purchase:update')
   @Post(':id/receive')
-  @Audit('purchase-order.receive', 'GoodsReceipt')
+  // Entity type is 'PurchaseOrder', not 'GoodsReceipt' — receive() returns
+  // the updated PurchaseOrder (its rolled-up status), not the created
+  // GoodsReceipt row, so @Audit's result.id read must match that shape.
+  @Audit('purchase-order.receive', 'PurchaseOrder')
   receive(
     @Param('id') id: string,
     @Body() dto: ReceiveGoodsDto,

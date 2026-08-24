@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { apiGet, apiPatch, ApiError } from '@/lib/api-client';
+import { apiGet, apiPatch, apiDelete, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
+import { useAuth } from '@/lib/auth/auth-context';
 import { formatDate } from '@/lib/format';
 import type { AppUser, Role } from '@/lib/api-types';
 import { ResetPasswordCard } from '@/components/domain/reset-password-card';
@@ -20,6 +21,8 @@ import { ErrorState } from '@/components/ui/error-state';
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
   const canUpdate = usePermission('user:update');
+  const canDeactivate = usePermission('user:delete');
+  const { user: currentUser } = useAuth();
 
   const query = useApiQuery<AppUser>(() => apiGet(`/users/${params.id}`), [params.id]);
   const roles = useApiQuery<Role[]>(() => apiGet('/roles'), []);
@@ -30,6 +33,8 @@ export default function UserDetailPage() {
   const [roleIds, setRoleIds] = useState<string[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
 
   function toggleRole(id: string) {
     if (!query.data) return;
@@ -57,6 +62,20 @@ export default function UserDetailPage() {
       setSaveError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeactivate() {
+    if (!window.confirm('Deactivate this user? They will be signed out immediately and can no longer log in.')) return;
+    setIsDeactivating(true);
+    setDeactivateError(null);
+    try {
+      await apiDelete(`/users/${params.id}`);
+      query.refetch();
+    } catch (err) {
+      setDeactivateError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setIsDeactivating(false);
     }
   }
 
@@ -101,10 +120,19 @@ export default function UserDetailPage() {
             <p className="text-sm text-ink-secondary">{user.email}</p>
           </div>
         </div>
-        <Link href="/users" className="self-center text-sm text-ink-secondary hover:text-ink">
-          &larr; Back to users
-        </Link>
+        <div className="flex items-center gap-4">
+          {canDeactivate && user.isActive && user.id !== currentUser?.userId ? (
+            <Button size="sm" variant="danger" onClick={handleDeactivate} isLoading={isDeactivating}>
+              Deactivate User
+            </Button>
+          ) : null}
+          <Link href="/users" className="self-center text-sm text-ink-secondary hover:text-ink">
+            &larr; Back to users
+          </Link>
+        </div>
       </div>
+
+      {deactivateError ? <p className="text-xs text-danger-600 dark:text-danger-400">{deactivateError}</p> : null}
 
       <Card>
         <CardHeader>

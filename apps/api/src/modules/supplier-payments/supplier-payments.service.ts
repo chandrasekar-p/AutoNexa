@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PurchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service';
+import { isOverpayment } from '../invoices/payment-guard';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
 import { ListSupplierPaymentsQueryDto } from './dto/list-supplier-payments-query.dto';
 
@@ -18,7 +19,17 @@ export class SupplierPaymentsService {
   // Cast needed because forTenant() injects tenantId into `data` at
   // runtime (see PrismaService) — the generated create type can't see that.
   async create(dto: CreateSupplierPaymentDto) {
-    await this.assertInvoiceExists(dto.purchaseInvoiceId);
+    const db = this.prisma.forTenant();
+    const invoice = await this.assertInvoiceExists(dto.purchaseInvoiceId);
+
+    // Same overpayment guard InvoicesService.applyPayment already uses for
+    // customer invoices — reused verbatim, not reimplemented, so the two
+    // "amount owed, paid down over time" entities stay consistent.
+    const existingPayments = await db.supplierPayment.findMany({ where: { purchaseInvoiceId: dto.purchaseInvoiceId } });
+    const totalPaidSoFar = existingPayments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
+    if (isOverpayment(totalPaidSoFar, invoice.total, dto.amount)) {
+      throw new BadRequestException('Payment would exceed the purchase invoice total');
+    }
 
     const payment = await this.prisma.forTenant().supplierPayment.create({
       data: {
@@ -69,5 +80,6 @@ export class SupplierPaymentsService {
       where: { id: purchaseInvoiceId },
     });
     if (!invoice) throw new NotFoundException('Purchase invoice not found for this payment');
+    return invoice;
   }
 }

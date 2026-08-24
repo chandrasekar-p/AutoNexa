@@ -13,7 +13,11 @@ exports.WarrantyClaimsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const tenant_context_1 = require("../../prisma/tenant-context");
+const messaging_service_1 = require("../messaging/messaging.service");
+const templates_1 = require("../messaging/templates");
 const warranty_status_1 = require("./warranty-status");
+const warranty_claim_status_transitions_1 = require("./warranty-claim-status-transitions");
 const CLAIM_INCLUDE = {
     claimJobCard: { select: { id: true, jobCardNumber: true, vehicleId: true, customerId: true } },
     originalJobCardPart: { include: { part: { select: { id: true, partNumber: true, name: true } }, jobCard: { select: { id: true, jobCardNumber: true, actualDelivery: true, odometer: true } } } },
@@ -21,8 +25,9 @@ const CLAIM_INCLUDE = {
     approvedByUser: { select: { id: true, name: true } },
 };
 let WarrantyClaimsService = class WarrantyClaimsService {
-    constructor(prisma) {
+    constructor(prisma, messaging) {
         this.prisma = prisma;
+        this.messaging = messaging;
     }
     async create(dto) {
         const hasOne = !!dto.originalJobCardPartId !== !!dto.originalJobCardLabourId;
@@ -84,9 +89,12 @@ let WarrantyClaimsService = class WarrantyClaimsService {
         return claim;
     }
     async update(id, dto, approvedByUserId) {
-        await this.assertExists(id);
+        const claim = await this.assertExists(id);
+        if (dto.status && !(0, warranty_claim_status_transitions_1.isValidWarrantyClaimTransition)(claim.status, dto.status)) {
+            throw new common_1.BadRequestException(`Cannot transition warranty claim from ${claim.status} to ${dto.status}`);
+        }
         const isDecision = dto.status === client_1.WarrantyClaimStatus.APPROVED || dto.status === client_1.WarrantyClaimStatus.REJECTED;
-        return this.prisma.forTenant().warrantyClaim.update({
+        const updated = await this.prisma.forTenant().warrantyClaim.update({
             where: { id },
             data: {
                 ...dto,
@@ -94,6 +102,27 @@ let WarrantyClaimsService = class WarrantyClaimsService {
             },
             include: CLAIM_INCLUDE,
         });
+        if (isDecision) {
+            await this.sendDecisionNotification(updated);
+        }
+        return updated;
+    }
+    async sendDecisionNotification(claim) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const db = this.prisma.forTenant();
+        const customer = await db.customer.findUnique({ where: { id: claim.claimJobCard.customerId } });
+        if (!customer)
+            return;
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const itemLabel = claim.originalJobCardPart?.part.name ?? claim.originalJobCardLabour?.labourItem?.description ?? claim.originalJobCardLabour?.description ?? 'the reported item';
+        const content = (0, templates_1.warrantyClaimDecidedMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: customer.name,
+            itemLabel,
+            approved: claim.status === client_1.WarrantyClaimStatus.APPROVED,
+            isBillable: claim.isBillable,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'warranty-claim.decided', { email: customer.email, mobile: customer.mobile }, content, { type: 'WarrantyClaim', id: claim.id });
     }
     async assertExists(id) {
         const claim = await this.prisma.forTenant().warrantyClaim.findFirst({ where: { id } });
@@ -105,6 +134,7 @@ let WarrantyClaimsService = class WarrantyClaimsService {
 exports.WarrantyClaimsService = WarrantyClaimsService;
 exports.WarrantyClaimsService = WarrantyClaimsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        messaging_service_1.MessagingService])
 ], WarrantyClaimsService);
 //# sourceMappingURL=warranty-claims.service.js.map

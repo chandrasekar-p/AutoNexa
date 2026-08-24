@@ -12,6 +12,9 @@ exports.pucExpiringMessage = pucExpiringMessage;
 exports.serviceDueMessage = serviceDueMessage;
 exports.packageExpiringMessage = packageExpiringMessage;
 exports.pointsEarnedMessage = pointsEarnedMessage;
+exports.warrantyClaimDecidedMessage = warrantyClaimDecidedMessage;
+exports.packageCancelledMessage = packageCancelledMessage;
+exports.loyaltyAdjustmentMessage = loyaltyAdjustmentMessage;
 function appointmentConfirmedMessage(ctx) {
     return {
         subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -82,6 +85,30 @@ function pointsEarnedMessage(ctx) {
     return {
         subject: `You earned loyalty points — ${ctx.workshopName}`,
         body: `Hi ${ctx.customerName}, you earned ${ctx.points} loyalty points on your recent visit. Your balance is now ${ctx.balance} points. — ${ctx.workshopName}`,
+    };
+}
+function warrantyClaimDecidedMessage(ctx) {
+    const outcome = ctx.approved
+        ? ctx.isBillable
+            ? 'approved — this will be billed as a regular repair'
+            : 'approved and covered under warranty at no charge'
+        : 'not covered under warranty';
+    return {
+        subject: `Your warranty claim has been reviewed — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your warranty claim for "${ctx.itemLabel}" has been ${outcome}. — ${ctx.workshopName}`,
+    };
+}
+function packageCancelledMessage(ctx) {
+    return {
+        subject: `Your service package has been cancelled — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your "${ctx.packageName}" package has been cancelled. Contact us if you have any questions. — ${ctx.workshopName}`,
+    };
+}
+function loyaltyAdjustmentMessage(ctx) {
+    const direction = ctx.points > 0 ? `credited with ${ctx.points}` : `debited ${Math.abs(ctx.points)}`;
+    return {
+        subject: `Your loyalty points balance was updated — ${ctx.workshopName}`,
+        body: `Hi ${ctx.customerName}, your loyalty account was ${direction} points. Your balance is now ${ctx.balance} points. — ${ctx.workshopName}`,
     };
 }
 //# sourceMappingURL=templates.js.map

@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { SalesReportQueryDto } from './dto/sales-report-query.dto';
+import { SalesSummaryQueryDto } from './dto/sales-summary-query.dto';
 import { InvoicesReportQueryDto } from './dto/invoices-report-query.dto';
 import { PaymentsReportQueryDto } from './dto/payments-report-query.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
@@ -26,6 +27,11 @@ export class ReportsController {
   @Get('sales')
   sales(@Query() query: SalesReportQueryDto) {
     return this.reportsService.sales(query);
+  }
+
+  @Get('sales-summary')
+  salesSummary(@Query() query: SalesSummaryQueryDto) {
+    return this.reportsService.salesSummary(query);
   }
 
   @Get('invoices')

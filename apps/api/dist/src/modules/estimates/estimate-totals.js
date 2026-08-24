@@ -16,7 +16,7 @@ function calculateEstimateTotals(lineItems, discountAmount = 0) {
     }
     subtotal = subtotal.toDecimalPlaces(2);
     taxAmount = taxAmount.toDecimalPlaces(2);
-    const total = subtotal.add(taxAmount).sub(new client_1.Prisma.Decimal(discountAmount)).toDecimalPlaces(2);
+    const total = client_1.Prisma.Decimal.max(0, subtotal.add(taxAmount).sub(new client_1.Prisma.Decimal(discountAmount))).toDecimalPlaces(2);
     return { subtotal, taxAmount, total };
 }
 //# sourceMappingURL=estimate-totals.js.map

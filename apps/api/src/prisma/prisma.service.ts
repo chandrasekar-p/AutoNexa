@@ -58,6 +58,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'LoyaltyTransaction',
   'WarrantyClaim',
   'GstExportBatch',
+  'TenantSettings',
 ]);
 
 // Models whose tenantId is nullable by design (platform/system-level rows

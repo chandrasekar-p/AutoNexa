@@ -18,6 +18,7 @@ const tenant_context_1 = require("../../prisma/tenant-context");
 const outstanding_1 = require("../../common/billing/outstanding");
 const technician_performance_1 = require("../technicians/technician-performance");
 const sales_bucketing_1 = require("./sales-bucketing");
+const sales_summary_1 = require("./sales-summary");
 const profit_margin_1 = require("./profit-margin");
 const loyalty_liability_1 = require("../loyalty/loyalty-liability");
 const warranty_status_1 = require("../warranty/warranty-status");
@@ -53,6 +54,24 @@ let ReportsService = class ReportsService {
         });
         const buckets = (0, sales_bucketing_1.bucketSales)(invoices.map((i) => ({ date: i.createdAt, amount: i.grandTotal })), groupBy);
         return paginate(buckets, query.page ?? 1, query.pageSize ?? 20);
+    }
+    async salesSummary(query) {
+        const db = this.prisma.forTenant();
+        const groupBy = query.groupBy ?? 'day';
+        const to = query.to ? new Date(new Date(query.to).getTime() + 24 * 60 * 60 * 1000 - 1) : new Date();
+        const from = query.from ? new Date(query.from) : new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+        const previousRange = (0, sales_summary_1.previousPeriodRange)(from, to);
+        const select = {
+            createdAt: true,
+            grandTotal: true,
+            jobCard: { select: { vehicleId: true } },
+        };
+        const [currentInvoices, previousInvoices] = await Promise.all([
+            db.invoice.findMany({ where: { createdAt: { gte: from, lte: to } }, select }),
+            db.invoice.findMany({ where: { createdAt: { gte: previousRange.from, lte: previousRange.to } }, select }),
+        ]);
+        const toEntries = (rows) => rows.map((row) => ({ date: row.createdAt, amount: row.grandTotal, vehicleId: row.jobCard?.vehicleId ?? null }));
+        return (0, sales_summary_1.computeSalesSummary)(toEntries(currentInvoices), toEntries(previousInvoices), groupBy);
     }
     async invoices(query) {
         const db = this.prisma.forTenant();

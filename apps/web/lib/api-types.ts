@@ -234,6 +234,29 @@ export interface SalesBucket {
   total: string;
 }
 
+/** One row from GET /reports/sales-summary's `buckets` — see sales-summary.ts's computeSalesSummary(). */
+export interface SalesSummaryBucket {
+  period: string;
+  invoiceCount: number;
+  carsServiced: number;
+  total: string;
+  averageInvoice: string;
+}
+
+export interface SalesSummaryKpis {
+  totalSales: string;
+  totalInvoices: number;
+  carsServiced: number;
+  averageInvoiceValue: string;
+}
+
+/** GET /reports/sales-summary — powers the Reports page's Sales KPI cards, chart, and detail table (see sales-summary.ts's doc comment on why all three read from one response). */
+export interface SalesSummary {
+  buckets: SalesSummaryBucket[];
+  kpis: SalesSummaryKpis & { highestDay: { period: string; total: string } | null };
+  previousKpis: SalesSummaryKpis;
+}
+
 /** GET /reports/job-card-status — current pipeline distribution, sorted by count descending. */
 export interface JobCardStatusCount {
   status: JobCardStatus;

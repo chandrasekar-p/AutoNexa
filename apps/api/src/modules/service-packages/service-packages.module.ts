@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { InvoicesModule } from '../invoices/invoices.module';
+import { MessagingModule } from '../messaging/messaging.module';
 import { ServicePackagesService } from './service-packages.service';
 import { ServicePackagesController } from './service-packages.controller';
 import { CustomerServicePackagesService } from './customer-service-packages.service';
@@ -9,7 +10,7 @@ import { CustomerServicePackagesController } from './customer-service-packages.c
 // — same dependency shape JobCardsModule already has on InvoicesModule
 // for generateInvoice.
 @Module({
-  imports: [InvoicesModule],
+  imports: [InvoicesModule, MessagingModule],
   controllers: [ServicePackagesController, CustomerServicePackagesController],
   providers: [ServicePackagesService, CustomerServicePackagesService],
   exports: [ServicePackagesService, CustomerServicePackagesService],

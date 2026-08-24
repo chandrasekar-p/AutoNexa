@@ -15,6 +15,8 @@ const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const invoices_service_1 = require("../invoices/invoices.service");
+const messaging_service_1 = require("../messaging/messaging.service");
+const templates_1 = require("../messaging/templates");
 const CUSTOMER_PACKAGE_INCLUDE = {
     servicePackage: true,
     customer: { select: { id: true, name: true, mobile: true, email: true, state: true } },
@@ -22,9 +24,10 @@ const CUSTOMER_PACKAGE_INCLUDE = {
     purchaseInvoice: { select: { id: true, invoiceNumber: true, grandTotal: true, status: true } },
 };
 let CustomerServicePackagesService = class CustomerServicePackagesService {
-    constructor(prisma, invoicesService) {
+    constructor(prisma, invoicesService, messaging) {
         this.prisma = prisma;
         this.invoicesService = invoicesService;
+        this.messaging = messaging;
     }
     async sell(dto) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
@@ -79,13 +82,34 @@ let CustomerServicePackagesService = class CustomerServicePackagesService {
     }
     async renew(id) {
         const existing = await this.findOne(id);
+        if (existing.status === client_1.CustomerPackageStatus.CANCELLED) {
+            throw new common_1.BadRequestException('This package was cancelled — sell a new package instead of renewing it');
+        }
         const sold = await this.sell({ servicePackageId: existing.servicePackageId, customerId: existing.customerId, vehicleId: existing.vehicleId });
         await this.prisma.forTenant().customerServicePackage.update({ where: { id: sold.id }, data: { renewedFromId: existing.id } });
         return this.findOne(sold.id);
     }
     async cancel(id) {
-        await this.assertExists(id);
-        return this.prisma.forTenant().customerServicePackage.update({ where: { id }, data: { status: client_1.CustomerPackageStatus.CANCELLED } });
+        const existing = await this.findOne(id);
+        if (existing.status !== client_1.CustomerPackageStatus.ACTIVE) {
+            throw new common_1.BadRequestException(`Cannot cancel a package that is already ${existing.status}`);
+        }
+        const cancelled = await this.prisma.forTenant().customerServicePackage.update({
+            where: { id },
+            data: { status: client_1.CustomerPackageStatus.CANCELLED },
+        });
+        await this.sendCancelledNotification(existing);
+        return cancelled;
+    }
+    async sendCancelledNotification(pkg) {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const content = (0, templates_1.packageCancelledMessage)({
+            workshopName: tenant?.name ?? 'AutoNexa',
+            customerName: pkg.customer.name,
+            packageName: pkg.servicePackage.name,
+        });
+        await this.messaging.notifyCustomer(tenantId, 'service-package.cancelled', { email: pkg.customer.email, mobile: pkg.customer.mobile }, content, { type: 'CustomerServicePackage', id: pkg.id });
     }
     async findAll(query) {
         const page = query.page ?? 1;
@@ -114,17 +138,12 @@ let CustomerServicePackagesService = class CustomerServicePackagesService {
             throw new common_1.NotFoundException('Customer service package not found');
         return pkg;
     }
-    async assertExists(id) {
-        const pkg = await this.prisma.forTenant().customerServicePackage.findFirst({ where: { id } });
-        if (!pkg)
-            throw new common_1.NotFoundException('Customer service package not found');
-        return pkg;
-    }
 };
 exports.CustomerServicePackagesService = CustomerServicePackagesService;
 exports.CustomerServicePackagesService = CustomerServicePackagesService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        invoices_service_1.InvoicesService])
+        invoices_service_1.InvoicesService,
+        messaging_service_1.MessagingService])
 ], CustomerServicePackagesService);
 //# sourceMappingURL=customer-service-packages.service.js.map

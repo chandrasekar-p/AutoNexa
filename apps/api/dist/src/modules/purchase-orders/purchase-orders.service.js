@@ -16,6 +16,7 @@ const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const generate_sequence_number_1 = require("../../common/sequence/generate-sequence-number");
 const purchase_order_receiving_1 = require("./purchase-order-receiving");
+const purchase_order_status_transitions_1 = require("./purchase-order-status-transitions");
 const SUPPLIER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const PART_SUMMARY_SELECT = { id: true, partNumber: true, sku: true, name: true };
 const PURCHASE_ORDER_INCLUDE = {
@@ -95,9 +96,12 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         return po;
     }
     async update(id, dto) {
-        await this.assertExists(id);
+        const po = await this.assertExists(id);
         if (dto.status && RECEIVE_FLOW_ONLY_STATUSES.includes(dto.status)) {
             throw new common_1.BadRequestException(`${dto.status} is only set automatically by the goods receipt flow (POST :id/receive)`);
+        }
+        if (dto.status && !(0, purchase_order_status_transitions_1.isValidPurchaseOrderTransition)(po.status, dto.status)) {
+            throw new common_1.BadRequestException(`Cannot transition purchase order from ${po.status} to ${dto.status}`);
         }
         return this.prisma.forTenant().purchaseOrder.update({
             where: { id },
@@ -111,7 +115,13 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         });
     }
     async receive(id, dto, receivedById) {
-        await this.assertExists(id);
+        const po = await this.assertExists(id);
+        if (po.status === client_1.PurchaseOrderStatus.CANCELLED) {
+            throw new common_1.BadRequestException('Cannot receive goods against a cancelled purchase order');
+        }
+        if (po.status === client_1.PurchaseOrderStatus.RECEIVED) {
+            throw new common_1.BadRequestException('This purchase order has already been fully received');
+        }
         const db = this.prisma.forTenant();
         await db.$transaction(async (tx) => {
             const existingItems = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId: id } });

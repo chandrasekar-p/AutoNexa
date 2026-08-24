@@ -98,11 +98,23 @@ export class UsersService {
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.forTenant().user.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false },
-      select: SAFE_SELECT,
-    });
+    const [user] = await Promise.all([
+      this.prisma.forTenant().user.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false },
+        select: SAFE_SELECT,
+      }),
+      // Deactivation must take effect immediately, not just on this user's
+      // next refresh attempt (refresh() has its own isActive/deletedAt
+      // check as a backstop, but a still-valid refresh token could
+      // otherwise keep working for up to JWT_REFRESH_EXPIRES_IN). Platform
+      // client, not forTenant() — RefreshToken has no tenantId column.
+      this.prisma.platform.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    return user;
   }
 
   /** GET /users/me — no permission gate; every authenticated user can see their own record, unlike GET /users/:id (user:read). */

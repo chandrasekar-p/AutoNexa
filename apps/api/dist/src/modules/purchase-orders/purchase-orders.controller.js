@@ -82,7 +82,7 @@ __decorate([
 __decorate([
     (0, permissions_decorator_1.Permissions)('purchase:update'),
     (0, common_1.Post)(':id/receive'),
-    (0, audit_log_interceptor_1.Audit)('purchase-order.receive', 'GoodsReceipt'),
+    (0, audit_log_interceptor_1.Audit)('purchase-order.receive', 'PurchaseOrder'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),

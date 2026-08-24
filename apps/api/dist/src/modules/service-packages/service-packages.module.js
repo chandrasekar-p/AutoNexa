@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServicePackagesModule = void 0;
 const common_1 = require("@nestjs/common");
 const invoices_module_1 = require("../invoices/invoices.module");
+const messaging_module_1 = require("../messaging/messaging.module");
 const service_packages_service_1 = require("./service-packages.service");
 const service_packages_controller_1 = require("./service-packages.controller");
 const customer_service_packages_service_1 = require("./customer-service-packages.service");
@@ -18,7 +19,7 @@ let ServicePackagesModule = class ServicePackagesModule {
 exports.ServicePackagesModule = ServicePackagesModule;
 exports.ServicePackagesModule = ServicePackagesModule = __decorate([
     (0, common_1.Module)({
-        imports: [invoices_module_1.InvoicesModule],
+        imports: [invoices_module_1.InvoicesModule, messaging_module_1.MessagingModule],
         controllers: [service_packages_controller_1.ServicePackagesController, customer_service_packages_controller_1.CustomerServicePackagesController],
         providers: [service_packages_service_1.ServicePackagesService, customer_service_packages_service_1.CustomerServicePackagesService],
         exports: [service_packages_service_1.ServicePackagesService, customer_service_packages_service_1.CustomerServicePackagesService],

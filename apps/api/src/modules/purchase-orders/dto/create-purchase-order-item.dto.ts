@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsUUID, Min } from 'class-validator';
+import { IsInt, IsNumber, IsUUID, Max, Min } from 'class-validator';
 
 export class CreatePurchaseOrderItemDto {
   @ApiProperty()
@@ -19,5 +19,6 @@ export class CreatePurchaseOrderItemDto {
   @ApiProperty()
   @IsNumber()
   @Min(0)
+  @Max(100)
   gstRate: number;
 }
