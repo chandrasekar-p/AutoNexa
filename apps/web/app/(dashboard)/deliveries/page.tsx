@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatTime } from '@/lib/format';
 import type { DeliveryChannel, DeliveryLog, DeliveryStatus, PaginatedResult } from '@/lib/api-types';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -108,7 +108,9 @@ export default function DeliveriesPage() {
               <TableBody>
                 {query.data.items.map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="text-ink-secondary">{formatDate(entry.createdAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-ink-secondary">
+                      {formatDate(entry.createdAt)} &middot; {formatTime(entry.createdAt)}
+                    </TableCell>
                     <TableCell className="num">{entry.channel}</TableCell>
                     <TableCell className="text-ink-secondary">{entry.event}</TableCell>
                     <TableCell className="text-ink-secondary">{entry.recipient}</TableCell>

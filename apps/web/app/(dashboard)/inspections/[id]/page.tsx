@@ -43,7 +43,13 @@ export default function InspectionDetailPage() {
     }
   }
 
-  if (query.isLoading) {
+  // Only the true first load has no data yet — a background refetch (e.g.
+  // after saving a checklist item) sets isLoading again too, and gating on
+  // isLoading alone would unmount/remount the whole tree below on every
+  // save, resetting InspectionChecklist's own active-tab state back to
+  // Exterior every time. Once data has loaded once, a refetch just quietly
+  // updates it in place instead.
+  if (query.isLoading && !query.data) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
