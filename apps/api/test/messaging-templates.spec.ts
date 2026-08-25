@@ -53,6 +53,24 @@ describe('messaging templates', () => {
     expect(msg.body).toContain('₹4,500.00');
   });
 
+  it('gives the estimate-ready message a branded HTML alternative with a real CTA link and no unescaped customer input', () => {
+    const msg = estimateReadyMessage({
+      workshopName: 'Demo Workshop',
+      customerName: 'Arun & Sons <VIP>',
+      vehicleLabel: 'KA01AB1234 Honda City',
+      estimateNumber: 'EST-0001',
+      grandTotal: '₹4,500.00',
+      approvalUrl: 'https://app.autonexa.test/estimates/approve/abc123',
+    });
+    expect(msg.html).toBeDefined();
+    expect(msg.html).toContain('href="https://app.autonexa.test/estimates/approve/abc123"');
+    expect(msg.html).toContain('EST-0001');
+    expect(msg.html).toContain('Demo Workshop');
+    // A customer name containing HTML-special characters must come out escaped, not injected raw into the markup.
+    expect(msg.html).toContain('Arun &amp; Sons &lt;VIP&gt;');
+    expect(msg.html).not.toContain('<VIP>');
+  });
+
   it('builds a job-card-ready message with the job card number', () => {
     const msg = jobCardReadyMessage({
       workshopName: 'Demo Workshop',

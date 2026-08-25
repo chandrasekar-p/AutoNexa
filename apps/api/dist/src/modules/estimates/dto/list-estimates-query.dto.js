@@ -15,6 +15,7 @@ const class_transformer_1 = require("class-transformer");
 const client_1 = require("@prisma/client");
 const class_validator_1 = require("class-validator");
 const uuid_like_1 = require("../../../common/validators/uuid-like");
+const APPROVAL_STATUS_VALUES = [...Object.values(client_1.EstimateStatus), 'AWAITING_APPROVAL'];
 class ListEstimatesQueryDto {
     constructor() {
         this.page = 1;
@@ -46,6 +47,27 @@ __decorate([
     (0, class_validator_1.IsEnum)(client_1.EstimateStatus),
     __metadata("design:type", String)
 ], ListEstimatesQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        enum: APPROVAL_STATUS_VALUES,
+        description: "Filters on the derived approval status the Estimates list page shows — 'SENT' here means plain sent (not yet opened), excluding anything the customer has opened; 'AWAITING_APPROVAL' means opened but not yet decided. Takes precedence over `status` when both are given.",
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(APPROVAL_STATUS_VALUES),
+    __metadata("design:type", String)
+], ListEstimatesQueryDto.prototype, "approvalStatus", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Range start (inclusive), filtered on createdAt' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListEstimatesQueryDto.prototype, "from", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Range end (inclusive), filtered on createdAt' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListEstimatesQueryDto.prototype, "to", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

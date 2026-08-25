@@ -15,6 +15,51 @@ exports.pointsEarnedMessage = pointsEarnedMessage;
 exports.warrantyClaimDecidedMessage = warrantyClaimDecidedMessage;
 exports.packageCancelledMessage = packageCancelledMessage;
 exports.loyaltyAdjustmentMessage = loyaltyAdjustmentMessage;
+function escapeHtml(value) {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+function renderEmailHtml(opts) {
+    const { workshopName, preheader, heading, bodyLines, cta, footerNote } = opts;
+    const paragraphs = bodyLines
+        .map((line) => `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1815;">${escapeHtml(line)}</p>`)
+        .join('');
+    const ctaHtml = cta
+        ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 20px;">
+        <tr><td style="border-radius:8px;background-color:#c07333;">
+          <a href="${escapeHtml(cta.url)}" style="display:inline-block;padding:12px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${escapeHtml(cta.label)}</a>
+        </td></tr>
+      </table>`
+        : '';
+    return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background-color:#faf8f3;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <span style="display:none;font-size:1px;color:#faf8f3;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(preheader)}</span>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;padding:32px 16px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border:1px solid #e7e2d6;border-radius:12px;overflow:hidden;">
+          <tr><td style="background-color:#1a1815;padding:20px 28px;">
+            <span style="font-size:16px;font-weight:700;color:#ffffff;letter-spacing:0.02em;">AutoNexa</span>
+          </td></tr>
+          <tr><td style="padding:28px;">
+            <p style="margin:0 0 4px;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#c07333;">${escapeHtml(workshopName)}</p>
+            <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:#1a1815;">${escapeHtml(heading)}</h1>
+            ${paragraphs}
+            ${ctaHtml}
+          </td></tr>
+          <tr><td style="border-top:1px solid #e7e2d6;padding:16px 28px;">
+            <p style="margin:0;font-size:12px;color:#9c9686;">${escapeHtml(footerNote ?? "This is an automated message — please don't reply directly to this email.")}</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+}
 function appointmentConfirmedMessage(ctx) {
     return {
         subject: `Appointment confirmed — ${ctx.workshopName}`,
@@ -31,6 +76,16 @@ function estimateReadyMessage(ctx) {
     return {
         subject: `Estimate ${ctx.estimateNumber} ready for approval — ${ctx.workshopName}`,
         body: `Hi ${ctx.customerName}, estimate ${ctx.estimateNumber} for ${ctx.vehicleLabel} (${ctx.grandTotal}) is ready for your approval: ${ctx.approvalUrl} — ${ctx.workshopName}`,
+        html: renderEmailHtml({
+            workshopName: ctx.workshopName,
+            preheader: `Estimate ${ctx.estimateNumber} for ${ctx.vehicleLabel} — ${ctx.grandTotal}`,
+            heading: 'Your estimate is ready for approval',
+            bodyLines: [
+                `Hi ${ctx.customerName}, we've put together an estimate for ${ctx.vehicleLabel}. Please review the details and approve it so we can get started.`,
+                `Estimate ${ctx.estimateNumber} · ${ctx.grandTotal}`,
+            ],
+            cta: { label: 'Review & Approve Estimate', url: ctx.approvalUrl },
+        }),
     };
 }
 function jobCardReadyMessage(ctx) {

@@ -30,10 +30,13 @@ export class EmailProvider {
     return this.transporter !== null;
   }
 
-  async send(to: string, subject: string, body: string, attachments?: EmailAttachment[]): Promise<SendResult> {
+  async send(to: string, subject: string, body: string, attachments?: EmailAttachment[], html?: string): Promise<SendResult> {
     if (!this.transporter) return { ok: false, error: 'SMTP not configured' };
     try {
-      await this.transporter.sendMail({ from: `"${this.fromName}" <${this.fromEmail}>`, to, subject, text: body, attachments });
+      // `text` is always sent alongside `html` (nodemailer builds a proper
+      // multipart/alternative message) — every mail client that can't or
+      // won't render HTML still gets the plain-text version, not nothing.
+      await this.transporter.sendMail({ from: `"${this.fromName}" <${this.fromEmail}>`, to, subject, text: body, html, attachments });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Unknown email error' };

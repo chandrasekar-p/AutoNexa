@@ -163,6 +163,7 @@ export class EstimateApprovalService {
 
   private toSummary(estimate: {
     id: string;
+    estimateNumber: string | null;
     status: EstimateStatus;
     jobDescription: string | null;
     subtotal: Prisma.Decimal;
@@ -174,7 +175,10 @@ export class EstimateApprovalService {
     lineItems: { description: string; quantity: Prisma.Decimal; unitPrice: Prisma.Decimal; gstRate: Prisma.Decimal; lineTotal: Prisma.Decimal }[];
   }): EstimateApprovalSummary {
     return {
-      estimateNumber: `EST-${estimate.id.slice(0, 8).toUpperCase()}`,
+      // Falls back to the old ID-derived format only for the rare estimate
+      // that somehow still has no real number — see EstimatesService's
+      // identical fallback in sendApprovalLinkMessage.
+      estimateNumber: estimate.estimateNumber ?? `EST-${estimate.id.slice(0, 8).toUpperCase()}`,
       status: estimate.status,
       jobDescription: estimate.jobDescription,
       vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,

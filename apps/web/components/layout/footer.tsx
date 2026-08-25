@@ -8,7 +8,7 @@
  */
 // Keep in sync with package.json's "version" — no build-time plumbing for
 // a single footer string, just a manual mirror.
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '1.1.0';
 
 export function AppFooter() {
   const year = new Date().getFullYear();

@@ -541,6 +541,14 @@ model Estimate {
   customer       Customer       @relation(fields: [customerId], references: [id])
   vehicleId      String
   vehicle        Vehicle        @relation(fields: [vehicleId], references: [id])
+  // Nullable — Postgres can't add a required column to a table with
+  // existing rows without a backfill, and a genuinely pre-numbering
+  // estimate should show as such rather than getting a fabricated number.
+  // Minted via generateSequenceNumber() in EstimatesService.create();
+  // scripts/backfill-estimate-numbers.ts assigns one to every pre-existing
+  // row, continuing the same per-tenant TenantSequence counter so newly
+  // created estimates never collide with a backfilled one.
+  estimateNumber String?        @unique
   jobDescription String?
   status         EstimateStatus @default(DRAFT)
   subtotal       Decimal        @default(0) @db.Decimal(12, 2)

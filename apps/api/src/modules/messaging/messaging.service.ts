@@ -88,7 +88,7 @@ export class MessagingService {
 
     for (const channel of channels) {
       if (channel === 'EMAIL') {
-        const result = await this.emailProvider.send(recipient.email as string, content.subject, content.body, attachments);
+        const result = await this.emailProvider.send(recipient.email as string, content.subject, content.body, attachments, content.html);
         const status = result.ok ? DeliveryStatus.SENT : DeliveryStatus.FAILED;
         await this.log(tenantId, DeliveryChannel.EMAIL, event, recipient.email as string, status, result.error, related, dedupeKey);
         attempts.push({ channel: DeliveryChannel.EMAIL, status });

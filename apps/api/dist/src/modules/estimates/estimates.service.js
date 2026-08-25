@@ -18,9 +18,30 @@ const job_cards_service_1 = require("../job-cards/job-cards.service");
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
 const estimate_approval_token_service_1 = require("../estimate-approval/estimate-approval-token.service");
+const generate_sequence_number_1 = require("../../common/sequence/generate-sequence-number");
+const reports_service_1 = require("../reports/reports.service");
+const estimate_approval_status_1 = require("./estimate-approval-status");
 const estimate_totals_1 = require("./estimate-totals");
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
+const LIST_INCLUDE = {
+    customer: { select: { name: true } },
+    vehicle: { select: { registrationNo: true, brand: true, model: true } },
+    jobCard: { select: { invoice: { select: { invoiceNumber: true } } } },
+    approvalEvents: { where: { action: 'VIEWED' }, select: { id: true }, take: 1 },
+};
+function toListRow(estimate) {
+    const { customer, vehicle, jobCard, approvalEvents, ...rest } = estimate;
+    return {
+        ...rest,
+        customerName: customer.name,
+        vehicleRegistrationNo: vehicle.registrationNo,
+        vehicleBrand: vehicle.brand,
+        vehicleModel: vehicle.model,
+        linkedInvoiceNumber: jobCard?.invoice?.invoiceNumber ?? null,
+        approvalStatus: (0, estimate_approval_status_1.deriveEstimateApprovalStatus)(estimate.status, approvalEvents.length > 0),
+    };
+}
 let EstimatesService = class EstimatesService {
     constructor(prisma, jobCardsService, messaging, approvalToken) {
         this.prisma = prisma;
@@ -31,14 +52,20 @@ let EstimatesService = class EstimatesService {
     async create(dto) {
         await this.assertCustomerExists(dto.customerId);
         await this.assertVehicleExists(dto.vehicleId);
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
         const db = this.prisma.forTenant();
-        const estimate = await db.estimate.create({
-            data: {
-                customerId: dto.customerId,
-                vehicleId: dto.vehicleId,
-                jobDescription: dto.jobDescription,
-                discountAmount: dto.discountAmount ?? 0,
-            },
+        const tenantSettings = await this.prisma.platform.tenantSettings.findUniqueOrThrow({ where: { tenantId } });
+        const estimate = await db.$transaction(async (tx) => {
+            const estimateNumber = await (0, generate_sequence_number_1.generateSequenceNumber)(tx, tenantId, 'ESTIMATE', tenantSettings.estimatePrefix);
+            return tx.estimate.create({
+                data: {
+                    customerId: dto.customerId,
+                    vehicleId: dto.vehicleId,
+                    jobDescription: dto.jobDescription,
+                    discountAmount: dto.discountAmount ?? 0,
+                    estimateNumber,
+                },
+            });
         });
         if (dto.lineItems?.length) {
             await db.estimateLineItem.createMany({
@@ -56,21 +83,68 @@ let EstimatesService = class EstimatesService {
             deletedAt: null,
             ...(query.customerId ? { customerId: query.customerId } : {}),
             ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
-            ...(query.status ? { status: query.status } : {}),
+            ...this.approvalStatusWhere(query),
+            ...(0, reports_service_1.dateRangeWhere)('createdAt', query.from, query.to),
             ...(query.search
                 ? { jobDescription: { contains: query.search, mode: 'insensitive' } }
                 : {}),
         };
-        const [items, total] = await Promise.all([
+        const [rows, total] = await Promise.all([
             db.estimate.findMany({
                 where,
+                include: LIST_INCLUDE,
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
             }),
             db.estimate.count({ where }),
         ]);
-        return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+        return { items: rows.map(toListRow), total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async summary() {
+        const db = this.prisma.forTenant();
+        const rows = await db.estimate.findMany({
+            where: { deletedAt: null },
+            select: { status: true, total: true, approvalEvents: { where: { action: 'VIEWED' }, select: { id: true }, take: 1 } },
+        });
+        const counts = {
+            DRAFT: 0,
+            SENT: 0,
+            AWAITING_APPROVAL: 0,
+            APPROVED: 0,
+            REJECTED: 0,
+            EXPIRED: 0,
+            CONVERTED: 0,
+        };
+        let totalValue = new client_1.Prisma.Decimal(0);
+        for (const row of rows) {
+            const approvalStatus = (0, estimate_approval_status_1.deriveEstimateApprovalStatus)(row.status, row.approvalEvents.length > 0);
+            counts[approvalStatus] += 1;
+            totalValue = totalValue.add(row.total);
+        }
+        return {
+            total: rows.length,
+            draft: counts.DRAFT,
+            sent: counts.SENT,
+            awaitingApproval: counts.AWAITING_APPROVAL,
+            approved: counts.APPROVED,
+            rejected: counts.REJECTED,
+            expired: counts.EXPIRED,
+            converted: counts.CONVERTED,
+            totalValue: totalValue.toDecimalPlaces(2),
+        };
+    }
+    approvalStatusWhere(query) {
+        if (query.approvalStatus === 'AWAITING_APPROVAL') {
+            return { status: client_1.EstimateStatus.SENT, approvalEvents: { some: { action: 'VIEWED' } } };
+        }
+        if (query.approvalStatus === client_1.EstimateStatus.SENT) {
+            return { status: client_1.EstimateStatus.SENT, approvalEvents: { none: { action: 'VIEWED' } } };
+        }
+        if (query.approvalStatus) {
+            return { status: query.approvalStatus };
+        }
+        return query.status ? { status: query.status } : {};
     }
     async findOne(id) {
         const estimate = await this.prisma.forTenant().estimate.findFirst({
@@ -148,7 +222,7 @@ let EstimatesService = class EstimatesService {
             workshopName: tenant?.name ?? 'AutoNexa',
             customerName: estimate.customer.name,
             vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,
-            estimateNumber: `EST-${id.slice(0, 8).toUpperCase()}`,
+            estimateNumber: estimate.estimateNumber ?? `EST-${id.slice(0, 8).toUpperCase()}`,
             grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
             approvalUrl,
         });

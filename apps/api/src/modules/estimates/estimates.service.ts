@@ -6,6 +6,9 @@ import { JobCardsService } from '../job-cards/job-cards.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { estimateReadyMessage } from '../messaging/templates';
 import { EstimateApprovalTokenService } from '../estimate-approval/estimate-approval-token.service';
+import { generateSequenceNumber } from '../../common/sequence/generate-sequence-number';
+import { dateRangeWhere } from '../reports/reports.service';
+import { deriveEstimateApprovalStatus, EstimateApprovalStatus } from './estimate-approval-status';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { ListEstimatesQueryDto } from './dto/list-estimates-query.dto';
@@ -15,6 +18,29 @@ import { calculateEstimateTotals, calculateLineTotal } from './estimate-totals';
 
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
+
+const LIST_INCLUDE = {
+  customer: { select: { name: true } },
+  vehicle: { select: { registrationNo: true, brand: true, model: true } },
+  jobCard: { select: { invoice: { select: { invoiceNumber: true } } } },
+  // Only need to know WHETHER a VIEWED event exists, not the events
+  // themselves — take: 1 keeps this cheap regardless of how many times a
+  // customer reopened the link.
+  approvalEvents: { where: { action: 'VIEWED' }, select: { id: true }, take: 1 },
+} as const;
+
+function toListRow(estimate: Prisma.EstimateGetPayload<{ include: typeof LIST_INCLUDE }>) {
+  const { customer, vehicle, jobCard, approvalEvents, ...rest } = estimate;
+  return {
+    ...rest,
+    customerName: customer.name,
+    vehicleRegistrationNo: vehicle.registrationNo,
+    vehicleBrand: vehicle.brand,
+    vehicleModel: vehicle.model,
+    linkedInvoiceNumber: jobCard?.invoice?.invoiceNumber ?? null,
+    approvalStatus: deriveEstimateApprovalStatus(estimate.status, approvalEvents.length > 0) as EstimateApprovalStatus,
+  };
+}
 
 @Injectable()
 export class EstimatesService {
@@ -30,15 +56,21 @@ export class EstimatesService {
   async create(dto: CreateEstimateDto) {
     await this.assertCustomerExists(dto.customerId);
     await this.assertVehicleExists(dto.vehicleId);
+    const tenantId = TenantContext.requireTenantId();
     const db = this.prisma.forTenant();
+    const tenantSettings = await this.prisma.platform.tenantSettings.findUniqueOrThrow({ where: { tenantId } });
 
-    const estimate = await db.estimate.create({
-      data: {
-        customerId: dto.customerId,
-        vehicleId: dto.vehicleId,
-        jobDescription: dto.jobDescription,
-        discountAmount: dto.discountAmount ?? 0,
-      } as unknown as Prisma.EstimateUncheckedCreateInput,
+    const estimate = await db.$transaction(async (tx) => {
+      const estimateNumber = await generateSequenceNumber(tx as unknown as Prisma.TransactionClient, tenantId, 'ESTIMATE', tenantSettings.estimatePrefix);
+      return tx.estimate.create({
+        data: {
+          customerId: dto.customerId,
+          vehicleId: dto.vehicleId,
+          jobDescription: dto.jobDescription,
+          discountAmount: dto.discountAmount ?? 0,
+          estimateNumber,
+        } as unknown as Prisma.EstimateUncheckedCreateInput,
+      });
     });
 
     if (dto.lineItems?.length) {
@@ -62,15 +94,17 @@ export class EstimatesService {
       deletedAt: null,
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
-      ...(query.status ? { status: query.status } : {}),
+      ...this.approvalStatusWhere(query),
+      ...dateRangeWhere('createdAt', query.from, query.to),
       ...(query.search
         ? { jobDescription: { contains: query.search, mode: 'insensitive' as const } }
         : {}),
     };
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       db.estimate.findMany({
         where,
+        include: LIST_INCLUDE,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -78,7 +112,73 @@ export class EstimatesService {
       db.estimate.count({ where }),
     ]);
 
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return { items: rows.map(toListRow), total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  /**
+   * KPI cards for the Estimates page — total count, per-status counts
+   * (including the derived 'awaitingApproval'), and total estimate value.
+   * A single pass over every non-deleted estimate's status + whether it
+   * has a VIEWED approval event, reusing the exact same derivation
+   * findAll() uses so the pills' counts can never disagree with what
+   * clicking into a pill actually filters to.
+   */
+  async summary() {
+    const db = this.prisma.forTenant();
+    const rows = await db.estimate.findMany({
+      where: { deletedAt: null },
+      select: { status: true, total: true, approvalEvents: { where: { action: 'VIEWED' }, select: { id: true }, take: 1 } },
+    });
+
+    const counts: Record<EstimateApprovalStatus, number> = {
+      DRAFT: 0,
+      SENT: 0,
+      AWAITING_APPROVAL: 0,
+      APPROVED: 0,
+      REJECTED: 0,
+      EXPIRED: 0,
+      CONVERTED: 0,
+    };
+    let totalValue = new Prisma.Decimal(0);
+
+    for (const row of rows) {
+      const approvalStatus = deriveEstimateApprovalStatus(row.status, row.approvalEvents.length > 0);
+      counts[approvalStatus] += 1;
+      totalValue = totalValue.add(row.total);
+    }
+
+    return {
+      total: rows.length,
+      draft: counts.DRAFT,
+      sent: counts.SENT,
+      awaitingApproval: counts.AWAITING_APPROVAL,
+      approved: counts.APPROVED,
+      rejected: counts.REJECTED,
+      expired: counts.EXPIRED,
+      converted: counts.CONVERTED,
+      totalValue: totalValue.toDecimalPlaces(2),
+    };
+  }
+
+  /**
+   * `approvalStatus` (derived-aware, see estimate-approval-status.ts)
+   * takes precedence over the plain `status` param when both are given —
+   * 'AWAITING_APPROVAL' filters to SENT-with-a-VIEWED-event, 'SENT' here
+   * specifically EXCLUDES those (so the two pills partition SENT estimates
+   * without double-counting), and any real EstimateStatus value filters
+   * on `status` directly, same as before this field existed.
+   */
+  private approvalStatusWhere(query: ListEstimatesQueryDto): Record<string, unknown> {
+    if (query.approvalStatus === 'AWAITING_APPROVAL') {
+      return { status: EstimateStatus.SENT, approvalEvents: { some: { action: 'VIEWED' } } };
+    }
+    if (query.approvalStatus === EstimateStatus.SENT) {
+      return { status: EstimateStatus.SENT, approvalEvents: { none: { action: 'VIEWED' } } };
+    }
+    if (query.approvalStatus) {
+      return { status: query.approvalStatus };
+    }
+    return query.status ? { status: query.status } : {};
   }
 
   async findOne(id: string) {
@@ -172,6 +272,7 @@ export class EstimatesService {
     estimate: {
       total: Prisma.Decimal;
       jobDescription: string | null;
+      estimateNumber: string | null;
       customer: { name: string; mobile: string; email: string | null };
       vehicle: { registrationNo: string; brand: string; model: string };
     },
@@ -184,7 +285,10 @@ export class EstimatesService {
       workshopName: tenant?.name ?? 'AutoNexa',
       customerName: estimate.customer.name,
       vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,
-      estimateNumber: `EST-${id.slice(0, 8).toUpperCase()}`,
+      // Falls back to the old ID-derived format only for the rare estimate
+      // that somehow still has no real number (pre-backfill window) —
+      // every estimate going forward always has one from create().
+      estimateNumber: estimate.estimateNumber ?? `EST-${id.slice(0, 8).toUpperCase()}`,
       grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
       approvalUrl,
     });

@@ -46,7 +46,7 @@ let MessagingService = class MessagingService {
         const attempts = [];
         for (const channel of channels) {
             if (channel === 'EMAIL') {
-                const result = await this.emailProvider.send(recipient.email, content.subject, content.body, attachments);
+                const result = await this.emailProvider.send(recipient.email, content.subject, content.body, attachments, content.html);
                 const status = result.ok ? client_1.DeliveryStatus.SENT : client_1.DeliveryStatus.FAILED;
                 await this.log(tenantId, client_1.DeliveryChannel.EMAIL, event, recipient.email, status, result.error, related, dedupeKey);
                 attempts.push({ channel: client_1.DeliveryChannel.EMAIL, status });

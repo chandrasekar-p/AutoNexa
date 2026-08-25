@@ -28,6 +28,14 @@ export class EstimatesController {
     return this.estimatesService.findAll(query);
   }
 
+  // Registered before Get(':id') — otherwise ':id' would swallow the
+  // literal 'summary' segment (see CLAUDE.md's route-ordering note).
+  @Permissions('estimate:read')
+  @Get('summary')
+  summary() {
+    return this.estimatesService.summary();
+  }
+
   @Permissions('estimate:read')
   @Get(':id')
   findOne(@Param('id') id: string) {

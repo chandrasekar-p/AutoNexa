@@ -401,6 +401,8 @@ export interface InspectionDetail extends InspectionFields {
 }
 
 export type EstimateStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONVERTED';
+/** Display-only — 'AWAITING_APPROVAL' isn't a real EstimateStatus, it's SENT + the customer opened the approval link (see apps/api's estimate-approval-status.ts). Never persisted. */
+export type EstimateApprovalStatus = EstimateStatus | 'AWAITING_APPROVAL';
 export type EstimateLineItemType = 'LABOUR' | 'PART' | 'CONSUMABLE';
 
 /** quantity/unitPrice/gstRate/lineTotal are Decimal on the backend — always strings over the wire, see this file's header note. lineTotal is always server-computed, never sent by the client. */
@@ -416,6 +418,7 @@ export interface EstimateLineItem {
 
 interface EstimateFields {
   id: string;
+  estimateNumber: string | null;
   customerId: string;
   vehicleId: string;
   jobDescription: string | null;
@@ -429,8 +432,29 @@ interface EstimateFields {
   createdAt: string;
 }
 
-/** GET /estimates list items — no lineItems and no customer/vehicle relations (EstimatesService.findAll has no `include` at all); the detail page fetches customer/vehicle separately via the row's own ids, same pattern as Inspections. */
-export type EstimateListItem = EstimateFields;
+/** GET /estimates list items — enriched with customer/vehicle/linked-invoice and the derived approvalStatus (see EstimatesService.findAll's LIST_INCLUDE/toListRow). The detail page still fetches customer/vehicle separately via the row's own ids, same pattern as Inspections. */
+export interface EstimateListItem extends EstimateFields {
+  customerName: string;
+  vehicleRegistrationNo: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  /** Only set once this estimate was CONVERTED and its job card was invoiced — null otherwise. */
+  linkedInvoiceNumber: string | null;
+  approvalStatus: EstimateApprovalStatus;
+}
+
+/** GET /estimates/summary — KPI counts for the Estimates page, see EstimatesService.summary(). */
+export interface EstimateSummary {
+  total: number;
+  draft: number;
+  sent: number;
+  awaitingApproval: number;
+  approved: number;
+  rejected: number;
+  expired: number;
+  converted: number;
+  totalValue: string;
+}
 
 /** GET /estimates/:id — includes lineItems (see EstimatesService's `include: { lineItems: true }`) but still not customer/vehicle. */
 export interface EstimateDetail extends EstimateFields {

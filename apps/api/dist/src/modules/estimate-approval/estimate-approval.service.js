@@ -114,7 +114,7 @@ let EstimateApprovalService = EstimateApprovalService_1 = class EstimateApproval
     }
     toSummary(estimate) {
         return {
-            estimateNumber: `EST-${estimate.id.slice(0, 8).toUpperCase()}`,
+            estimateNumber: estimate.estimateNumber ?? `EST-${estimate.id.slice(0, 8).toUpperCase()}`,
             status: estimate.status,
             jobDescription: estimate.jobDescription,
             vehicleLabel: `${estimate.vehicle.registrationNo} ${estimate.vehicle.brand} ${estimate.vehicle.model}`,

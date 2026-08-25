@@ -1,6 +1,6 @@
 {
   "name": "@autonexa/api",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "AutoNexa Workshop Management API",
   "scripts": {
     "build": "nest build",
@@ -16,6 +16,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "migrate:uploads-to-s3": "ts-node scripts/migrate-uploads-to-s3.ts",
     "backfill:role-permissions": "ts-node scripts/backfill-role-permissions.ts",
+    "backfill:estimate-numbers": "ts-node scripts/backfill-estimate-numbers.ts",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config jest.config.js"
   },

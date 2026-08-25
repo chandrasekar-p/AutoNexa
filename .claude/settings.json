@@ -20,7 +20,16 @@
       "Bash(timeout 40 bash -c 'until grep -qi '\\\\''ready'\\\\'' '\\\\''/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/web-dev-check.log'\\\\'' 2>/dev/null; do sleep 1; done')",
       "Bash(curl -s -o /dev/null -w \"reports: HTTP %{http_code}\\\\n\" \"http://localhost:3099/reports\")",
       "Bash(curl -s -o /dev/null -w \"reports/export: HTTP %{http_code}\\\\n\" \"http://localhost:3099/reports/export\")",
-      "Bash(kill 920536)"
+      "Bash(kill 920536)",
+      "Bash(npx prisma *)",
+      "Bash(kill 370693 370694 418293 418294)",
+      "Bash(timeout 60 bash -c 'until grep -qi '\\\\''successfully started\\\\|Error'\\\\'' '\\\\''/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/api-dev.log'\\\\'' 2>/dev/null; do sleep 1; done')",
+      "Bash(timeout 30 bash -c 'until grep -qi '\\\\''successfully started\\\\|running on'\\\\'' '\\\\''/tmp/claude-1000/-home-chandru-AI-AutoNexa/a19d0e74-7d19-46be-9221-0dc75155b920/scratchpad/api-dev.log'\\\\'' 2>/dev/null; do sleep 1; done')",
+      "Bash(curl -s http://localhost:4000/api/v1/estimates/summary -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s 'http://localhost:4000/api/v1/estimates?approvalStatus=CONVERTED&pageSize=6' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(node -e ' *)",
+      "Bash(curl -s 'http://localhost:4000/api/v1/estimates?approvalStatus=SENT&pageSize=5' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')"
     ]
   }
 }

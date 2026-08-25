@@ -33,6 +33,9 @@ let EstimatesController = class EstimatesController {
     findAll(query) {
         return this.estimatesService.findAll(query);
     }
+    summary() {
+        return this.estimatesService.summary();
+    }
     findOne(id) {
         return this.estimatesService.findOne(id);
     }
@@ -85,6 +88,13 @@ __decorate([
     __metadata("design:paramtypes", [list_estimates_query_dto_1.ListEstimatesQueryDto]),
     __metadata("design:returntype", void 0)
 ], EstimatesController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('estimate:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], EstimatesController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('estimate:read'),
     (0, common_1.Get)(':id'),
