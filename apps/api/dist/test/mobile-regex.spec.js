@@ -16,4 +16,18 @@ describe('INDIAN_MOBILE_REGEX', () => {
         expect(mobile_1.INDIAN_MOBILE_REGEX.test(value)).toBe(false);
     });
 });
+describe('toE164', () => {
+    it.each([
+        ['9092262278', '+919092262278'],
+        ['+91 98765 43210', '+919876543210'],
+        ['+919876543210', '+919876543210'],
+        ['09876543210', '+919876543210'],
+        ['098765 43210', '+919876543210'],
+    ])('normalizes %s to %s', (input, expected) => {
+        expect((0, mobile_1.toE164)(input)).toBe(expected);
+    });
+    it.each(['12345', 'abcdefghij', '5876543210', ''])('returns malformed input unchanged: %s', (value) => {
+        expect((0, mobile_1.toE164)(value)).toBe(value);
+    });
+});
 //# sourceMappingURL=mobile-regex.spec.js.map

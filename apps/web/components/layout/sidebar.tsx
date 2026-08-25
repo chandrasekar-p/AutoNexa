@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/lib/auth/auth-context';
 import { hasResourceAccess } from '@/lib/hooks/use-permission';
 import { useCurrentTenant } from '@/lib/hooks/use-current-tenant';
 import { getWorkshopHoursStatus } from '@/lib/workshop-hours';
+import { initialsFor } from '@/lib/format';
 import { NAV_SECTIONS, type NavItem } from './nav-items';
 
 const STORAGE_KEY = 'autonexa-sidebar-collapsed';
@@ -52,8 +53,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const tenant = useCurrentTenant();
   const hours = tenant ? getWorkshopHoursStatus(tenant.settings.businessHoursOpen, tenant.settings.businessHoursClose) : null;
 
@@ -77,6 +80,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       window.localStorage.setItem(STORAGE_KEY, next ? '1' : '0');
       return next;
     });
+  }
+
+  // Same logout() + redirect pattern as UserMenu's topbar dropdown — this
+  // is a second, always-visible entry point to the same action (standard
+  // sidebar convention: logout pinned at the bottom, not just behind the
+  // avatar menu), not a separate implementation of it.
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.push('/login');
+    }
   }
 
   return (
@@ -147,6 +163,29 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             )}
           </div>
         ) : null}
+        <div className={cn('flex items-center gap-2.5 border-t border-graphite-800 px-3 py-3', !showLabels && 'flex-col px-0')}>
+          {showLabels ? (
+            <>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-500 text-micro font-semibold text-white">
+                {initialsFor(user?.name ?? user?.email ?? '?')}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-xs text-white/70">{user?.name ?? user?.email}</span>
+            </>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            aria-label="Log out"
+            title="Log out"
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded text-white/60 transition-colors hover:bg-danger-500/15 hover:text-danger-400 disabled:opacity-60',
+              !showLabels && 'w-full',
+            )}
+          >
+            <LogOut aria-hidden className="h-4 w-4" />
+          </button>
+        </div>
       </aside>
     </>
   );

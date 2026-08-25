@@ -60,6 +60,40 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+
+  /* Thin, rounded, no arrow buttons — applies to every scrollable region
+     app-wide (page body, the sidebar nav, tables' own overflow-x-auto
+     wrapper, modals, ...) so nothing needs its own scrollbar styling.
+     `ink-muted` reads at a visible-but-quiet weight on both the light/dark
+     canvas and the sidebar's fixed dark graphite chrome, so one rule
+     covers every surface without per-surface tuning. Firefox via the
+     standard properties, Chromium/Safari via the -webkit- pseudo-elements. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-muted) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-ink-muted);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-ink-secondary);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @layer utilities {

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import twilio from 'twilio';
+import { toE164 } from '../../../common/validators/mobile';
 import { SendResult } from './provider.types';
 
 @Injectable()
@@ -23,7 +24,7 @@ export class SmsProvider {
   async send(to: string, body: string): Promise<SendResult> {
     if (!this.client || !this.fromNumber) return { ok: false, error: 'Twilio not configured' };
     try {
-      await this.client.messages.create({ to, from: this.fromNumber, body });
+      await this.client.messages.create({ to: toE164(to), from: this.fromNumber, body });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Unknown SMS error' };

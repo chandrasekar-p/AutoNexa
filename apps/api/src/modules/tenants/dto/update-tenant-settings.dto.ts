@@ -103,4 +103,19 @@ export class UpdateTenantSettingsDto {
   @IsInt()
   @Min(1)
   serviceIntervalKm?: number;
+
+  @ApiPropertyOptional({ description: 'Whether customer-facing notifications (estimate ready, invoice issued, etc.) are sent by email — independent of whether SMTP is configured' })
+  @IsOptional()
+  @IsBoolean()
+  notifyByEmail?: boolean;
+
+  @ApiPropertyOptional({ description: 'Whether customer-facing notifications are sent by SMS — independent of whether Twilio is configured' })
+  @IsOptional()
+  @IsBoolean()
+  notifyBySms?: boolean;
+
+  @ApiPropertyOptional({ description: 'Whether customer-facing notifications are sent by WhatsApp — independent of whether the WhatsApp Cloud API is configured. Preferred over SMS when both are enabled and configured.' })
+  @IsOptional()
+  @IsBoolean()
+  notifyByWhatsapp?: boolean;
 }

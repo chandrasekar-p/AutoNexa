@@ -126,6 +126,10 @@ export interface TenantSettings {
   reminderThresholdDays: number[];
   serviceIntervalMonths: number;
   serviceIntervalKm: number;
+  /** Which channel(s) customer-facing notifications are sent through — independent of whether the underlying provider (SMTP/Twilio/WhatsApp Cloud API) is configured. See NotificationChannelsCard. */
+  notifyByEmail: boolean;
+  notifyBySms: boolean;
+  notifyByWhatsapp: boolean;
   updatedAt: string;
 }
 

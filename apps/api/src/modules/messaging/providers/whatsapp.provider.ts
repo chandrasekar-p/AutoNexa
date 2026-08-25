@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { toE164 } from '../../../common/validators/mobile';
 import { SendResult } from './provider.types';
 
 /**
@@ -32,7 +33,7 @@ export class WhatsAppProvider {
         headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
-          to,
+          to: toE164(to),
           type: 'text',
           text: { body },
         }),

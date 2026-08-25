@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WhatsAppProvider = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const mobile_1 = require("../../../common/validators/mobile");
 let WhatsAppProvider = class WhatsAppProvider {
     constructor(config) {
         this.config = config;
@@ -30,7 +31,7 @@ let WhatsAppProvider = class WhatsAppProvider {
                 headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     messaging_product: 'whatsapp',
-                    to,
+                    to: (0, mobile_1.toE164)(to),
                     type: 'text',
                     text: { body },
                 }),

@@ -56,7 +56,16 @@ export class MessagingService {
       sms: this.smsProvider.isConfigured(),
       whatsapp: this.whatsappProvider.isConfigured(),
     };
-    const channels = pickCustomerChannels(recipient, availability);
+    // `platform`, not `forTenant()` — same reason as notifyOps below:
+    // this method takes `tenantId` explicitly because some callers (e.g.
+    // a payment gateway webhook) have no live TenantContext to read from.
+    const settings = await this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } });
+    const preference = {
+      email: settings?.notifyByEmail ?? true,
+      sms: settings?.notifyBySms ?? true,
+      whatsapp: settings?.notifyByWhatsapp ?? true,
+    };
+    const channels = pickCustomerChannels(recipient, availability, preference);
 
     if (channels.length === 0) {
       // Nominal channel — nothing was configured, so nothing was actually

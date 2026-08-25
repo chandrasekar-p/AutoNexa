@@ -16,6 +16,7 @@ exports.SmsProvider = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const twilio_1 = __importDefault(require("twilio"));
+const mobile_1 = require("../../../common/validators/mobile");
 let SmsProvider = class SmsProvider {
     constructor(config) {
         this.config = config;
@@ -31,7 +32,7 @@ let SmsProvider = class SmsProvider {
         if (!this.client || !this.fromNumber)
             return { ok: false, error: 'Twilio not configured' };
         try {
-            await this.client.messages.create({ to, from: this.fromNumber, body });
+            await this.client.messages.create({ to: (0, mobile_1.toE164)(to), from: this.fromNumber, body });
             return { ok: true };
         }
         catch (err) {

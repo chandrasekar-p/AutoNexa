@@ -133,4 +133,22 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], UpdateTenantSettingsDto.prototype, "serviceIntervalKm", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Whether customer-facing notifications (estimate ready, invoice issued, etc.) are sent by email — independent of whether SMTP is configured' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateTenantSettingsDto.prototype, "notifyByEmail", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Whether customer-facing notifications are sent by SMS — independent of whether Twilio is configured' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateTenantSettingsDto.prototype, "notifyBySms", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Whether customer-facing notifications are sent by WhatsApp — independent of whether the WhatsApp Cloud API is configured. Preferred over SMS when both are enabled and configured.' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateTenantSettingsDto.prototype, "notifyByWhatsapp", void 0);
 //# sourceMappingURL=update-tenant-settings.dto.js.map

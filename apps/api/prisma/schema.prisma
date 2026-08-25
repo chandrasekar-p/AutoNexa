@@ -112,6 +112,16 @@ model TenantSettings {
   loyaltyEnabled               Boolean  @default(true)
   loyaltyPointsPerRupee        Decimal  @default(0.01) @db.Decimal(6, 4) // 1 point per ₹100 spent (on Invoice.subtotal), by default
   loyaltyPointValueRupees      Decimal  @default(1) @db.Decimal(6, 2) // 1 point = ₹1 of discount, by default
+  // Which channel(s) this workshop wants customer-facing notifications
+  // sent through — independent of which providers happen to be
+  // configured (see MessagingService.notifyCustomer/pickCustomerChannels).
+  // All default true so existing tenants keep today's "send on every
+  // configured channel" behavior with no migration-time change in
+  // observed sending. Internal ops Slack pings are unaffected — this only
+  // governs customer-facing EMAIL/SMS/WHATSAPP.
+  notifyByEmail                Boolean  @default(true)
+  notifyBySms                  Boolean  @default(true)
+  notifyByWhatsapp             Boolean  @default(true)
   updatedAt                    DateTime @updatedAt
 
   @@map("tenant_settings")
