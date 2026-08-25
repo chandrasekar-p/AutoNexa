@@ -14,10 +14,71 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VehiclesService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const tenant_context_1 = require("../../prisma/tenant-context");
 const storage_types_1 = require("../storage/storage.types");
 const resolve_display_url_1 = require("../storage/resolve-display-url");
 const warranty_status_1 = require("../warranty/warranty-status");
+const vehicle_status_1 = require("./vehicle-status");
+const next_service_due_1 = require("../messaging/next-service-due");
+const LIST_INCLUDE = {
+    customer: { select: { id: true, name: true, mobile: true } },
+    jobCards: {
+        where: { status: client_1.JobCardStatus.DELIVERED, deletedAt: null, actualDelivery: { not: null } },
+        orderBy: { actualDelivery: 'desc' },
+        take: 1,
+        select: { actualDelivery: true, odometer: true },
+    },
+};
+function toListRow(vehicle, now) {
+    const { customer, jobCards, ...rest } = vehicle;
+    const lastService = jobCards[0] ?? null;
+    return {
+        ...rest,
+        customerId: customer.id,
+        customerName: customer.name,
+        customerMobile: customer.mobile,
+        lastServiceAt: lastService?.actualDelivery ?? null,
+        lastServiceOdometer: lastService?.odometer ?? null,
+        insuranceStatus: (0, vehicle_status_1.computeExpiryStatus)(vehicle.insuranceExpiry, now),
+        pucStatus: (0, vehicle_status_1.computeExpiryStatus)(vehicle.pucExpiry, now),
+        status: (0, vehicle_status_1.computeVehicleStatus)(vehicle.insuranceExpiry, vehicle.pucExpiry, now),
+    };
+}
+function expiryFilterWhere(field, filter, now) {
+    if (!filter)
+        return {};
+    const soonThreshold = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    switch (filter) {
+        case 'not_set':
+            return { [field]: null };
+        case 'expired':
+            return { [field]: { lt: now } };
+        case 'expiring_soon':
+            return { [field]: { gte: now, lte: soonThreshold } };
+        case 'active':
+            return { [field]: { gt: soonThreshold } };
+        default:
+            return {};
+    }
+}
+function statusFilterWhere(status, now) {
+    if (status === 'NO_DATA')
+        return { insuranceExpiry: null, pucExpiry: null };
+    if (status === 'EXPIRED')
+        return { OR: [{ insuranceExpiry: { lt: now } }, { pucExpiry: { lt: now } }] };
+    if (status === 'ACTIVE') {
+        return {
+            AND: [
+                { OR: [{ insuranceExpiry: { not: null } }, { pucExpiry: { not: null } }] },
+                { OR: [{ insuranceExpiry: null }, { insuranceExpiry: { gte: now } }] },
+                { OR: [{ pucExpiry: null }, { pucExpiry: { gte: now } }] },
+            ],
+        };
+    }
+    return {};
+}
 let VehiclesService = class VehiclesService {
     constructor(prisma, storage) {
         this.prisma = prisma;
@@ -38,9 +99,13 @@ let VehiclesService = class VehiclesService {
         const page = query.page ?? 1;
         const pageSize = query.pageSize ?? 20;
         const db = this.prisma.forTenant();
+        const now = new Date();
         const where = {
             deletedAt: null,
             ...(query.customerId ? { customerId: query.customerId } : {}),
+            ...statusFilterWhere(query.status, now),
+            ...expiryFilterWhere('insuranceExpiry', query.insurance, now),
+            ...expiryFilterWhere('pucExpiry', query.puc, now),
             ...(query.search
                 ? {
                     OR: [
@@ -52,18 +117,78 @@ let VehiclesService = class VehiclesService {
                 }
                 : {}),
         };
-        const [items, total] = await Promise.all([
+        const [rows, total] = await Promise.all([
             db.vehicle.findMany({
                 where,
-                include: { customer: { select: { id: true, name: true, mobile: true } } },
+                include: LIST_INCLUDE,
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
             }),
             db.vehicle.count({ where }),
         ]);
-        const resolvedItems = await Promise.all(items.map(async (vehicle) => ({ ...vehicle, photoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, vehicle.photoUrl) })));
+        const resolvedItems = await Promise.all(rows.map(async (vehicle) => ({ ...toListRow(vehicle, now), photoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, vehicle.photoUrl) })));
         return { items: resolvedItems, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async summary() {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const db = this.prisma.forTenant();
+        const now = new Date();
+        const soonThreshold = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const [total, insuranceActive, insuranceSoon, pucActive, pucSoon, vehiclesWithYear, tenantSettings, allVehicles] = await Promise.all([
+            db.vehicle.count({ where: { deletedAt: null } }),
+            db.vehicle.count({ where: { deletedAt: null, insuranceExpiry: { gte: now } } }),
+            db.vehicle.count({ where: { deletedAt: null, insuranceExpiry: { gte: now, lte: soonThreshold } } }),
+            db.vehicle.count({ where: { deletedAt: null, pucExpiry: { gte: now } } }),
+            db.vehicle.count({ where: { deletedAt: null, pucExpiry: { gte: now, lte: soonThreshold } } }),
+            db.vehicle.findMany({ where: { deletedAt: null, manufactureYear: { not: null } }, select: { manufactureYear: true } }),
+            this.prisma.platform.tenantSettings.findUniqueOrThrow({ where: { tenantId } }),
+            db.vehicle.findMany({
+                where: { deletedAt: null },
+                select: { id: true, odometerReading: true, serviceIntervalMonthsOverride: true, serviceIntervalKmOverride: true },
+            }),
+        ]);
+        const currentYear = now.getUTCFullYear();
+        const avgAge = vehiclesWithYear.length > 0
+            ? vehiclesWithYear.reduce((sum, v) => sum + (currentYear - v.manufactureYear), 0) / vehiclesWithYear.length
+            : 0;
+        const lastServices = await db.jobCard.findMany({
+            where: {
+                vehicleId: { in: allVehicles.map((v) => v.id) },
+                status: client_1.JobCardStatus.DELIVERED,
+                deletedAt: null,
+                actualDelivery: { not: null },
+            },
+            orderBy: { actualDelivery: 'desc' },
+            select: { vehicleId: true, actualDelivery: true, odometer: true },
+        });
+        const lastServiceByVehicle = new Map();
+        for (const jc of lastServices) {
+            if (!lastServiceByVehicle.has(jc.vehicleId) && jc.actualDelivery) {
+                lastServiceByVehicle.set(jc.vehicleId, { actualDelivery: jc.actualDelivery, odometer: jc.odometer });
+            }
+        }
+        let upcomingService = 0;
+        for (const vehicle of allVehicles) {
+            const lastService = lastServiceByVehicle.get(vehicle.id);
+            if (!lastService)
+                continue;
+            const intervalMonths = vehicle.serviceIntervalMonthsOverride ?? tenantSettings.serviceIntervalMonths;
+            const intervalKm = vehicle.serviceIntervalKmOverride ?? tenantSettings.serviceIntervalKm;
+            const { dueDate } = (0, next_service_due_1.computeServiceDue)({ completedAt: lastService.actualDelivery, odometer: lastService.odometer }, vehicle.odometerReading, intervalMonths, intervalKm);
+            if (dueDate && dueDate.getTime() >= now.getTime() && dueDate.getTime() <= soonThreshold.getTime()) {
+                upcomingService++;
+            }
+        }
+        return {
+            total,
+            insuranceActive,
+            insuranceExpiringSoon: insuranceSoon,
+            pucActive,
+            pucExpiringSoon: pucSoon,
+            avgAgeYears: Math.round(avgAge * 10) / 10,
+            upcomingService,
+        };
     }
     async findOne(id) {
         const vehicle = await this.prisma.forTenant().vehicle.findFirst({

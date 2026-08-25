@@ -6,7 +6,6 @@ import { useApiQuery } from '@/lib/hooks/use-api-query';
 import type { VehicleFormValues } from '@/lib/validation/vehicle';
 import type { VehicleDetail } from '@/lib/api-types';
 import { VehicleForm } from '@/components/domain/vehicle-form';
-import { Card, CardBody } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 
@@ -22,7 +21,7 @@ export default function EditVehiclePage() {
   }
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex max-w-6xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-ink">Edit Vehicle</h1>
         <p className="text-sm text-ink-secondary">Update this vehicle&rsquo;s details.</p>
@@ -32,17 +31,7 @@ export default function EditVehiclePage() {
       {query.error ? <ErrorState message={query.error} onRetry={query.refetch} /> : null}
 
       {query.data ? (
-        <Card>
-          <CardBody className="pt-5">
-            <VehicleForm
-              customer={query.data.customer}
-              initial={query.data}
-              submitLabel="Save Changes"
-              onSubmit={handleSubmit}
-              onCancel={() => router.back()}
-            />
-          </CardBody>
-        </Card>
+        <VehicleForm customer={query.data.customer} initial={query.data} submitLabel="Save Changes" onSubmit={handleSubmit} onCancel={() => router.back()} />
       ) : null}
     </div>
   );

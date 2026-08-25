@@ -26,6 +26,14 @@ export class AppointmentsController {
     return this.appointmentsService.findAll(query);
   }
 
+  // Registered before Get(':id') — otherwise ':id' would swallow the
+  // literal 'summary' segment (see CLAUDE.md's route-ordering note).
+  @Permissions('appointment:read')
+  @Get('summary')
+  summary() {
+    return this.appointmentsService.summary();
+  }
+
   @Permissions('appointment:read')
   @Get(':id')
   findOne(@Param('id') id: string) {

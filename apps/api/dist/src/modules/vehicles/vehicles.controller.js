@@ -32,6 +32,9 @@ let VehiclesController = class VehiclesController {
     findAll(query) {
         return this.vehiclesService.findAll(query);
     }
+    summary() {
+        return this.vehiclesService.summary();
+    }
     findOne(id) {
         return this.vehiclesService.findOne(id);
     }
@@ -69,6 +72,13 @@ __decorate([
     __metadata("design:paramtypes", [list_vehicles_query_dto_1.ListVehiclesQueryDto]),
     __metadata("design:returntype", void 0)
 ], VehiclesController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('vehicle:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], VehiclesController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('vehicle:read'),
     (0, common_1.Get)(':id'),

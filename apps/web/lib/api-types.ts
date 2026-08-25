@@ -320,9 +320,33 @@ interface VehicleFields {
   updatedAt: string;
 }
 
-/** GET /vehicles list item — see VehiclesService.findAll's `include`. */
+export type VehicleExpiryStatus = 'active' | 'expiring_soon' | 'expired' | 'not_set';
+/** Combined per-row status the Vehicles page's STATUS badge shows — see apps/api's vehicle-status.ts. */
+export type VehicleStatus = 'ACTIVE' | 'EXPIRED' | 'NO_DATA';
+
+/** GET /vehicles list item — flattened customer fields and derived status/last-service (see VehiclesService.findAll's LIST_INCLUDE/toListRow), not a nested `customer` object like VehicleDetail. */
 export interface VehicleListItem extends VehicleFields {
-  customer: CustomerRef;
+  customerId: string;
+  customerName: string;
+  customerMobile: string;
+  /** Most recent DELIVERED job card's actualDelivery for this vehicle — null if it has none yet. */
+  lastServiceAt: string | null;
+  lastServiceOdometer: number | null;
+  insuranceStatus: VehicleExpiryStatus;
+  pucStatus: VehicleExpiryStatus;
+  status: VehicleStatus;
+}
+
+/** GET /vehicles/summary — KPI counts for the Vehicles page, see VehiclesService.summary(). */
+export interface VehicleSummary {
+  total: number;
+  /** Includes vehicles expiring soon — insuranceExpiringSoon is the subset of this within 30 days, not a separate count. */
+  insuranceActive: number;
+  insuranceExpiringSoon: number;
+  pucActive: number;
+  pucExpiringSoon: number;
+  avgAgeYears: number;
+  upcomingService: number;
 }
 
 export interface VehicleDocument {
@@ -366,9 +390,21 @@ export interface Appointment {
   appointmentTime: string;
   serviceAdvisorId: string | null;
   technicianId: string | null;
+  serviceAdvisor: StaffRef | null;
+  technician: StaffRef | null;
   notes: string | null;
   status: AppointmentStatus;
   createdAt: string;
+}
+
+/** GET /appointments/summary — KPI counts for the Appointments page, see AppointmentsService.summary(). */
+export interface AppointmentSummary {
+  today: number;
+  /** Next 7 days, starting the day after today (today has its own count above, not double-counted here). */
+  upcoming: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
 }
 
 export type InspectionStatus = 'IN_PROGRESS' | 'COMPLETED';

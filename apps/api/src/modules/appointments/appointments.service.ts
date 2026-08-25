@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { AppointmentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { MessagingService } from '../messaging/messaging.service';
@@ -10,6 +10,7 @@ import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
 
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
+const STAFF_SUMMARY_SELECT = { id: true, name: true } as const;
 
 @Injectable()
 export class AppointmentsService {
@@ -29,7 +30,7 @@ export class AppointmentsService {
         ...dto,
         appointmentDate: new Date(dto.appointmentDate),
       } as unknown as Prisma.AppointmentUncheckedCreateInput,
-      include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+      include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT }, serviceAdvisor: { select: STAFF_SUMMARY_SELECT }, technician: { select: STAFF_SUMMARY_SELECT } },
     });
 
     await this.sendConfirmation(appointment);
@@ -105,7 +106,7 @@ export class AppointmentsService {
     const [items, total] = await Promise.all([
       db.appointment.findMany({
         where,
-        include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+        include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT }, serviceAdvisor: { select: STAFF_SUMMARY_SELECT }, technician: { select: STAFF_SUMMARY_SELECT } },
         orderBy: { appointmentDate: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -116,10 +117,37 @@ export class AppointmentsService {
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
+  /**
+   * KPI cards for the Appointments page. "Today" and "Upcoming" are
+   * deliberately non-overlapping windows (today's own count has its own
+   * card, so "next 7 days" starts the day after today, not including it)
+   * — same server-local-time simplification as DashboardService's own
+   * todayRange()/monthRange() helpers.
+   */
+  async summary() {
+    const db = this.prisma.forTenant();
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const upcomingEnd = new Date(todayEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const [today, upcoming, completed, cancelled, noShow] = await Promise.all([
+      db.appointment.count({ where: { deletedAt: null, appointmentDate: { gte: todayStart, lt: todayEnd } } }),
+      db.appointment.count({ where: { deletedAt: null, appointmentDate: { gte: todayEnd, lt: upcomingEnd } } }),
+      db.appointment.count({ where: { deletedAt: null, status: AppointmentStatus.COMPLETED, appointmentDate: { gte: monthStart, lt: monthEnd } } }),
+      db.appointment.count({ where: { deletedAt: null, status: AppointmentStatus.CANCELLED, appointmentDate: { gte: monthStart, lt: monthEnd } } }),
+      db.appointment.count({ where: { deletedAt: null, status: AppointmentStatus.NO_SHOW, appointmentDate: { gte: monthStart, lt: monthEnd } } }),
+    ]);
+
+    return { today, upcoming, completed, cancelled, noShow };
+  }
+
   async findOne(id: string) {
     const appointment = await this.prisma.forTenant().appointment.findFirst({
       where: { id, deletedAt: null },
-      include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+      include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT }, serviceAdvisor: { select: STAFF_SUMMARY_SELECT }, technician: { select: STAFF_SUMMARY_SELECT } },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     return appointment;

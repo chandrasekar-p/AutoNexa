@@ -31,6 +31,9 @@ let AppointmentsController = class AppointmentsController {
     findAll(query) {
         return this.appointmentsService.findAll(query);
     }
+    summary() {
+        return this.appointmentsService.summary();
+    }
     findOne(id) {
         return this.appointmentsService.findOne(id);
     }
@@ -59,6 +62,13 @@ __decorate([
     __metadata("design:paramtypes", [list_appointments_query_dto_1.ListAppointmentsQueryDto]),
     __metadata("design:returntype", void 0)
 ], AppointmentsController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('appointment:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AppointmentsController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('appointment:read'),
     (0, common_1.Get)(':id'),

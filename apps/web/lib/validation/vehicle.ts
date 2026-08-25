@@ -28,6 +28,7 @@ export const vehicleSchema = z.object({
   warrantyInfo: z.string().optional(),
   purchaseDate: z.string().optional(),
   notes: z.string().optional(),
+  photoUrl: z.string().optional(),
 });
 
 export type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -47,6 +48,7 @@ const OPTIONAL_STRING_FIELDS = [
   'warrantyInfo',
   'purchaseDate',
   'notes',
+  'photoUrl',
 ] as const;
 
 /**

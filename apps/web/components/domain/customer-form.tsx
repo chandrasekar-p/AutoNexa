@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
+import { SectionHeading } from '@/components/domain/section-heading';
 
 interface CustomerFormProps {
   initial?: Customer;
@@ -22,17 +23,6 @@ interface CustomerFormProps {
 }
 
 const OTHER_CITY = '__other__';
-
-function SectionHeading({ number, title }: { number: number; title: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-500 text-micro font-semibold text-white">
-        {number}
-      </span>
-      <h2 className="text-sm font-semibold text-ink">{title}</h2>
-    </div>
-  );
-}
 
 /**
  * Shared between the create (/customers/new) and edit (/customers/[id]/edit)
@@ -114,7 +104,7 @@ export function CustomerForm({ initial, submitLabel, onSubmit, onCancel, sidebar
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Card>
             <CardBody className="flex flex-col gap-4 pt-5">

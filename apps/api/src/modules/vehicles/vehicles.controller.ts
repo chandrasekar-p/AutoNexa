@@ -27,6 +27,14 @@ export class VehiclesController {
     return this.vehiclesService.findAll(query);
   }
 
+  // Registered before Get(':id') — otherwise ':id' would swallow the
+  // literal 'summary' segment (see CLAUDE.md's route-ordering note).
+  @Permissions('vehicle:read')
+  @Get('summary')
+  summary() {
+    return this.vehiclesService.summary();
+  }
+
   @Permissions('vehicle:read')
   @Get(':id')
   findOne(@Param('id') id: string) {

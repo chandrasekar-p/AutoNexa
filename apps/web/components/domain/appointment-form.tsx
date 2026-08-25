@@ -3,12 +3,8 @@
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '@/lib/api-client';
 import { validateAppointmentForm, type AppointmentFormErrors, type AppointmentFormValues } from '@/lib/validation/appointment';
-import { useStaffOptions } from '@/lib/hooks/use-staff-options';
 import type { Appointment, CustomerRef } from '@/lib/api-types';
-import { Input } from '@/components/ui/input';
-import { TimePicker } from '@/components/ui/time-picker';
-import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { AppointmentDetailsFields } from '@/components/domain/appointment-details-fields';
 import { Button } from '@/components/ui/button';
 
 interface AppointmentFormProps {
@@ -22,8 +18,7 @@ interface AppointmentFormProps {
 }
 
 export function AppointmentForm({ customer, vehicle, initial, submitLabel, onSubmit, onCancel }: AppointmentFormProps) {
-  const staff = useStaffOptions();
-  const [values, setValues] = useState({
+  const [values, setValues] = useState<AppointmentFormValues>({
     serviceType: initial?.serviceType ?? '',
     appointmentDate: initial?.appointmentDate.slice(0, 10) ?? '',
     appointmentTime: initial?.appointmentTime ?? '',
@@ -35,7 +30,7 @@ export function AppointmentForm({ customer, vehicle, initial, submitLabel, onSub
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function set<K extends keyof typeof values>(key: K, value: (typeof values)[K]) {
+  function set<K extends keyof AppointmentFormValues>(key: K, value: AppointmentFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
   }
 
@@ -85,64 +80,7 @@ export function AppointmentForm({ customer, vehicle, initial, submitLabel, onSub
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input
-          label="Service Type"
-          value={values.serviceType}
-          onChange={(e) => set('serviceType', e.target.value)}
-          placeholder="General Service"
-          error={errors.serviceType}
-          required
-        />
-        <div />
-        <Input
-          label="Date"
-          type="date"
-          value={values.appointmentDate}
-          onChange={(e) => set('appointmentDate', e.target.value)}
-          error={errors.appointmentDate}
-          required
-        />
-        <TimePicker
-          label="Time"
-          value={values.appointmentTime}
-          onChange={(time) => set('appointmentTime', time)}
-          error={errors.appointmentTime}
-          required
-        />
-        {staff.isAvailable ? (
-          <>
-            <Select
-              label="Service Advisor"
-              value={values.serviceAdvisorId}
-              onChange={(e) => set('serviceAdvisorId', e.target.value)}
-              error={errors.serviceAdvisorId}
-            >
-              <option value="">—</option>
-              {staff.options.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="Technician"
-              value={values.technicianId}
-              onChange={(e) => set('technicianId', e.target.value)}
-              error={errors.technicianId}
-            >
-              <option value="">—</option>
-              {staff.options.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-          </>
-        ) : null}
-      </div>
-
-      <Textarea label="Notes" value={values.notes} onChange={(e) => set('notes', e.target.value)} error={errors.notes} />
+      <AppointmentDetailsFields values={values} errors={errors} onChange={set} />
 
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>

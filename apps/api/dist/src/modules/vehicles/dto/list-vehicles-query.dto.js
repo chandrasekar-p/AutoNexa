@@ -14,6 +14,7 @@ const swagger_1 = require("@nestjs/swagger");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const uuid_like_1 = require("../../../common/validators/uuid-like");
+const EXPIRY_FILTER_VALUES = ['active', 'expiring_soon', 'expired', 'not_set'];
 class ListVehiclesQueryDto {
     constructor() {
         this.page = 1;
@@ -33,6 +34,24 @@ __decorate([
     (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
     __metadata("design:type", String)
 ], ListVehiclesQueryDto.prototype, "customerId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['ACTIVE', 'EXPIRED', 'NO_DATA'], description: 'The combined per-row status (see vehicle-status.ts)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['ACTIVE', 'EXPIRED', 'NO_DATA']),
+    __metadata("design:type", String)
+], ListVehiclesQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: EXPIRY_FILTER_VALUES }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(EXPIRY_FILTER_VALUES),
+    __metadata("design:type", Object)
+], ListVehiclesQueryDto.prototype, "insurance", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: EXPIRY_FILTER_VALUES }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(EXPIRY_FILTER_VALUES),
+    __metadata("design:type", Object)
+], ListVehiclesQueryDto.prototype, "puc", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

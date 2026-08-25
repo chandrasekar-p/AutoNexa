@@ -11,12 +11,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppointmentsService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
+const STAFF_SUMMARY_SELECT = { id: true, name: true };
 let AppointmentsService = class AppointmentsService {
     constructor(prisma, messaging) {
         this.prisma = prisma;
@@ -30,7 +32,7 @@ let AppointmentsService = class AppointmentsService {
                 ...dto,
                 appointmentDate: new Date(dto.appointmentDate),
             },
-            include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+            include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT }, serviceAdvisor: { select: STAFF_SUMMARY_SELECT }, technician: { select: STAFF_SUMMARY_SELECT } },
         });
         await this.sendConfirmation(appointment);
         return appointment;
@@ -78,7 +80,7 @@ let AppointmentsService = class AppointmentsService {
         const [items, total] = await Promise.all([
             db.appointment.findMany({
                 where,
-                include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+                include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT }, serviceAdvisor: { select: STAFF_SUMMARY_SELECT }, technician: { select: STAFF_SUMMARY_SELECT } },
                 orderBy: { appointmentDate: 'asc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
@@ -87,10 +89,27 @@ let AppointmentsService = class AppointmentsService {
         ]);
         return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     }
+    async summary() {
+        const db = this.prisma.forTenant();
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+        const upcomingEnd = new Date(todayEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const [today, upcoming, completed, cancelled, noShow] = await Promise.all([
+            db.appointment.count({ where: { deletedAt: null, appointmentDate: { gte: todayStart, lt: todayEnd } } }),
+            db.appointment.count({ where: { deletedAt: null, appointmentDate: { gte: todayEnd, lt: upcomingEnd } } }),
+            db.appointment.count({ where: { deletedAt: null, status: client_1.AppointmentStatus.COMPLETED, appointmentDate: { gte: monthStart, lt: monthEnd } } }),
+            db.appointment.count({ where: { deletedAt: null, status: client_1.AppointmentStatus.CANCELLED, appointmentDate: { gte: monthStart, lt: monthEnd } } }),
+            db.appointment.count({ where: { deletedAt: null, status: client_1.AppointmentStatus.NO_SHOW, appointmentDate: { gte: monthStart, lt: monthEnd } } }),
+        ]);
+        return { today, upcoming, completed, cancelled, noShow };
+    }
     async findOne(id) {
         const appointment = await this.prisma.forTenant().appointment.findFirst({
             where: { id, deletedAt: null },
-            include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT } },
+            include: { customer: { select: CUSTOMER_SUMMARY_SELECT }, vehicle: { select: VEHICLE_SUMMARY_SELECT }, serviceAdvisor: { select: STAFF_SUMMARY_SELECT }, technician: { select: STAFF_SUMMARY_SELECT } },
         });
         if (!appointment)
             throw new common_1.NotFoundException('Appointment not found');
