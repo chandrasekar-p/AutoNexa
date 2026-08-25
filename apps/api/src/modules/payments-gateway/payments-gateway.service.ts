@@ -85,7 +85,7 @@ export class PaymentsGatewayService {
     const attempts = await this.messaging.notifyCustomer(
       tenantId,
       'invoice.payment-link',
-      { email: invoice.customer.email, mobile: invoice.customer.mobile },
+      { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id },
       content,
       { type: 'Invoice', id: invoice.id },
     );

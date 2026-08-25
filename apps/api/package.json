@@ -17,6 +17,7 @@
     "migrate:uploads-to-s3": "ts-node scripts/migrate-uploads-to-s3.ts",
     "backfill:role-permissions": "ts-node scripts/backfill-role-permissions.ts",
     "backfill:estimate-numbers": "ts-node scripts/backfill-estimate-numbers.ts",
+    "backfill:customer-numbers": "ts-node scripts/backfill-customer-numbers.ts",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config jest.config.js"
   },

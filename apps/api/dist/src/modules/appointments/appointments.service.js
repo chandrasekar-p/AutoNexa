@@ -46,7 +46,7 @@ let AppointmentsService = class AppointmentsService {
             appointmentDate: appointment.appointmentDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
             appointmentTime: appointment.appointmentTime,
         });
-        await this.messaging.notifyCustomer(tenantId, 'appointment.confirmed', { email: appointment.customer.email, mobile: appointment.customer.mobile }, content, { type: 'Appointment', id: appointment.id });
+        await this.messaging.notifyCustomer(tenantId, 'appointment.confirmed', { email: appointment.customer.email, mobile: appointment.customer.mobile, customerId: appointment.customer.id }, content, { type: 'Appointment', id: appointment.id });
         await this.messaging.notifyOps(tenantId, 'appointment.confirmed', `New appointment: ${appointment.customer.name} — ${appointment.vehicle.registrationNo} — ${appointment.appointmentTime}`, { type: 'Appointment', id: appointment.id });
     }
     async findAll(query) {

@@ -143,7 +143,7 @@ export class WarrantyClaimsService {
     await this.messaging.notifyCustomer(
       tenantId,
       'warranty-claim.decided',
-      { email: customer.email, mobile: customer.mobile },
+      { email: customer.email, mobile: customer.mobile, customerId: customer.id },
       content,
       { type: 'WarrantyClaim', id: claim.id },
     );

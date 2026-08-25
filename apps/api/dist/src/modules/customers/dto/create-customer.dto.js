@@ -87,4 +87,13 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateCustomerDto.prototype, "reminderOptOut", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: 'Whether this customer wants WhatsApp/SMS at all — distinct from the workshop-wide channel toggles in Settings. Email is never gated by this.',
+        default: true,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateCustomerDto.prototype, "notifyByWhatsappSms", void 0);
 //# sourceMappingURL=create-customer.dto.js.map

@@ -27,6 +27,24 @@ __decorate([
     __metadata("design:type", String)
 ], ListCustomersQueryDto.prototype, "search", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['individual', 'business'] }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['individual', 'business']),
+    __metadata("design:type", String)
+], ListCustomersQueryDto.prototype, "customerType", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Exact city match' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListCustomersQueryDto.prototype, "city", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['active', 'inactive', 'all'], default: 'active' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['active', 'inactive', 'all']),
+    __metadata("design:type", String)
+], ListCustomersQueryDto.prototype, "status", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),

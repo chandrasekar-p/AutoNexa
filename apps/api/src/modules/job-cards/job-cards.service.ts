@@ -339,7 +339,7 @@ export class JobCardsService {
   private async sendReadyForPickup(jobCard: {
     id: string;
     jobCardNumber: string;
-    customer: { name: string; mobile: string; email: string | null };
+    customer: { id: string; name: string; mobile: string; email: string | null };
     vehicle: { registrationNo: string; brand: string; model: string };
   }) {
     const tenantId = TenantContext.requireTenantId();
@@ -355,7 +355,7 @@ export class JobCardsService {
     await this.messaging.notifyCustomer(
       tenantId,
       'job-card.ready',
-      { email: jobCard.customer.email, mobile: jobCard.customer.mobile },
+      { email: jobCard.customer.email, mobile: jobCard.customer.mobile, customerId: jobCard.customer.id },
       content,
       { type: 'JobCard', id: jobCard.id },
     );

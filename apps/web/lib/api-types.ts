@@ -180,6 +180,7 @@ export type CustomerType = 'individual' | 'business';
 
 export interface Customer {
   id: string;
+  customerNumber: string | null;
   name: string;
   mobile: string;
   altMobile: string | null;
@@ -192,8 +193,26 @@ export interface Customer {
   notes: string | null;
   /** Opts out of the proactive insurance/PUC/service-due reminder cron only — transactional messages are never affected. */
   reminderOptOut: boolean;
+  /** Whether this customer wants WhatsApp/SMS at all — distinct from the workshop-wide channel toggles in Settings. Email is never gated by this. */
+  notifyByWhatsappSms: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** GET /customers list items — enriched with a real vehicle count and the customer's most recent job card date (see CustomersService.findAll's LIST_INCLUDE/toListRow). */
+export interface CustomerListItem extends Customer {
+  vehicleCount: number;
+  /** Most recent JobCard.createdAt for this customer — null if they have no job cards yet. */
+  lastVisitAt: string | null;
+}
+
+/** GET /customers/summary — KPI counts for the Customers page, see CustomersService.summary(). */
+export interface CustomerSummary {
+  total: number;
+  individual: number;
+  business: number;
+  cities: string[];
+  totalVehicles: number;
 }
 
 /** A customer's vehicle as embedded in GET /customers/:id — see CustomersService.findOne. */

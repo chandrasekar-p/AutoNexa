@@ -60,10 +60,17 @@ export class MessagingService {
     // this method takes `tenantId` explicitly because some callers (e.g.
     // a payment gateway webhook) have no live TenantContext to read from.
     const settings = await this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } });
+    // Customer-level opt-out (Customer.notifyByWhatsappSms) is folded in
+    // alongside the tenant-wide toggle below — both must allow a phone
+    // channel for it to actually fire; Email is never gated by this one.
+    const customer = recipient.customerId
+      ? await this.prisma.platform.customer.findUnique({ where: { id: recipient.customerId }, select: { notifyByWhatsappSms: true } })
+      : null;
+    const customerAllowsPhone = customer?.notifyByWhatsappSms ?? true;
     const preference = {
       email: settings?.notifyByEmail ?? true,
-      sms: settings?.notifyBySms ?? true,
-      whatsapp: settings?.notifyByWhatsapp ?? true,
+      sms: (settings?.notifyBySms ?? true) && customerAllowsPhone,
+      whatsapp: (settings?.notifyByWhatsapp ?? true) && customerAllowsPhone,
     };
     const channels = pickCustomerChannels(recipient, availability, preference);
 

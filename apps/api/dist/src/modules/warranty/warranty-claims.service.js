@@ -122,7 +122,7 @@ let WarrantyClaimsService = class WarrantyClaimsService {
             approved: claim.status === client_1.WarrantyClaimStatus.APPROVED,
             isBillable: claim.isBillable,
         });
-        await this.messaging.notifyCustomer(tenantId, 'warranty-claim.decided', { email: customer.email, mobile: customer.mobile }, content, { type: 'WarrantyClaim', id: claim.id });
+        await this.messaging.notifyCustomer(tenantId, 'warranty-claim.decided', { email: customer.email, mobile: customer.mobile, customerId: customer.id }, content, { type: 'WarrantyClaim', id: claim.id });
     }
     async assertExists(id) {
         const claim = await this.prisma.forTenant().warrantyClaim.findFirst({ where: { id } });

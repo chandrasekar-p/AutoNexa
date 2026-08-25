@@ -252,7 +252,7 @@ let JobCardsService = class JobCardsService {
             vehicleLabel: `${jobCard.vehicle.registrationNo} ${jobCard.vehicle.brand} ${jobCard.vehicle.model}`,
             jobCardNumber: jobCard.jobCardNumber,
         });
-        await this.messaging.notifyCustomer(tenantId, 'job-card.ready', { email: jobCard.customer.email, mobile: jobCard.customer.mobile }, content, { type: 'JobCard', id: jobCard.id });
+        await this.messaging.notifyCustomer(tenantId, 'job-card.ready', { email: jobCard.customer.email, mobile: jobCard.customer.mobile, customerId: jobCard.customer.id }, content, { type: 'JobCard', id: jobCard.id });
         await this.messaging.notifyOps(tenantId, 'job-card.ready', `Ready for pickup: ${jobCard.jobCardNumber} — ${jobCard.customer.name} — ${jobCard.vehicle.registrationNo}`, { type: 'JobCard', id: jobCard.id });
     }
     async addLabour(jobCardId, dto, currentUserId) {

@@ -226,7 +226,7 @@ let EstimatesService = class EstimatesService {
             grandTotal: `₹${Number(estimate.total).toFixed(2)}`,
             approvalUrl,
         });
-        await this.messaging.notifyCustomer(tenantId, event, { email: estimate.customer.email, mobile: estimate.customer.mobile }, content, { type: 'Estimate', id });
+        await this.messaging.notifyCustomer(tenantId, event, { email: estimate.customer.email, mobile: estimate.customer.mobile, customerId: estimate.customer.id }, content, { type: 'Estimate', id });
         await this.messaging.notifyOps(tenantId, event, `Estimate sent: ${estimate.customer.name} — ${estimate.vehicle.registrationNo} — ₹${Number(estimate.total).toFixed(2)}`, { type: 'Estimate', id });
     }
     async approve(id) {

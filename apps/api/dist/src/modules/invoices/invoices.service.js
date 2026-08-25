@@ -198,7 +198,7 @@ let InvoicesService = class InvoicesService {
             invoiceNumber,
             grandTotal: `₹${Number(grandTotal).toFixed(2)}`,
         });
-        await this.messaging.notifyCustomer(tenantId, 'invoice.issued', { email: customer.email, mobile: customer.mobile }, content, { type: 'Invoice', id: invoiceId });
+        await this.messaging.notifyCustomer(tenantId, 'invoice.issued', { email: customer.email, mobile: customer.mobile, customerId: customer.id }, content, { type: 'Invoice', id: invoiceId });
         await this.messaging.notifyOps(tenantId, 'invoice.issued', `Invoice ${invoiceNumber} issued: ${customer.name} — ₹${Number(grandTotal).toFixed(2)}`, { type: 'Invoice', id: invoiceId });
     }
     async findAll(query) {
@@ -241,7 +241,7 @@ let InvoicesService = class InvoicesService {
             invoiceNumber: invoice.invoiceNumber,
             grandTotal: `₹${Number(invoice.grandTotal).toFixed(2)}`,
         });
-        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.resent', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id }, [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]);
+        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.resent', { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id }, content, { type: 'Invoice', id }, [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]);
         return { id, attempts };
     }
     async downloadPdf(id) {
@@ -347,7 +347,7 @@ let InvoicesService = class InvoicesService {
             points: String(pointsEarned),
             balance: String(customer?.loyaltyPointsBalance ?? pointsEarned),
         });
-        await this.messaging.notifyCustomer(tenantId, 'loyalty.points-earned', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
+        await this.messaging.notifyCustomer(tenantId, 'loyalty.points-earned', { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id }, content, { type: 'Invoice', id: invoice.id });
     }
     async sendPaymentReceived(invoice, amount) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
@@ -358,7 +358,7 @@ let InvoicesService = class InvoicesService {
             invoiceNumber: invoice.invoiceNumber,
             amount: `₹${Number(amount).toFixed(2)}`,
         });
-        await this.messaging.notifyCustomer(tenantId, 'payment.received', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
+        await this.messaging.notifyCustomer(tenantId, 'payment.received', { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id }, content, { type: 'Invoice', id: invoice.id });
         await this.messaging.notifyOps(tenantId, 'payment.received', `Payment received: ${invoice.customer.name} — ₹${Number(amount).toFixed(2)} against ${invoice.invoiceNumber}`, { type: 'Invoice', id: invoice.id });
     }
     async recalculateStatus(id) {

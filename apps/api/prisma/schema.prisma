@@ -65,6 +65,7 @@ model TenantSettings {
   invoicePrefix                String   @default("INV")
   estimatePrefix               String   @default("EST")
   poPrefix                     String   @default("PO")
+  customerPrefix               String   @default("CUST")
   defaultGstRate               Decimal  @default(18) @db.Decimal(5, 2)
   timezone                     String   @default("Asia/Kolkata")
   currency                     String   @default("INR")
@@ -301,6 +302,16 @@ model Customer {
   id                   String    @id @default(uuid())
   tenantId             String
   tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  // Nullable — same reasoning as Estimate.estimateNumber: existing rows
+  // can't get a required column without a backfill, and never fabricate
+  // one for a pre-numbering customer. Minted via generateSequenceNumber()
+  // in CustomersService.create(); scripts/backfill-customer-numbers.ts
+  // assigns one to every pre-existing row. Unique per-tenant only (see
+  // @@unique below), not globally — two different tenants' sequences
+  // both start at 1, so a bare @unique here would collide the moment a
+  // second tenant's first customer also became "CUST-0001", same as
+  // Invoice.invoiceNumber/JobCard.jobCardNumber's @@unique([tenantId, ...]).
+  customerNumber       String?
   name                 String
   mobile               String
   altMobile            String?
@@ -315,6 +326,13 @@ model Customer {
   // (see reminder-cron.service.ts) — transactional messages (invoice,
   // payment, estimate, appointment) are never gated by this.
   reminderOptOut       Boolean   @default(false)
+  // Whether THIS customer wants WhatsApp/SMS at all — distinct from
+  // TenantSettings.notifyBySms/notifyByWhatsapp, which control whether the
+  // WORKSHOP uses those channels at all. Consulted in
+  // MessagingService.notifyCustomer alongside the tenant-wide toggle
+  // (both must allow it); Email is never gated by this. Default true so
+  // no existing customer's delivery behavior silently changes.
+  notifyByWhatsappSms  Boolean   @default(true)
   // Guarded-cache running total, kept in sync with LoyaltyTransaction
   // (the audit-of-record ledger) inside the same transaction on every
   // change — same "mutable cache next to an append-only ledger" pattern
@@ -333,6 +351,7 @@ model Customer {
   servicePackages     CustomerServicePackage[]
   loyaltyTransactions LoyaltyTransaction[]
 
+  @@unique([tenantId, customerNumber])
   @@index([tenantId])
   @@index([tenantId, mobile])
   @@index([tenantId, name])
@@ -547,8 +566,12 @@ model Estimate {
   // Minted via generateSequenceNumber() in EstimatesService.create();
   // scripts/backfill-estimate-numbers.ts assigns one to every pre-existing
   // row, continuing the same per-tenant TenantSequence counter so newly
-  // created estimates never collide with a backfilled one.
-  estimateNumber String?        @unique
+  // created estimates never collide with a backfilled one. Unique
+  // per-tenant only (see @@unique below), not globally — matches
+  // Invoice.invoiceNumber/JobCard.jobCardNumber's @@unique([tenantId, ...]);
+  // a bare @unique here collided the first time a second tenant's first
+  // estimate also became "EST-0001".
+  estimateNumber String?
   jobDescription String?
   status         EstimateStatus @default(DRAFT)
   subtotal       Decimal        @default(0) @db.Decimal(12, 2)
@@ -565,6 +588,7 @@ model Estimate {
   jobCard        JobCard?
   approvalEvents EstimateApprovalEvent[]
 
+  @@unique([tenantId, estimateNumber])
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, customerId])

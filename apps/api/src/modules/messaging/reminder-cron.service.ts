@@ -72,7 +72,7 @@ export class ReminderCronService {
       await this.messaging.notifyCustomer(
         appointment.tenantId,
         'appointment.reminder',
-        { email: appointment.customer.email, mobile: appointment.customer.mobile },
+        { email: appointment.customer.email, mobile: appointment.customer.mobile, customerId: appointment.customer.id },
         content,
         { type: 'Appointment', id: appointment.id },
       );
@@ -149,7 +149,7 @@ export class ReminderCronService {
         await this.messaging.notifyCustomer(
           vehicle.tenantId,
           event,
-          { email: vehicle.customer.email, mobile: vehicle.customer.mobile },
+          { email: vehicle.customer.email, mobile: vehicle.customer.mobile, customerId: vehicle.customer.id },
           content,
           { type: 'Vehicle', id: vehicle.id },
           undefined,
@@ -203,7 +203,7 @@ export class ReminderCronService {
         intervalKm,
       );
 
-      const recipient = { email: vehicle.customer.email, mobile: vehicle.customer.mobile };
+      const recipient = { email: vehicle.customer.email, mobile: vehicle.customer.mobile, customerId: vehicle.customer.id };
       const commonCtx = {
         workshopName: vehicle.tenant.name,
         customerName: vehicle.customer.name,
@@ -316,7 +316,7 @@ export class ReminderCronService {
         await this.messaging.notifyCustomer(
           pkg.tenantId,
           event,
-          { email: pkg.customer.email, mobile: pkg.customer.mobile },
+          { email: pkg.customer.email, mobile: pkg.customer.mobile, customerId: pkg.customer.id },
           content,
           { type: 'CustomerServicePackage', id: pkg.id },
           undefined,

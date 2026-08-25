@@ -273,7 +273,7 @@ export class EstimatesService {
       total: Prisma.Decimal;
       jobDescription: string | null;
       estimateNumber: string | null;
-      customer: { name: string; mobile: string; email: string | null };
+      customer: { id: string; name: string; mobile: string; email: string | null };
       vehicle: { registrationNo: string; brand: string; model: string };
     },
     event: string,
@@ -296,7 +296,7 @@ export class EstimatesService {
     await this.messaging.notifyCustomer(
       tenantId,
       event,
-      { email: estimate.customer.email, mobile: estimate.customer.mobile },
+      { email: estimate.customer.email, mobile: estimate.customer.mobile, customerId: estimate.customer.id },
       content,
       { type: 'Estimate', id },
     );

@@ -134,7 +134,7 @@ export class CustomerServicePackagesService {
     await this.messaging.notifyCustomer(
       tenantId,
       'service-package.cancelled',
-      { email: pkg.customer.email, mobile: pkg.customer.mobile },
+      { email: pkg.customer.email, mobile: pkg.customer.mobile, customerId: pkg.customer.id },
       content,
       { type: 'CustomerServicePackage', id: pkg.id },
     );

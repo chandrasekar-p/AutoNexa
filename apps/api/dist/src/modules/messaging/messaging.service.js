@@ -33,10 +33,14 @@ let MessagingService = class MessagingService {
             whatsapp: this.whatsappProvider.isConfigured(),
         };
         const settings = await this.prisma.platform.tenantSettings.findUnique({ where: { tenantId } });
+        const customer = recipient.customerId
+            ? await this.prisma.platform.customer.findUnique({ where: { id: recipient.customerId }, select: { notifyByWhatsappSms: true } })
+            : null;
+        const customerAllowsPhone = customer?.notifyByWhatsappSms ?? true;
         const preference = {
             email: settings?.notifyByEmail ?? true,
-            sms: settings?.notifyBySms ?? true,
-            whatsapp: settings?.notifyByWhatsapp ?? true,
+            sms: (settings?.notifyBySms ?? true) && customerAllowsPhone,
+            whatsapp: (settings?.notifyByWhatsapp ?? true) && customerAllowsPhone,
         };
         const channels = (0, pick_channels_1.pickCustomerChannels)(recipient, availability, preference);
         if (channels.length === 0) {

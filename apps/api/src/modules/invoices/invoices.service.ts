@@ -274,7 +274,7 @@ export class InvoicesService {
   /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. Public: also called from CustomerServicePackagesService.sell() after a package-sale invoice is created. */
   async sendInvoiceIssued(
     tenantId: string,
-    customer: { name: string; mobile: string; email: string | null },
+    customer: { id: string; name: string; mobile: string; email: string | null },
     invoiceId: string,
     invoiceNumber: string,
     grandTotal: Prisma.Decimal,
@@ -290,7 +290,7 @@ export class InvoicesService {
     await this.messaging.notifyCustomer(
       tenantId,
       'invoice.issued',
-      { email: customer.email, mobile: customer.mobile },
+      { email: customer.email, mobile: customer.mobile, customerId: customer.id },
       content,
       { type: 'Invoice', id: invoiceId },
     );
@@ -361,7 +361,7 @@ export class InvoicesService {
     const attempts = await this.messaging.notifyCustomer(
       tenantId,
       'invoice.resent',
-      { email: invoice.customer.email, mobile: invoice.customer.mobile },
+      { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id },
       content,
       { type: 'Invoice', id },
       [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
@@ -520,7 +520,7 @@ export class InvoicesService {
    * genuinely platform-level Tenant name lookup below, same split
    * sendPaymentReceived already uses.
    */
-  private async earnLoyaltyPoints(invoice: { id: string; customerId: string; subtotal: Prisma.Decimal; customer: { name: string; mobile: string; email: string | null } }): Promise<void> {
+  private async earnLoyaltyPoints(invoice: { id: string; customerId: string; subtotal: Prisma.Decimal; customer: { id: string; name: string; mobile: string; email: string | null } }): Promise<void> {
     const tenantId = TenantContext.requireTenantId();
     const db = this.prisma.forTenant();
     const settings = await db.tenantSettings.findUniqueOrThrow({ where: { tenantId } });
@@ -541,7 +541,7 @@ export class InvoicesService {
       points: String(pointsEarned),
       balance: String(customer?.loyaltyPointsBalance ?? pointsEarned),
     });
-    await this.messaging.notifyCustomer(tenantId, 'loyalty.points-earned', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
+    await this.messaging.notifyCustomer(tenantId, 'loyalty.points-earned', { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id }, content, { type: 'Invoice', id: invoice.id });
   }
 
   /** Best-effort — see MessagingService.notifyCustomer's doc comment on why this never throws. */
@@ -549,7 +549,7 @@ export class InvoicesService {
     invoice: {
       id: string;
       invoiceNumber: string;
-      customer: { name: string; mobile: string; email: string | null };
+      customer: { id: string; name: string; mobile: string; email: string | null };
     },
     amount: number,
   ) {
@@ -565,7 +565,7 @@ export class InvoicesService {
     await this.messaging.notifyCustomer(
       tenantId,
       'payment.received',
-      { email: invoice.customer.email, mobile: invoice.customer.mobile },
+      { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id },
       content,
       { type: 'Invoice', id: invoice.id },
     );

@@ -63,4 +63,12 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsBoolean()
   reminderOptOut?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether this customer wants WhatsApp/SMS at all — distinct from the workshop-wide channel toggles in Settings. Email is never gated by this.',
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  notifyByWhatsappSms?: boolean;
 }

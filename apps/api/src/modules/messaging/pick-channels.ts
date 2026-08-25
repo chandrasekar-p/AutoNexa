@@ -3,6 +3,15 @@ export type CustomerDeliveryChannel = 'EMAIL' | 'SMS' | 'WHATSAPP';
 export interface ChannelRecipient {
   email: string | null;
   mobile: string | null;
+  /**
+   * Optional — when given, MessagingService.notifyCustomer looks up this
+   * customer's own notifyByWhatsappSms preference and folds it into the
+   * SMS/WhatsApp availability (Email is never gated by it). Omitted by a
+   * caller that isn't notifying an actual Customer record (there are
+   * none today, but the field stays optional rather than forcing every
+   * caller to thread one through).
+   */
+  customerId?: string;
 }
 
 export interface ChannelAvailability {

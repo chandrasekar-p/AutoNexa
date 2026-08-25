@@ -31,6 +31,9 @@ let CustomersController = class CustomersController {
     findAll(query) {
         return this.customersService.findAll(query);
     }
+    summary() {
+        return this.customersService.summary();
+    }
     findOne(id) {
         return this.customersService.findOne(id);
     }
@@ -59,6 +62,13 @@ __decorate([
     __metadata("design:paramtypes", [list_customers_query_dto_1.ListCustomersQueryDto]),
     __metadata("design:returntype", void 0)
 ], CustomersController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('customer:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('customer:read'),
     (0, common_1.Get)(':id'),

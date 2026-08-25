@@ -82,7 +82,7 @@ export class LoyaltyService {
     await this.messaging.notifyCustomer(
       tenantId,
       'loyalty.adjusted',
-      { email: customer.email, mobile: customer.mobile },
+      { email: customer.email, mobile: customer.mobile, customerId: customer.id },
       content,
       { type: 'Customer', id: customer.id },
     );

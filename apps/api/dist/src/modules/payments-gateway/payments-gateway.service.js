@@ -64,7 +64,7 @@ let PaymentsGatewayService = PaymentsGatewayService_1 = class PaymentsGatewaySer
             amount: `₹${outstanding.toFixed(2)}`,
             paymentUrl: link.shortUrl,
         });
-        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.payment-link', { email: invoice.customer.email, mobile: invoice.customer.mobile }, content, { type: 'Invoice', id: invoice.id });
+        const attempts = await this.messaging.notifyCustomer(tenantId, 'invoice.payment-link', { email: invoice.customer.email, mobile: invoice.customer.mobile, customerId: invoice.customer.id }, content, { type: 'Invoice', id: invoice.id });
         return { id: invoice.id, shortUrl: link.shortUrl, expiresAt: link.expiresAt, attempts };
     }
     async handleWebhook(rawBody, signatureHeader, eventIdHeader) {

@@ -109,7 +109,7 @@ let CustomerServicePackagesService = class CustomerServicePackagesService {
             customerName: pkg.customer.name,
             packageName: pkg.servicePackage.name,
         });
-        await this.messaging.notifyCustomer(tenantId, 'service-package.cancelled', { email: pkg.customer.email, mobile: pkg.customer.mobile }, content, { type: 'CustomerServicePackage', id: pkg.id });
+        await this.messaging.notifyCustomer(tenantId, 'service-package.cancelled', { email: pkg.customer.email, mobile: pkg.customer.mobile, customerId: pkg.customer.id }, content, { type: 'CustomerServicePackage', id: pkg.id });
     }
     async findAll(query) {
         const page = query.page ?? 1;

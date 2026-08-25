@@ -57,7 +57,7 @@ let ReminderCronService = ReminderCronService_1 = class ReminderCronService {
                 }),
                 appointmentTime: appointment.appointmentTime,
             });
-            await this.messaging.notifyCustomer(appointment.tenantId, 'appointment.reminder', { email: appointment.customer.email, mobile: appointment.customer.mobile }, content, { type: 'Appointment', id: appointment.id });
+            await this.messaging.notifyCustomer(appointment.tenantId, 'appointment.reminder', { email: appointment.customer.email, mobile: appointment.customer.mobile, customerId: appointment.customer.id }, content, { type: 'Appointment', id: appointment.id });
             await this.prisma.platform.appointment.update({
                 where: { id: appointment.id },
                 data: { reminderSentAt: new Date() },
@@ -109,7 +109,7 @@ let ReminderCronService = ReminderCronService_1 = class ReminderCronService {
                     vehicleLabel: `${vehicle.registrationNo} ${vehicle.brand} ${vehicle.model}`,
                     expiryDate: expiryDate.toLocaleDateString('en-IN', DATE_FORMAT),
                 });
-                await this.messaging.notifyCustomer(vehicle.tenantId, event, { email: vehicle.customer.email, mobile: vehicle.customer.mobile }, content, { type: 'Vehicle', id: vehicle.id }, undefined, dedupeKey);
+                await this.messaging.notifyCustomer(vehicle.tenantId, event, { email: vehicle.customer.email, mobile: vehicle.customer.mobile, customerId: vehicle.customer.id }, content, { type: 'Vehicle', id: vehicle.id }, undefined, dedupeKey);
                 sentCount++;
             }
         }
@@ -139,7 +139,7 @@ let ReminderCronService = ReminderCronService_1 = class ReminderCronService {
             const intervalMonths = vehicle.serviceIntervalMonthsOverride ?? settings.serviceIntervalMonths;
             const intervalKm = vehicle.serviceIntervalKmOverride ?? settings.serviceIntervalKm;
             const { dueDate, dueByOdometer } = (0, next_service_due_1.computeServiceDue)({ completedAt: lastService.actualDelivery, odometer: lastService.odometer }, vehicle.odometerReading, intervalMonths, intervalKm);
-            const recipient = { email: vehicle.customer.email, mobile: vehicle.customer.mobile };
+            const recipient = { email: vehicle.customer.email, mobile: vehicle.customer.mobile, customerId: vehicle.customer.id };
             const commonCtx = {
                 workshopName: vehicle.tenant.name,
                 customerName: vehicle.customer.name,
@@ -217,7 +217,7 @@ let ReminderCronService = ReminderCronService_1 = class ReminderCronService {
                     vehicleLabel: `${pkg.vehicle.registrationNo} ${pkg.vehicle.brand} ${pkg.vehicle.model}`,
                     expiryDate: pkg.endDate.toLocaleDateString('en-IN', DATE_FORMAT),
                 });
-                await this.messaging.notifyCustomer(pkg.tenantId, event, { email: pkg.customer.email, mobile: pkg.customer.mobile }, content, { type: 'CustomerServicePackage', id: pkg.id }, undefined, dedupeKey);
+                await this.messaging.notifyCustomer(pkg.tenantId, event, { email: pkg.customer.email, mobile: pkg.customer.mobile, customerId: pkg.customer.id }, content, { type: 'CustomerServicePackage', id: pkg.id }, undefined, dedupeKey);
                 sentCount++;
             }
         }

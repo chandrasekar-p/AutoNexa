@@ -43,7 +43,7 @@ export class AppointmentsService {
     serviceType: string;
     appointmentDate: Date;
     appointmentTime: string;
-    customer: { name: string; mobile: string; email: string | null };
+    customer: { id: string; name: string; mobile: string; email: string | null };
     vehicle: { registrationNo: string; brand: string; model: string };
   }) {
     const tenantId = TenantContext.requireTenantId();
@@ -61,7 +61,7 @@ export class AppointmentsService {
     await this.messaging.notifyCustomer(
       tenantId,
       'appointment.confirmed',
-      { email: appointment.customer.email, mobile: appointment.customer.mobile },
+      { email: appointment.customer.email, mobile: appointment.customer.mobile, customerId: appointment.customer.id },
       content,
       { type: 'Appointment', id: appointment.id },
     );

@@ -73,7 +73,7 @@ let LoyaltyService = class LoyaltyService {
             points: transaction.points,
             balance: String(transaction.balanceAfter),
         });
-        await this.messaging.notifyCustomer(tenantId, 'loyalty.adjusted', { email: customer.email, mobile: customer.mobile }, content, { type: 'Customer', id: customer.id });
+        await this.messaging.notifyCustomer(tenantId, 'loyalty.adjusted', { email: customer.email, mobile: customer.mobile, customerId: customer.id }, content, { type: 'Customer', id: customer.id });
     }
 };
 exports.LoyaltyService = LoyaltyService;
