@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { JobCardStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
 import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validators/uuid-like';
 
 export class ListJobCardsQueryDto {
@@ -22,6 +22,11 @@ export class ListJobCardsQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsUUID()
+  serviceAdvisorId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   vehicleId?: string;
 
@@ -29,6 +34,22 @@ export class ListJobCardsQueryDto {
   @IsOptional()
   @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
   customerId?: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle brand, contains-match (e.g. from the curated brand filter list)' })
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @ApiPropertyOptional({ description: 'Only this caller’s own assigned job cards (technician) or advised job cards (service advisor)' })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  mine?: boolean;
+
+  @ApiPropertyOptional({ enum: ['today', 'delayed'], description: 'Quick filter on expectedDelivery, mirroring computeJobCardDelayStatus' })
+  @IsOptional()
+  @IsIn(['today', 'delayed'])
+  dueDate?: 'today' | 'delayed';
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

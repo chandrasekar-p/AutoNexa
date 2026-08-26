@@ -22,7 +22,7 @@ class ListTechniciansQueryDto {
 }
 exports.ListTechniciansQueryDto = ListTechniciansQueryDto;
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across employee ID and specialisation' }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across technician name, employee ID, specialisation, and an exact skill match' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
@@ -33,6 +33,24 @@ __decorate([
     (0, class_validator_1.IsEnum)(client_1.TechnicianStatus),
     __metadata("design:type", String)
 ], ListTechniciansQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListTechniciansQueryDto.prototype, "specialisation", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Exact skill match (Technician.skills is a scalar list — no substring search)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListTechniciansQueryDto.prototype, "skill", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['available', 'busy'], description: 'Restricts to ACTIVE technicians with zero (available) or at least one (busy) open job card — see deriveTechnicianAvailability' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['available', 'busy']),
+    __metadata("design:type", String)
+], ListTechniciansQueryDto.prototype, "workload", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

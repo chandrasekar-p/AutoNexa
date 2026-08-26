@@ -41,6 +41,18 @@ export function formatDurationMinutes(minutes: number): string {
   return rest === 0 ? `${hours} hr` : `${hours} hr ${rest} min`;
 }
 
+/** "Just now" / "5m ago" / "3h ago" / "2d ago" — for compact timestamps like a Kanban card's "Created X ago", not a substitute for formatDate on anything meant to be precise. */
+export function formatRelativeTimeAgo(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  const minutes = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function daysUntil(value: string | Date): number {
   const d = typeof value === 'string' ? new Date(value) : value;
   const now = new Date();

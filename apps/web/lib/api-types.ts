@@ -25,6 +25,10 @@ export type JobCardStatus =
   | 'DELIVERED'
   | 'CANCELLED';
 
+export type JobCardPriority = 'NORMAL' | 'HIGH' | 'URGENT';
+/** Purely derived, never stored — see the backend's job-card-delay.ts. Null when not applicable (no expectedDelivery, or already DELIVERED/CANCELLED). */
+export type JobCardDelayStatus = 'ON_TRACK' | 'DUE_TODAY' | 'DELAYED';
+
 /** The money fields are omitted entirely (not present, not null) unless the caller has report:read — see DashboardService.summary's canViewFinancials gate. Render each one conditionally, not with a fallback value. */
 export interface DashboardSummary {
   totalCustomers: number;
@@ -698,8 +702,10 @@ export interface PurchaseInvoice {
 }
 
 export type TechnicianStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
+/** Purely derived, never stored — see the backend's technician-workload.ts. ACTIVE splits into AVAILABLE (no open job cards) / ON_JOB (at least one). */
+export type TechnicianAvailability = 'AVAILABLE' | 'ON_JOB' | 'ON_LEAVE' | 'INACTIVE';
 
-/** GET /technicians list item — see TechniciansService.findAll's include. */
+/** GET /technicians list item — see TechniciansService.findAll's include + toListRow-equivalent enrichment. */
 export interface Technician {
   id: string;
   userId: string;
@@ -708,16 +714,39 @@ export interface Technician {
   specialisation: string | null;
   experienceYears: number | null;
   status: TechnicianStatus;
+  /** Denominator for workloadPercent — how many concurrent open job cards counts as "full" for this technician. */
+  maxConcurrentJobs: number;
+  workingDays: string[];
+  workingHoursStart: string | null;
+  workingHoursEnd: string | null;
   createdAt: string;
   user: { id: string; name: string; email: string; phone: string | null };
+  /** Count of this technician's non-terminal job cards right now. */
+  jobsOpen: number;
+  /** Count of this technician's job cards touched (updatedAt) today. */
+  todayCount: number;
+  workloadPercent: number;
+  availability: TechnicianAvailability;
 }
 
-/** GET /technicians/:id — base profile plus computed workload (see computeTechnicianPerformance, all derived on read, never stored). */
+/** GET /technicians/:id (and /me) — base profile plus computed workload (see computeTechnicianPerformance, all derived on read, never stored). */
 export interface TechnicianDetail extends Technician {
-  jobsOpen: number;
   jobsCompleted: number;
   totalLabourHours: string;
   revenueGenerated: string;
+  completedToday: number;
+  hoursToday: string;
+  /** Mean days from createdAt to actualDelivery across lifetime DELIVERED job cards — null when there are none yet, never a fabricated 0. */
+  avgCompletionDays: number | null;
+}
+
+/** GET /technicians/summary — KPI counts for the Technicians page, see TechniciansService.summary(). */
+export interface TechnicianSummary {
+  active: number;
+  available: number;
+  onJob: number;
+  onLeave: number;
+  inactive: number;
 }
 
 /** hours/rate/gstRate/lineTotal are Decimal on the backend — strings over the wire. No update endpoint exists for a line once added — only add (POST) and remove (DELETE); hsnSac is a GST snapshot, not displayed. */
@@ -834,7 +863,7 @@ interface JobCardFields {
   jobCardNumber: string;
   vehicleId: string;
   customerId: string;
-  vehicle: { id: string; registrationNo: string; brand: string; model: string };
+  vehicle: { id: string; registrationNo: string; brand: string; model: string; photoUrl: string | null };
   customer: CustomerRef;
   estimateId: string | null;
   inspectionId: string | null;
@@ -845,14 +874,50 @@ interface JobCardFields {
   customerRequest: string | null;
   estimatedWork: string | null;
   status: JobCardStatus;
+  priority: JobCardPriority;
   startAt: string | null;
   expectedDelivery: string | null;
   actualDelivery: string | null;
   createdAt: string;
 }
 
-/** GET /job-cards list item — includes vehicle/customer (unlike Inspections/Estimates), but not labourItems/parts/statusHistory/notes — see JobCardsService.findAll's narrower include vs. JOB_CARD_INCLUDE. */
-export type JobCardListItem = JobCardFields;
+/**
+ * GET /job-cards list item — includes vehicle/customer plus technician/
+ * serviceAdvisor and derived fields flattened from real line-item/stock
+ * data (see JobCardsService.toListRow): `estimatedTotal` is the sum of
+ * this job card's labour + parts lineTotals (a real snapshot sum, not an
+ * estimate-record total), `estimatedHours` sums labourItems.hours,
+ * `partsPending`/`partsTotal` count JobCardPart lines whose part is
+ * currently at-or-below its reorder point vs. total lines added,
+ * `progressPercent` is pipeline-position-based (null for CANCELLED), and
+ * `delayStatus`/`delayDays` derive from expectedDelivery vs. now (both
+ * null when not applicable). Raw labourItems/parts arrays are NOT
+ * included here — see JOB_CARD_INCLUDE for the full detail-page shape.
+ */
+export interface JobCardListItem extends JobCardFields {
+  technician: StaffRef | null;
+  serviceAdvisor: StaffRef | null;
+  estimatedTotal: string;
+  estimatedHours: number;
+  partsPending: number;
+  partsTotal: number;
+  progressPercent: number | null;
+  delayStatus: JobCardDelayStatus | null;
+  delayDays: number | null;
+}
+
+/** GET /job-cards/summary — KPI counts for the Job Cards board, see JobCardsService.summary(). */
+export interface JobCardSummary {
+  open: number;
+  diagnosis: number;
+  waitingApproval: number;
+  inProgress: number;
+  waitingParts: number;
+  readyForDelivery: number;
+  /** This calendar month only (via actualDelivery), unlike the other counts which are live. */
+  deliveredThisMonth: number;
+  cancelled: number;
+}
 
 /** GET /job-cards/:id — full JOB_CARD_INCLUDE shape. */
 export interface JobCardDetail extends JobCardFields {

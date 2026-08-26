@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useStaffOptions } from '@/lib/hooks/use-staff-options';
-import type { CustomerRef, JobCardDetail, PaginatedResult, Technician, VehicleListItem } from '@/lib/api-types';
+import type { CustomerRef, JobCardDetail, JobCardPriority, PaginatedResult, Technician, VehicleListItem } from '@/lib/api-types';
 import { CustomerPicker } from '@/components/domain/customer-picker';
 import { Card, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -53,6 +53,7 @@ export default function NewJobCardPage() {
   const [technicianId, setTechnicianId] = useState('');
   const [serviceAdvisorId, setServiceAdvisorId] = useState('');
   const [expectedDelivery, setExpectedDelivery] = useState('');
+  const [priority, setPriority] = useState<JobCardPriority>('NORMAL');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -72,6 +73,7 @@ export default function NewJobCardPage() {
         technicianId: technicianId || undefined,
         serviceAdvisorId: serviceAdvisorId || undefined,
         expectedDelivery: expectedDelivery || undefined,
+        priority,
       });
       router.push(`/job-cards/${jobCard.id}`);
     } catch (err) {
@@ -153,6 +155,11 @@ export default function NewJobCardPage() {
               <Textarea label="Estimated Work" value={estimatedWork} onChange={(e) => setEstimatedWork(e.target.value)} />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Select label="Priority" value={priority} onChange={(e) => setPriority(e.target.value as JobCardPriority)}>
+                  <option value="NORMAL">Normal</option>
+                  <option value="HIGH">High</option>
+                  <option value="URGENT">Urgent</option>
+                </Select>
                 <Input label="Odometer (km)" type="number" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
                 <Input
                   label="Expected Delivery"

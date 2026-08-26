@@ -32,6 +32,14 @@ export class JobCardsController {
     return this.jobCardsService.findAll(query, user.userId);
   }
 
+  // Registered before Get(':id') — otherwise ':id' would swallow the
+  // literal 'summary' segment (see CLAUDE.md's route-ordering note).
+  @Permissions('job-card:read')
+  @Get('summary')
+  summary(@CurrentUser() user: AuthenticatedUser) {
+    return this.jobCardsService.summary(user.userId);
+  }
+
   @Permissions('job-card:read')
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

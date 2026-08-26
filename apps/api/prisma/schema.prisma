@@ -710,6 +710,17 @@ model Technician {
   specialisation  String?
   experienceYears Int?
   status          TechnicianStatus @default(ACTIVE)
+  // Denominator for the derived workload% shown on the list/board (see
+  // technician-workload.ts) — a real per-technician setting, not a
+  // hardcoded constant, since a senior tech may reasonably carry more
+  // concurrent jobs than a junior one.
+  maxConcurrentJobs Int            @default(4)
+  // Scheduling metadata only — nothing in this app currently reads these
+  // to gate appointment/job-card assignment; they exist so the profile
+  // can genuinely persist what the New/Edit Technician form collects.
+  workingDays        String[]      @default(["MON", "TUE", "WED", "THU", "FRI", "SAT"])
+  workingHoursStart  String?
+  workingHoursEnd    String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -730,6 +741,12 @@ enum JobCardStatus {
   READY_FOR_DELIVERY
   DELIVERED
   CANCELLED
+}
+
+enum JobCardPriority {
+  NORMAL
+  HIGH
+  URGENT
 }
 
 model JobCard {
@@ -774,7 +791,8 @@ model JobCard {
   customerRequest String?
   estimatedWork   String?
 
-  status           JobCardStatus @default(OPEN)
+  status           JobCardStatus   @default(OPEN)
+  priority         JobCardPriority @default(NORMAL)
   startAt          DateTime?
   expectedDelivery DateTime?
   actualDelivery   DateTime?

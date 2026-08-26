@@ -24,3 +24,34 @@ export const JOB_CARD_STATUS_TRANSITIONS: Record<JobCardStatus, JobCardStatus[]>
 export function getValidJobCardTransitions(from: JobCardStatus): JobCardStatus[] {
   return JOB_CARD_STATUS_TRANSITIONS[from];
 }
+
+const STATUS_LABEL: Record<JobCardStatus, string> = {
+  OPEN: 'Open',
+  DIAGNOSIS: 'Diagnosis',
+  WAITING_APPROVAL: 'Waiting Approval',
+  APPROVED: 'Approved',
+  IN_PROGRESS: 'In Progress',
+  WAITING_PARTS: 'Waiting Parts',
+  QUALITY_CHECK: 'Quality Check',
+  READY_FOR_DELIVERY: 'Ready for Delivery',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+};
+
+/**
+ * Mirrors the backend's explainInvalidJobCardTransition (same
+ * apps-don't-share-types precedent as JOB_CARD_STATUS_TRANSITIONS above)
+ * — a human-readable reason to show on a rejected drag/quick-action,
+ * naming the actual next status(es) reachable from here.
+ */
+export function explainInvalidJobCardTransition(from: JobCardStatus, to: JobCardStatus): string {
+  const targetLabel = STATUS_LABEL[to];
+  const nextSteps = JOB_CARD_STATUS_TRANSITIONS[from];
+
+  if (nextSteps.length === 0) {
+    return `Job cannot be moved to ${targetLabel} — ${STATUS_LABEL[from]} is a final status.`;
+  }
+
+  const nextLabels = nextSteps.map((s) => STATUS_LABEL[s]).join(' or ');
+  return `Job cannot be moved to ${targetLabel} yet. It must go through ${nextLabels} first.`;
+}

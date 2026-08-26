@@ -66,6 +66,7 @@ exports.DEFAULT_ROLE_GRANTS = {
         estimate: '*',
         'job-card': ['create', 'read', 'update'],
         labour: ['read'],
+        technician: ['read'],
         part: ['read'],
         invoice: ['create', 'read'],
         report: ['read'],

@@ -73,6 +73,9 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     estimate: '*',
     'job-card': ['create', 'read', 'update'],
     labour: ['read'],
+    // Read-only — seeing who's available/busy to assign a job is core to
+    // this role, but creating/editing technician profiles stays manager-only.
+    technician: ['read'],
     part: ['read'],
     invoice: ['create', 'read'],
     report: ['read'],

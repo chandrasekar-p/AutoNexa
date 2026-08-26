@@ -21,6 +21,7 @@ const update_technician_dto_1 = require("./dto/update-technician.dto");
 const list_technicians_query_dto_1 = require("./dto/list-technicians-query.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 let TechniciansController = class TechniciansController {
     constructor(techniciansService) {
         this.techniciansService = techniciansService;
@@ -30,6 +31,12 @@ let TechniciansController = class TechniciansController {
     }
     findAll(query) {
         return this.techniciansService.findAll(query);
+    }
+    summary() {
+        return this.techniciansService.summary();
+    }
+    findOwn(user) {
+        return this.techniciansService.findByUserId(user.userId);
     }
     findOne(id) {
         return this.techniciansService.findOne(id);
@@ -56,6 +63,20 @@ __decorate([
     __metadata("design:paramtypes", [list_technicians_query_dto_1.ListTechniciansQueryDto]),
     __metadata("design:returntype", void 0)
 ], TechniciansController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('technician:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], TechniciansController.prototype, "summary", null);
+__decorate([
+    (0, common_1.Get)('me'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], TechniciansController.prototype, "findOwn", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('technician:read'),
     (0, common_1.Get)(':id'),

@@ -43,6 +43,12 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ListJobCardsQueryDto.prototype, "serviceAdvisorId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
     __metadata("design:type", String)
 ], ListJobCardsQueryDto.prototype, "vehicleId", void 0);
@@ -52,6 +58,25 @@ __decorate([
     (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
     __metadata("design:type", String)
 ], ListJobCardsQueryDto.prototype, "customerId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Vehicle brand, contains-match (e.g. from the curated brand filter list)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListJobCardsQueryDto.prototype, "brand", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Only this caller’s own assigned job cards (technician) or advised job cards (service advisor)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Boolean),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ListJobCardsQueryDto.prototype, "mine", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['today', 'delayed'], description: 'Quick filter on expectedDelivery, mirroring computeJobCardDelayStatus' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['today', 'delayed']),
+    __metadata("design:type", String)
+], ListJobCardsQueryDto.prototype, "dueDate", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

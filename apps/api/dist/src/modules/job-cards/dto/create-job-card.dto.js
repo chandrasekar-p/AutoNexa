@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateJobCardDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
+const client_1 = require("@prisma/client");
 const class_validator_1 = require("class-validator");
 const uuid_like_1 = require("../../../common/validators/uuid-like");
 class CreateJobCardDto {
@@ -69,6 +70,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateJobCardDto.prototype, "estimatedWork", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.JobCardPriority, default: client_1.JobCardPriority.NORMAL }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.JobCardPriority),
+    __metadata("design:type", String)
+], CreateJobCardDto.prototype, "priority", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Min } from 'class-validator';
+import { JobCardPriority } from '@prisma/client';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Min } from 'class-validator';
 import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validators/uuid-like';
 
 // No `estimateId` here on purpose — this DTO is the walk-in path (create a
@@ -50,6 +51,11 @@ export class CreateJobCardDto {
   @IsOptional()
   @IsString()
   estimatedWork?: string;
+
+  @ApiPropertyOptional({ enum: JobCardPriority, default: JobCardPriority.NORMAL })
+  @IsOptional()
+  @IsEnum(JobCardPriority)
+  priority?: JobCardPriority;
 
   @ApiPropertyOptional()
   @IsOptional()

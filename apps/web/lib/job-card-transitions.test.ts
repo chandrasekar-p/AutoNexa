@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getValidJobCardTransitions, JOB_CARD_STATUS_TRANSITIONS } from './job-card-transitions';
+import { getValidJobCardTransitions, explainInvalidJobCardTransition, JOB_CARD_STATUS_TRANSITIONS } from './job-card-transitions';
 import type { JobCardStatus } from './api-types';
 
 describe('getValidJobCardTransitions', () => {
@@ -37,5 +37,23 @@ describe('getValidJobCardTransitions', () => {
     for (const status of allStatuses) {
       expect(JOB_CARD_STATUS_TRANSITIONS[status]).toBeDefined();
     }
+  });
+});
+
+describe('explainInvalidJobCardTransition', () => {
+  it('names the required next status for a skipped-ahead move', () => {
+    const message = explainInvalidJobCardTransition('OPEN', 'DELIVERED');
+    expect(message).toContain('Delivered');
+    expect(message).toContain('Diagnosis');
+  });
+
+  it('lists multiple valid next steps when more than one exists', () => {
+    const message = explainInvalidJobCardTransition('IN_PROGRESS', 'DELIVERED');
+    expect(message).toContain('Waiting Parts');
+    expect(message).toContain('Quality Check');
+  });
+
+  it('calls out a terminal status by name when nothing further is possible', () => {
+    expect(explainInvalidJobCardTransition('DELIVERED', 'OPEN')).toContain('final status');
   });
 });

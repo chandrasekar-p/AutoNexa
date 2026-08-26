@@ -7,6 +7,8 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { jobCardReadyMessage } from '../messaging/templates';
 import { isValidJobCardTransition } from './job-card-status-transitions';
+import { computeJobCardPipelineProgress } from './job-card-progress';
+import { computeJobCardDelayStatus, computeJobCardDelayDays } from './job-card-delay';
 import { resolveConvertedLabourLine } from './resolve-converted-labour-line';
 import { hasSufficientStock } from './stock-guard';
 import { CreateJobCardDto } from './dto/create-job-card.dto';
@@ -19,8 +21,10 @@ import { CreateJobCardPartDto } from './dto/create-job-card-part.dto';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
 import { isPackageRedeemable } from '../service-packages/package-eligibility';
 
-const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true } as const;
+const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true, photoUrl: true } as const;
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
+const STAFF_SUMMARY_SELECT = { id: true, name: true } as const;
+const TECHNICIAN_SUMMARY_SELECT = { id: true, user: { select: { name: true } } } as const;
 const JOB_CARD_INCLUDE = {
   vehicle: { select: VEHICLE_SUMMARY_SELECT },
   customer: { select: CUSTOMER_SUMMARY_SELECT },
@@ -32,6 +36,16 @@ const JOB_CARD_INCLUDE = {
   // already-generated invoice instead of only surfacing "an invoice
   // already exists for this job card" with nowhere to go from there.
   invoice: { select: { id: true, invoiceNumber: true, status: true, grandTotal: true } },
+};
+// Just enough per line to derive estimatedTotal/estimatedHours/partsPending
+// (see toListRow) — the list/board views don't need full labour/part rows.
+const LIST_INCLUDE = {
+  vehicle: { select: VEHICLE_SUMMARY_SELECT },
+  customer: { select: CUSTOMER_SUMMARY_SELECT },
+  technician: { select: TECHNICIAN_SUMMARY_SELECT },
+  serviceAdvisor: { select: STAFF_SUMMARY_SELECT },
+  labourItems: { select: { lineTotal: true, hours: true } },
+  parts: { select: { lineTotal: true, part: { select: { currentStock: true, minStock: true } } } },
 };
 const TERMINAL_JOB_CARD_STATUSES: JobCardStatus[] = [JobCardStatus.DELIVERED, JobCardStatus.CANCELLED];
 
@@ -85,6 +99,7 @@ export class JobCardsService {
           redeemedPackageId: dto.redeemedPackageId,
           startAt: dto.startAt ? new Date(dto.startAt) : undefined,
           expectedDelivery: dto.expectedDelivery ? new Date(dto.expectedDelivery) : undefined,
+          priority: dto.priority,
           jobCardNumber,
           status: JobCardStatus.OPEN,
         } as unknown as Prisma.JobCardUncheckedCreateInput,
@@ -193,16 +208,32 @@ export class JobCardsService {
     const pageSize = query.pageSize ?? 20;
     const db = this.prisma.forTenant();
     const scope = await this.getTechnicianScope(currentUserId);
+    const dueDateRange = query.dueDate ? this.dueDateRange(query.dueDate) : null;
 
-    const where = {
+    const where: Prisma.JobCardWhereInput = {
       deletedAt: null,
-      ...(query.status ? { status: query.status } : {}),
+      ...(query.status ? { status: query.status } : dueDateRange ? { status: { notIn: TERMINAL_JOB_CARD_STATUSES } } : {}),
       // A technician is force-scoped to their own jobCards regardless of
       // what technicianId (if any) the client asked for — see
       // getTechnicianScope's doc comment.
       ...(scope ? { technicianId: scope } : query.technicianId ? { technicianId: query.technicianId } : {}),
+      // "mine" for a non-technician (Service Advisor, Owner, ...) means
+      // their own advised job cards — a technician is already force-scoped
+      // above regardless of this flag.
+      ...(!scope
+        ? query.mine
+          ? { serviceAdvisorId: currentUserId }
+          : query.serviceAdvisorId
+            ? { serviceAdvisorId: query.serviceAdvisorId }
+            : {}
+        : {}),
       ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
+      // Exact match, not `contains` — brand comes from a curated dropdown
+      // of distinct values (e.g. "Honda" vs "Hero Honda"), and a substring
+      // match would cross-contaminate between them.
+      ...(query.brand ? { vehicle: { brand: query.brand } } : {}),
+      ...(dueDateRange ? { expectedDelivery: dueDateRange } : {}),
       ...(query.search
         ? {
             OR: [
@@ -216,7 +247,7 @@ export class JobCardsService {
     const [items, total] = await Promise.all([
       db.jobCard.findMany({
         where,
-        include: { vehicle: { select: VEHICLE_SUMMARY_SELECT }, customer: { select: CUSTOMER_SUMMARY_SELECT } },
+        include: LIST_INCLUDE,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -224,7 +255,71 @@ export class JobCardsService {
       db.jobCard.count({ where }),
     ]);
 
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return { items: items.map((jc) => this.toListRow(jc)), total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  private dueDateRange(dueDate: 'today' | 'delayed'): Prisma.DateTimeFilter {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (dueDate === 'today') {
+      return { gte: todayStart, lt: new Date(todayStart.getTime() + 24 * 60 * 60 * 1000) };
+    }
+    return { lt: todayStart };
+  }
+
+  private toListRow(jobCard: Prisma.JobCardGetPayload<{ include: typeof LIST_INCLUDE }>) {
+    const { labourItems, parts, technician, ...rest } = jobCard;
+
+    const estimatedTotal = [...labourItems.map((l) => l.lineTotal), ...parts.map((p) => p.lineTotal)].reduce(
+      (sum, line) => sum.add(line),
+      new Prisma.Decimal(0),
+    );
+    const estimatedHours = labourItems
+      .reduce((sum, l) => sum.add(l.hours), new Prisma.Decimal(0))
+      .toNumber();
+    const partsPending = parts.filter((p) => p.part.currentStock <= p.part.minStock).length;
+
+    return {
+      ...rest,
+      // Flattened to the same {id, name} shape as serviceAdvisor — the
+      // caller doesn't need to know the technician's display name is a
+      // relation hop away via User, only Technician itself.
+      technician: technician ? { id: technician.id, name: technician.user.name } : null,
+      estimatedTotal: estimatedTotal.toString(),
+      estimatedHours,
+      partsPending,
+      partsTotal: parts.length,
+      progressPercent: computeJobCardPipelineProgress(jobCard.status),
+      delayStatus: computeJobCardDelayStatus(jobCard.expectedDelivery, jobCard.status),
+      delayDays: jobCard.expectedDelivery ? computeJobCardDelayDays(jobCard.expectedDelivery) : null,
+    };
+  }
+
+  /** KPI cards for the Job Cards board — technician-scoped the same way findAll is. */
+  async summary(currentUserId: string) {
+    const db = this.prisma.forTenant();
+    const scope = await this.getTechnicianScope(currentUserId);
+    const scopeWhere = scope ? { technicianId: scope } : {};
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const countByStatus = (status: JobCardStatus) => db.jobCard.count({ where: { deletedAt: null, status, ...scopeWhere } });
+
+    const [open, diagnosis, waitingApproval, inProgress, waitingParts, readyForDelivery, deliveredThisMonth, cancelled] = await Promise.all([
+      countByStatus(JobCardStatus.OPEN),
+      countByStatus(JobCardStatus.DIAGNOSIS),
+      countByStatus(JobCardStatus.WAITING_APPROVAL),
+      countByStatus(JobCardStatus.IN_PROGRESS),
+      countByStatus(JobCardStatus.WAITING_PARTS),
+      countByStatus(JobCardStatus.READY_FOR_DELIVERY),
+      db.jobCard.count({
+        where: { deletedAt: null, status: JobCardStatus.DELIVERED, actualDelivery: { gte: monthStart, lt: monthEnd }, ...scopeWhere },
+      }),
+      countByStatus(JobCardStatus.CANCELLED),
+    ]);
+
+    return { open, diagnosis, waitingApproval, inProgress, waitingParts, readyForDelivery, deliveredThisMonth, cancelled };
   }
 
   /**

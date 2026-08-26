@@ -9,7 +9,8 @@ import { usePermission } from '@/lib/hooks/use-permission';
 import { useStaffOptions } from '@/lib/hooks/use-staff-options';
 import { getValidJobCardTransitions } from '@/lib/job-card-transitions';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { JobCardDetail, JobCardStatus, LoyaltyBalance, PaginatedResult, Technician } from '@/lib/api-types';
+import type { JobCardDetail, JobCardPriority, JobCardStatus, LoyaltyBalance, PaginatedResult, Technician } from '@/lib/api-types';
+import { JobCardPriorityBadge } from '@/components/domain/job-card-priority-badge';
 import { JobCardStatusBadge } from '@/components/domain/job-card-status-badge';
 import { JobCardLabourLines } from '@/components/domain/job-card-labour-lines';
 import { JobCardPartLines } from '@/components/domain/job-card-part-lines';
@@ -55,6 +56,7 @@ export default function JobCardDetailPage() {
   const [technicianId, setTechnicianId] = useState<string | null>(null);
   const [serviceAdvisorId, setServiceAdvisorId] = useState<string | null>(null);
   const [expectedDelivery, setExpectedDelivery] = useState<string | null>(null);
+  const [priority, setPriority] = useState<JobCardPriority | null>(null);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
 
@@ -70,11 +72,20 @@ export default function JobCardDetailPage() {
   );
 
   async function handleStatusChange(status: JobCardStatus) {
-    if (status === 'CANCELLED' && !window.confirm('Cancel this job card? This cannot be undone.')) return;
+    let notes: string | undefined;
+    if (status === 'CANCELLED') {
+      const reason = window.prompt('Reason for cancelling this job card:');
+      if (reason === null) return; // dismissed
+      if (!reason.trim()) {
+        setActionError('A cancellation reason is required.');
+        return;
+      }
+      notes = reason.trim();
+    }
     setIsChangingStatus(true);
     setActionError(null);
     try {
-      await apiPatch(`/job-cards/${params.id}/status`, { status });
+      await apiPatch(`/job-cards/${params.id}/status`, { status, notes });
       query.refetch();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -116,6 +127,7 @@ export default function JobCardDetailPage() {
         technicianId: (technicianId ?? query.data.technicianId ?? '') || undefined,
         serviceAdvisorId: (serviceAdvisorId ?? query.data.serviceAdvisorId ?? '') || undefined,
         expectedDelivery: (expectedDelivery ?? query.data.expectedDelivery?.slice(0, 10) ?? '') || undefined,
+        priority: priority ?? query.data.priority,
       });
       setComplaint(null);
       setCustomerRequest(null);
@@ -124,6 +136,7 @@ export default function JobCardDetailPage() {
       setTechnicianId(null);
       setServiceAdvisorId(null);
       setExpectedDelivery(null);
+      setPriority(null);
       query.refetch();
     } catch (err) {
       setDetailsError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -168,6 +181,7 @@ export default function JobCardDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="num text-2xl font-semibold text-ink">{jobCard.jobCardNumber}</h1>
             <JobCardStatusBadge status={jobCard.status} />
+            <JobCardPriorityBadge priority={jobCard.priority} />
           </div>
           <p className="text-sm text-ink-secondary">
             {jobCard.vehicle.registrationNo} · {jobCard.customer.name}
@@ -251,6 +265,16 @@ export default function JobCardDetailPage() {
         </CardHeader>
         <CardBody className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select
+              label="Priority"
+              value={priority ?? jobCard.priority}
+              onChange={(e) => setPriority(e.target.value as JobCardPriority)}
+              disabled={!canUpdate}
+            >
+              <option value="NORMAL">Normal</option>
+              <option value="HIGH">High</option>
+              <option value="URGENT">Urgent</option>
+            </Select>
             <Textarea
               label="Complaint"
               value={complaint ?? jobCard.complaint ?? ''}

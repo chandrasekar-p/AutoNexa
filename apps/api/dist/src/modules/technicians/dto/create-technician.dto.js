@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateTechnicianDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const WORKING_DAY_CODES = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 class CreateTechnicianDto {
 }
 exports.CreateTechnicianDto = CreateTechnicianDto;
@@ -46,4 +47,30 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateTechnicianDto.prototype, "experienceYears", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Denominator for the derived workload% — how many concurrent open job cards counts as "full"', default: 4 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CreateTechnicianDto.prototype, "maxConcurrentJobs", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ type: [String], enum: WORKING_DAY_CODES, example: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsIn)(WORKING_DAY_CODES, { each: true }),
+    __metadata("design:type", Array)
+], CreateTechnicianDto.prototype, "workingDays", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: '09:00 AM', description: 'Free-text time-of-day string, same format the TimePicker UI produces' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateTechnicianDto.prototype, "workingHoursStart", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: '06:00 PM' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateTechnicianDto.prototype, "workingHoursEnd", void 0);
 //# sourceMappingURL=create-technician.dto.js.map

@@ -37,6 +37,9 @@ let JobCardsController = class JobCardsController {
     findAll(query, user) {
         return this.jobCardsService.findAll(query, user.userId);
     }
+    summary(user) {
+        return this.jobCardsService.summary(user.userId);
+    }
     findOne(id, user) {
         return this.jobCardsService.findOne(id, user.userId);
     }
@@ -87,6 +90,14 @@ __decorate([
     __metadata("design:paramtypes", [list_job_cards_query_dto_1.ListJobCardsQueryDto, Object]),
     __metadata("design:returntype", void 0)
 ], JobCardsController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('job-card:read'),
+    (0, common_1.Get)('summary'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], JobCardsController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('job-card:read'),
     (0, common_1.Get)(':id'),

@@ -19,11 +19,15 @@ const invoices_service_1 = require("../invoices/invoices.service");
 const messaging_service_1 = require("../messaging/messaging.service");
 const templates_1 = require("../messaging/templates");
 const job_card_status_transitions_1 = require("./job-card-status-transitions");
+const job_card_progress_1 = require("./job-card-progress");
+const job_card_delay_1 = require("./job-card-delay");
 const resolve_converted_labour_line_1 = require("./resolve-converted-labour-line");
 const stock_guard_1 = require("./stock-guard");
 const package_eligibility_1 = require("../service-packages/package-eligibility");
-const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true };
+const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true, photoUrl: true };
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
+const STAFF_SUMMARY_SELECT = { id: true, name: true };
+const TECHNICIAN_SUMMARY_SELECT = { id: true, user: { select: { name: true } } };
 const JOB_CARD_INCLUDE = {
     vehicle: { select: VEHICLE_SUMMARY_SELECT },
     customer: { select: CUSTOMER_SUMMARY_SELECT },
@@ -32,6 +36,14 @@ const JOB_CARD_INCLUDE = {
     statusHistory: { orderBy: { changedAt: 'desc' } },
     notes: { orderBy: { createdAt: 'desc' } },
     invoice: { select: { id: true, invoiceNumber: true, status: true, grandTotal: true } },
+};
+const LIST_INCLUDE = {
+    vehicle: { select: VEHICLE_SUMMARY_SELECT },
+    customer: { select: CUSTOMER_SUMMARY_SELECT },
+    technician: { select: TECHNICIAN_SUMMARY_SELECT },
+    serviceAdvisor: { select: STAFF_SUMMARY_SELECT },
+    labourItems: { select: { lineTotal: true, hours: true } },
+    parts: { select: { lineTotal: true, part: { select: { currentStock: true, minStock: true } } } },
 };
 const TERMINAL_JOB_CARD_STATUSES = [client_1.JobCardStatus.DELIVERED, client_1.JobCardStatus.CANCELLED];
 let JobCardsService = class JobCardsService {
@@ -68,6 +80,7 @@ let JobCardsService = class JobCardsService {
                     redeemedPackageId: dto.redeemedPackageId,
                     startAt: dto.startAt ? new Date(dto.startAt) : undefined,
                     expectedDelivery: dto.expectedDelivery ? new Date(dto.expectedDelivery) : undefined,
+                    priority: dto.priority,
                     jobCardNumber,
                     status: client_1.JobCardStatus.OPEN,
                 },
@@ -136,12 +149,22 @@ let JobCardsService = class JobCardsService {
         const pageSize = query.pageSize ?? 20;
         const db = this.prisma.forTenant();
         const scope = await this.getTechnicianScope(currentUserId);
+        const dueDateRange = query.dueDate ? this.dueDateRange(query.dueDate) : null;
         const where = {
             deletedAt: null,
-            ...(query.status ? { status: query.status } : {}),
+            ...(query.status ? { status: query.status } : dueDateRange ? { status: { notIn: TERMINAL_JOB_CARD_STATUSES } } : {}),
             ...(scope ? { technicianId: scope } : query.technicianId ? { technicianId: query.technicianId } : {}),
+            ...(!scope
+                ? query.mine
+                    ? { serviceAdvisorId: currentUserId }
+                    : query.serviceAdvisorId
+                        ? { serviceAdvisorId: query.serviceAdvisorId }
+                        : {}
+                : {}),
             ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
             ...(query.customerId ? { customerId: query.customerId } : {}),
+            ...(query.brand ? { vehicle: { brand: query.brand } } : {}),
+            ...(dueDateRange ? { expectedDelivery: dueDateRange } : {}),
             ...(query.search
                 ? {
                     OR: [
@@ -154,14 +177,63 @@ let JobCardsService = class JobCardsService {
         const [items, total] = await Promise.all([
             db.jobCard.findMany({
                 where,
-                include: { vehicle: { select: VEHICLE_SUMMARY_SELECT }, customer: { select: CUSTOMER_SUMMARY_SELECT } },
+                include: LIST_INCLUDE,
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
             }),
             db.jobCard.count({ where }),
         ]);
-        return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+        return { items: items.map((jc) => this.toListRow(jc)), total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    dueDateRange(dueDate) {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (dueDate === 'today') {
+            return { gte: todayStart, lt: new Date(todayStart.getTime() + 24 * 60 * 60 * 1000) };
+        }
+        return { lt: todayStart };
+    }
+    toListRow(jobCard) {
+        const { labourItems, parts, technician, ...rest } = jobCard;
+        const estimatedTotal = [...labourItems.map((l) => l.lineTotal), ...parts.map((p) => p.lineTotal)].reduce((sum, line) => sum.add(line), new client_1.Prisma.Decimal(0));
+        const estimatedHours = labourItems
+            .reduce((sum, l) => sum.add(l.hours), new client_1.Prisma.Decimal(0))
+            .toNumber();
+        const partsPending = parts.filter((p) => p.part.currentStock <= p.part.minStock).length;
+        return {
+            ...rest,
+            technician: technician ? { id: technician.id, name: technician.user.name } : null,
+            estimatedTotal: estimatedTotal.toString(),
+            estimatedHours,
+            partsPending,
+            partsTotal: parts.length,
+            progressPercent: (0, job_card_progress_1.computeJobCardPipelineProgress)(jobCard.status),
+            delayStatus: (0, job_card_delay_1.computeJobCardDelayStatus)(jobCard.expectedDelivery, jobCard.status),
+            delayDays: jobCard.expectedDelivery ? (0, job_card_delay_1.computeJobCardDelayDays)(jobCard.expectedDelivery) : null,
+        };
+    }
+    async summary(currentUserId) {
+        const db = this.prisma.forTenant();
+        const scope = await this.getTechnicianScope(currentUserId);
+        const scopeWhere = scope ? { technicianId: scope } : {};
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const countByStatus = (status) => db.jobCard.count({ where: { deletedAt: null, status, ...scopeWhere } });
+        const [open, diagnosis, waitingApproval, inProgress, waitingParts, readyForDelivery, deliveredThisMonth, cancelled] = await Promise.all([
+            countByStatus(client_1.JobCardStatus.OPEN),
+            countByStatus(client_1.JobCardStatus.DIAGNOSIS),
+            countByStatus(client_1.JobCardStatus.WAITING_APPROVAL),
+            countByStatus(client_1.JobCardStatus.IN_PROGRESS),
+            countByStatus(client_1.JobCardStatus.WAITING_PARTS),
+            countByStatus(client_1.JobCardStatus.READY_FOR_DELIVERY),
+            db.jobCard.count({
+                where: { deletedAt: null, status: client_1.JobCardStatus.DELIVERED, actualDelivery: { gte: monthStart, lt: monthEnd }, ...scopeWhere },
+            }),
+            countByStatus(client_1.JobCardStatus.CANCELLED),
+        ]);
+        return { open, diagnosis, waitingApproval, inProgress, waitingParts, readyForDelivery, deliveredThisMonth, cancelled };
     }
     async findOne(id, currentUserId) {
         const jobCard = await this.prisma.forTenant().jobCard.findFirst({
