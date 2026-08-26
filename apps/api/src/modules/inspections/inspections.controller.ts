@@ -29,6 +29,14 @@ export class InspectionsController {
     return this.inspectionsService.findAll(query);
   }
 
+  // Registered before Get(':id') — otherwise ':id' would swallow the
+  // literal 'summary' segment (see CLAUDE.md's route-ordering note).
+  @Permissions('inspection:read')
+  @Get('summary')
+  summary() {
+    return this.inspectionsService.summary();
+  }
+
   @Permissions('inspection:read')
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -40,6 +48,13 @@ export class InspectionsController {
   @Audit('inspection.update', 'Inspection')
   update(@Param('id') id: string, @Body() dto: UpdateInspectionDto) {
     return this.inspectionsService.update(id, dto);
+  }
+
+  @Permissions('inspection:delete')
+  @Delete(':id')
+  @Audit('inspection.delete', 'Inspection')
+  remove(@Param('id') id: string) {
+    return this.inspectionsService.remove(id);
   }
 
   @Permissions('inspection:update')

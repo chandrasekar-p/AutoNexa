@@ -477,6 +477,8 @@ enum InspectionCategory {
   EXTERIOR
   INTERIOR
   MECHANICAL
+  ELECTRICAL
+  UNDERBODY
 }
 
 enum InspectionResult {
@@ -500,6 +502,15 @@ model Inspection {
   notes         String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+  // Set once when status transitions to COMPLETED (and cleared if reopened
+  // back to IN_PROGRESS) — freezes the duration display at completion time
+  // instead of it silently growing on every later re-render. See
+  // computeInspectionDurationMinutes() in inspection-display-status.ts.
+  completedAt   DateTime?
+  // Soft delete, not hard — JobCard.inspectionId can reference this row
+  // (see the JobCard model), so removing it must not break that link the
+  // way a hard DELETE risking an FK violation (or a silent orphan) would.
+  deletedAt     DateTime?
 
   items    InspectionItem[]
   photos   InspectionPhoto[]

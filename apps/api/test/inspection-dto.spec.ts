@@ -37,7 +37,7 @@ describe('CreateInspectionItemDto validation', () => {
   });
 
   it('rejects an invalid category enum value', async () => {
-    const dto = plainToInstance(CreateInspectionItemDto, { category: 'UNDERBODY', itemName: 'Cabin Air Filter' });
+    const dto = plainToInstance(CreateInspectionItemDto, { category: 'ENGINE_BAY', itemName: 'Cabin Air Filter' });
     const errors = await validate(dto);
     expect(errors.some((e) => e.property === 'category')).toBe(true);
   });

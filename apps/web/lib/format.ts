@@ -34,6 +34,13 @@ export function formatTime(value: string | Date): string {
   return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).format(d);
 }
 
+export function formatDurationMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} hr` : `${hours} hr ${rest} min`;
+}
+
 export function daysUntil(value: string | Date): number {
   const d = typeof value === 'string' ? new Date(value) : value;
   const now = new Date();

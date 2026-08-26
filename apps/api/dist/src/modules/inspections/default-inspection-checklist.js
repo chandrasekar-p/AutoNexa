@@ -27,5 +27,18 @@ exports.DEFAULT_INSPECTION_CHECKLIST = {
         'Belts & Hoses',
         'Exhaust System',
     ],
+    [client_1.InspectionCategory.ELECTRICAL]: [
+        'Alternator / Charging System',
+        'Fuses & Relays',
+        'Central Locking',
+        'Power Windows & Mirrors',
+    ],
+    [client_1.InspectionCategory.UNDERBODY]: [
+        'Chassis & Frame',
+        'Underbody Guard / Skid Plate',
+        'Drive Shaft & CV Joints',
+        'Fuel Tank & Lines',
+        'Silencer & Muffler',
+    ],
 };
 //# sourceMappingURL=default-inspection-checklist.js.map

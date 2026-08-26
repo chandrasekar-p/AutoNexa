@@ -32,4 +32,17 @@ export const DEFAULT_INSPECTION_CHECKLIST: Record<InspectionCategory, string[]> 
     'Belts & Hoses',
     'Exhaust System',
   ],
+  [InspectionCategory.ELECTRICAL]: [
+    'Alternator / Charging System',
+    'Fuses & Relays',
+    'Central Locking',
+    'Power Windows & Mirrors',
+  ],
+  [InspectionCategory.UNDERBODY]: [
+    'Chassis & Frame',
+    'Underbody Guard / Skid Plate',
+    'Drive Shaft & CV Joints',
+    'Fuel Tank & Lines',
+    'Silencer & Muffler',
+  ],
 };

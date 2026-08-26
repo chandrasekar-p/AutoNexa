@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import type { AppointmentFormErrors, AppointmentFormValues } from '@/lib/validation/appointment';
 import { useStaffOptions } from '@/lib/hooks/use-staff-options';
-import { SERVICE_TYPE_PRESETS, OTHER_SERVICE_TYPE, estimatedDurationFor, formatDurationMinutes } from '@/lib/data/service-types';
+import { SERVICE_TYPE_PRESETS, OTHER_SERVICE_TYPE, estimatedDurationFor } from '@/lib/data/service-types';
+import { formatDurationMinutes } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Select } from '@/components/ui/select';

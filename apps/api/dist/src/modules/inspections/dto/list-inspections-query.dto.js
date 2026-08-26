@@ -12,9 +12,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListInspectionsQueryDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_transformer_1 = require("class-transformer");
-const client_1 = require("@prisma/client");
 const class_validator_1 = require("class-validator");
 const uuid_like_1 = require("../../../common/validators/uuid-like");
+const inspection_display_status_1 = require("../inspection-display-status");
 class ListInspectionsQueryDto {
     constructor() {
         this.page = 1;
@@ -23,7 +23,7 @@ class ListInspectionsQueryDto {
 }
 exports.ListInspectionsQueryDto = ListInspectionsQueryDto;
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across notes' }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across notes, vehicle registration number, and customer name/mobile' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
@@ -35,11 +35,23 @@ __decorate([
     __metadata("design:type", String)
 ], ListInspectionsQueryDto.prototype, "vehicleId", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.InspectionStatus }),
+    (0, swagger_1.ApiPropertyOptional)({ enum: inspection_display_status_1.INSPECTION_DISPLAY_STATUSES }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(client_1.InspectionStatus),
+    (0, class_validator_1.IsIn)(inspection_display_status_1.INSPECTION_DISPLAY_STATUSES),
     __metadata("design:type", String)
 ], ListInspectionsQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Started-date range filter start (inclusive)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListInspectionsQueryDto.prototype, "from", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Started-date range filter end (inclusive)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListInspectionsQueryDto.prototype, "to", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

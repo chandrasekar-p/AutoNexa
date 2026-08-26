@@ -408,7 +408,9 @@ export interface AppointmentSummary {
 }
 
 export type InspectionStatus = 'IN_PROGRESS' | 'COMPLETED';
-export type InspectionCategory = 'EXTERIOR' | 'INTERIOR' | 'MECHANICAL';
+/** Pending Review / Overdue are derived, never stored — see the backend's inspection-display-status.ts. */
+export type InspectionDisplayStatus = InspectionStatus | 'PENDING_REVIEW' | 'OVERDUE';
+export type InspectionCategory = 'EXTERIOR' | 'INTERIOR' | 'MECHANICAL' | 'ELECTRICAL' | 'UNDERBODY';
 export type InspectionResult = 'PASS' | 'FAIL' | 'NEEDS_ATTENTION' | 'NOT_CHECKED';
 
 export interface InspectionItem {
@@ -434,15 +436,18 @@ interface InspectionFields {
   status: InspectionStatus;
   notes: string | null;
   createdAt: string;
+  /** Set once status first becomes COMPLETED; null while still open or if reopened. */
+  completedAt: string | null;
+  /** Computed fresh on every read — see computeInspectionDisplayStatus. */
+  displayStatus: InspectionDisplayStatus;
+  /** Minutes from createdAt to completedAt (or to now, if still open) — see computeInspectionDurationMinutes. */
+  durationMinutes: number;
 }
 
-/**
- * GET /inspections list items — no `items`/`photos` (InspectionsService's
- * findAll has no `include` at all), and no vehicle relation either — the
- * list page shows what's available and links through to the detail page
- * for the rest.
- */
-export type InspectionListItem = InspectionFields;
+/** GET /inspections list items — includes the owning vehicle + its customer (InspectionsService's LIST_INCLUDE), not the checklist/photos. */
+export interface InspectionListItem extends InspectionFields {
+  vehicle: { id: string; registrationNo: string; brand: string; model: string; customer: { id: string; name: string; mobile: string } };
+}
 
 /**
  * GET /inspections/:id — includes the checklist + photos (see
@@ -453,6 +458,15 @@ export type InspectionListItem = InspectionFields;
 export interface InspectionDetail extends InspectionFields {
   items: InspectionItem[];
   photos: InspectionPhoto[];
+}
+
+/** GET /inspections/summary — KPI counts for the Inspections page, see InspectionsService.summary(). */
+export interface InspectionSummary {
+  inProgress: number;
+  pendingReview: number;
+  overdue: number;
+  /** This calendar month only, unlike the other three (which are live counts). */
+  completedThisMonth: number;
 }
 
 export type EstimateStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONVERTED';

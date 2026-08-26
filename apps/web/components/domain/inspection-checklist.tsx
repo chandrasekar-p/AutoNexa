@@ -12,6 +12,8 @@ const CATEGORY_LABEL: Record<InspectionCategory, string> = {
   EXTERIOR: 'Exterior',
   INTERIOR: 'Interior',
   MECHANICAL: 'Mechanical',
+  ELECTRICAL: 'Electrical',
+  UNDERBODY: 'Underbody',
 };
 const RESULT_LABEL: Record<InspectionResult, string> = {
   NOT_CHECKED: 'Not Checked',
@@ -43,6 +45,16 @@ const CATEGORY_STYLE: Record<InspectionCategory, { badge: string; tabText: strin
     badge: 'bg-teal-50 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400',
     tabText: 'text-teal-700 dark:text-teal-400',
     tabBg: 'bg-teal-50 dark:bg-teal-500/10',
+  },
+  ELECTRICAL: {
+    badge: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400',
+    tabText: 'text-amber-700 dark:text-amber-400',
+    tabBg: 'bg-amber-50 dark:bg-amber-500/10',
+  },
+  UNDERBODY: {
+    badge: 'bg-graphite-100 text-graphite-700 dark:bg-graphite-500/20 dark:text-graphite-300',
+    tabText: 'text-graphite-700 dark:text-graphite-300',
+    tabBg: 'bg-graphite-100 dark:bg-graphite-500/10',
   },
 };
 
@@ -191,16 +203,15 @@ interface InspectionChecklistProps {
   onUpdated: () => void;
 }
 
-const CATEGORIES: InspectionCategory[] = ['EXTERIOR', 'INTERIOR', 'MECHANICAL'];
+const CATEGORIES: InspectionCategory[] = ['EXTERIOR', 'INTERIOR', 'MECHANICAL', 'ELECTRICAL', 'UNDERBODY'];
 
 /**
- * One category visible at a time behind a tab bar, not all three stacked
- * — a full Exterior/Interior/Mechanical checklist run long enough to make
- * stacking them a genuinely long scroll (each category has 6+ rows), and
- * tabs solve that at every screen width, unlike a side-by-side column
- * layout (which would force each row's name/dropdown/remarks to wrap
- * inside a narrowed column, and gains nothing on mobile where columns
- * just collapse back to stacked anyway).
+ * One category visible at a time behind a tab bar, not all five stacked —
+ * a full checklist run long enough to make stacking them a genuinely long
+ * scroll (each category has 4+ rows), and tabs solve that at every screen
+ * width, unlike a side-by-side column layout (which would force each
+ * row's name/dropdown/remarks to wrap inside a narrowed column, and gains
+ * nothing on mobile where columns just collapse back to stacked anyway).
  */
 function CategoryTabs({
   active,
@@ -212,7 +223,7 @@ function CategoryTabs({
   counts: Record<InspectionCategory, number>;
 }) {
   return (
-    <div role="tablist" className="flex gap-1 border-b border-line">
+    <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line">
       {CATEGORIES.map((category) => {
         const isActive = category === active;
         return (
@@ -245,7 +256,7 @@ function CategoryTabs({
   );
 }
 
-/** Grouped Exterior/Interior/Mechanical checklist (SRS §9) — each item's result/remarks save individually via PATCH /inspections/:id/items/:itemId, no separate "save" step for the whole form. */
+/** Grouped Exterior/Interior/Mechanical/Electrical/Underbody checklist (SRS §9, extended) — each item's result/remarks save individually via PATCH /inspections/:id/items/:itemId, no separate "save" step for the whole form. */
 export function InspectionChecklist({ inspectionId, items, readOnly, onUpdated }: InspectionChecklistProps) {
   const [activeCategory, setActiveCategory] = useState<InspectionCategory>('EXTERIOR');
   const counts = Object.fromEntries(

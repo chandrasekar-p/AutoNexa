@@ -31,10 +31,3 @@ export function estimatedDurationFor(serviceType: string): number | null {
   const preset = SERVICE_TYPE_PRESETS.find((p) => p.label === serviceType);
   return preset ? preset.estimatedDurationMinutes : null;
 }
-
-export function formatDurationMinutes(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0 ? `${hours} hr` : `${hours} hr ${rest} min`;
-}

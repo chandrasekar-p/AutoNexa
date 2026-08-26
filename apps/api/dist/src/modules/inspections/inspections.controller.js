@@ -34,11 +34,17 @@ let InspectionsController = class InspectionsController {
     findAll(query) {
         return this.inspectionsService.findAll(query);
     }
+    summary() {
+        return this.inspectionsService.summary();
+    }
     findOne(id) {
         return this.inspectionsService.findOne(id);
     }
     update(id, dto) {
         return this.inspectionsService.update(id, dto);
+    }
+    remove(id) {
+        return this.inspectionsService.remove(id);
     }
     addItem(id, dto) {
         return this.inspectionsService.addItem(id, dto);
@@ -76,6 +82,13 @@ __decorate([
 ], InspectionsController.prototype, "findAll", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('inspection:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], InspectionsController.prototype, "summary", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('inspection:read'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -92,6 +105,15 @@ __decorate([
     __metadata("design:paramtypes", [String, update_inspection_dto_1.UpdateInspectionDto]),
     __metadata("design:returntype", void 0)
 ], InspectionsController.prototype, "update", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('inspection:delete'),
+    (0, common_1.Delete)(':id'),
+    (0, audit_log_interceptor_1.Audit)('inspection.delete', 'Inspection'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], InspectionsController.prototype, "remove", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('inspection:update'),
     (0, common_1.Post)(':id/items'),

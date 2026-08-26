@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useStaffOptions } from '@/lib/hooks/use-staff-options';
-import type { InspectionDetail, VehicleDetail } from '@/lib/api-types';
+import type { InspectionDetail, VehicleDetail, VehicleListItem } from '@/lib/api-types';
+import { VehiclePicker } from '@/components/domain/vehicle-picker';
 import { Card, CardBody } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,13 +17,21 @@ import { ErrorState } from '@/components/ui/error-state';
 export default function NewInspectionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const vehicleId = searchParams.get('vehicleId');
+  const preselectedVehicleId = searchParams.get('vehicleId');
   const appointmentId = searchParams.get('appointmentId');
 
-  const vehicle = useApiQuery<VehicleDetail>(
-    () => (vehicleId ? apiGet(`/vehicles/${vehicleId}`) : Promise.reject(new Error('no vehicleId'))),
-    [vehicleId],
+  // Arriving from a vehicle's own page ("Start Inspection") pre-fills and
+  // locks the vehicle; arriving at /inspections/new directly shows the
+  // VehiclePicker below instead.
+  const preselectedVehicle = useApiQuery<VehicleDetail>(
+    () => (preselectedVehicleId ? apiGet(`/vehicles/${preselectedVehicleId}`) : Promise.reject(new Error('n/a'))),
+    [preselectedVehicleId],
   );
+  const [pickedVehicle, setPickedVehicle] = useState<VehicleListItem | null>(null);
+  const vehicle: { id: string; registrationNo: string; brand: string; model: string } | null = preselectedVehicleId
+    ? preselectedVehicle.data
+    : pickedVehicle;
+
   const staff = useStaffOptions();
 
   const [technicianId, setTechnicianId] = useState('');
@@ -32,12 +41,12 @@ export default function NewInspectionPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!vehicleId) return;
+    if (!vehicle) return;
     setFormError(null);
     setIsSubmitting(true);
     try {
       const inspection = await apiPost<InspectionDetail>('/inspections', {
-        vehicleId,
+        vehicleId: vehicle.id,
         appointmentId: appointmentId ?? undefined,
         technicianId: technicianId || undefined,
         notes: notes || undefined,
@@ -49,37 +58,41 @@ export default function NewInspectionPage() {
     }
   }
 
-  if (!vehicleId) {
-    return (
-      <ErrorState message="A vehicle is required to start an inspection — start one from a vehicle's page instead." />
-    );
-  }
-
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-ink">New Inspection</h1>
-        <p className="text-sm text-ink-secondary">
-          Starts a standard exterior/interior/mechanical checklist for this vehicle.
-        </p>
+        <p className="text-sm text-ink-secondary">Starts a standard five-category checklist for this vehicle.</p>
       </div>
 
-      {vehicle.isLoading ? <Skeleton className="h-64 w-full" /> : null}
-      {vehicle.error ? <ErrorState message={vehicle.error} onRetry={vehicle.refetch} /> : null}
+      {preselectedVehicleId && preselectedVehicle.isLoading ? <Skeleton className="h-10 w-full max-w-sm" /> : null}
+      {preselectedVehicleId && preselectedVehicle.error ? (
+        <ErrorState message={preselectedVehicle.error} onRetry={preselectedVehicle.refetch} />
+      ) : null}
 
-      {vehicle.data ? (
-        <Card>
-          <CardBody className="flex flex-col gap-5 pt-5">
+      <Card>
+        <CardBody className="flex flex-col gap-5 pt-5">
+          {!preselectedVehicleId && !vehicle ? <VehiclePicker value={pickedVehicle} onChange={setPickedVehicle} /> : null}
+
+          {vehicle ? (
             <div className="flex h-10 items-center justify-between rounded border border-line bg-surface-hover px-3">
               <span className="num text-sm text-ink">
-                {vehicle.data.registrationNo}{' '}
+                {vehicle.registrationNo}{' '}
                 <span className="text-ink-muted">
-                  · {vehicle.data.brand} {vehicle.data.model}
+                  · {vehicle.brand} {vehicle.model}
                 </span>
               </span>
-              <span className="text-micro font-semibold uppercase tracking-wide text-ink-muted">Vehicle</span>
+              {!preselectedVehicleId ? (
+                <button type="button" onClick={() => setPickedVehicle(null)} className="text-xs text-accent-600 hover:underline">
+                  Change
+                </button>
+              ) : (
+                <span className="text-micro font-semibold uppercase tracking-wide text-ink-muted">Vehicle</span>
+              )}
             </div>
+          ) : null}
 
+          {vehicle ? (
             <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
               {staff.isAvailable ? (
                 <Select label="Technician" value={technicianId} onChange={(e) => setTechnicianId(e.target.value)}>
@@ -111,9 +124,9 @@ export default function NewInspectionPage() {
                 </Button>
               </div>
             </form>
-          </CardBody>
-        </Card>
-      ) : null}
+          ) : null}
+        </CardBody>
+      </Card>
     </div>
   );
 }

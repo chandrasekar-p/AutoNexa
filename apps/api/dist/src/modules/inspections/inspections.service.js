@@ -15,11 +15,21 @@ var InspectionsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InspectionsService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const storage_types_1 = require("../storage/storage.types");
 const resolve_display_url_1 = require("../storage/resolve-display-url");
 const default_inspection_checklist_1 = require("./default-inspection-checklist");
+const inspection_display_status_1 = require("./inspection-display-status");
 const INSPECTION_INCLUDE = { items: true, photos: { orderBy: { uploadedAt: 'desc' } } };
+const VEHICLE_SUMMARY_SELECT = {
+    id: true,
+    registrationNo: true,
+    brand: true,
+    model: true,
+    customer: { select: { id: true, name: true, mobile: true } },
+};
+const LIST_INCLUDE = { vehicle: { select: VEHICLE_SUMMARY_SELECT }, items: { select: { result: true } } };
 let InspectionsService = InspectionsService_1 = class InspectionsService {
     constructor(prisma, storage) {
         this.prisma = prisma;
@@ -48,35 +58,102 @@ let InspectionsService = InspectionsService_1 = class InspectionsService {
         const pageSize = query.pageSize ?? 20;
         const db = this.prisma.forTenant();
         const where = {
+            deletedAt: null,
             ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
-            ...(query.status ? { status: query.status } : {}),
-            ...(query.search ? { notes: { contains: query.search, mode: 'insensitive' } } : {}),
+            ...(query.status ? (0, inspection_display_status_1.inspectionDisplayStatusWhere)(query.status) : {}),
+            ...(query.from || query.to
+                ? {
+                    createdAt: {
+                        ...(query.from ? { gte: new Date(query.from) } : {}),
+                        ...(query.to ? { lte: new Date(`${query.to}T23:59:59.999Z`) } : {}),
+                    },
+                }
+                : {}),
+            ...(query.search
+                ? {
+                    OR: [
+                        { notes: { contains: query.search, mode: 'insensitive' } },
+                        { vehicle: { registrationNo: { contains: query.search, mode: 'insensitive' } } },
+                        { vehicle: { customer: { name: { contains: query.search, mode: 'insensitive' } } } },
+                        { vehicle: { customer: { mobile: { contains: query.search } } } },
+                    ],
+                }
+                : {}),
         };
         const [items, total] = await Promise.all([
             db.inspection.findMany({
                 where,
+                include: LIST_INCLUDE,
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
             }),
             db.inspection.count({ where }),
         ]);
-        return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+        return {
+            items: items.map((inspection) => this.toListRow(inspection)),
+            total,
+            page,
+            pageSize,
+            totalPages: Math.ceil(total / pageSize),
+        };
+    }
+    toListRow(inspection) {
+        const { items, ...rest } = inspection;
+        return {
+            ...rest,
+            displayStatus: (0, inspection_display_status_1.computeInspectionDisplayStatus)(inspection),
+            durationMinutes: (0, inspection_display_status_1.computeInspectionDurationMinutes)(inspection.createdAt, inspection.completedAt),
+        };
+    }
+    async summary() {
+        const db = this.prisma.forTenant();
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const [inProgress, completedThisMonth, pendingReview, overdue] = await Promise.all([
+            db.inspection.count({ where: { ...(0, inspection_display_status_1.inspectionDisplayStatusWhere)('IN_PROGRESS', now), deletedAt: null } }),
+            db.inspection.count({
+                where: { status: client_1.InspectionStatus.COMPLETED, completedAt: { gte: monthStart, lt: monthEnd }, deletedAt: null },
+            }),
+            db.inspection.count({ where: { ...(0, inspection_display_status_1.inspectionDisplayStatusWhere)('PENDING_REVIEW', now), deletedAt: null } }),
+            db.inspection.count({ where: { ...(0, inspection_display_status_1.inspectionDisplayStatusWhere)('OVERDUE', now), deletedAt: null } }),
+        ]);
+        return { inProgress, completedThisMonth, pendingReview, overdue };
     }
     async findOne(id) {
         const inspection = await this.prisma.forTenant().inspection.findFirst({
-            where: { id },
+            where: { id, deletedAt: null },
             include: INSPECTION_INCLUDE,
         });
         if (!inspection)
             throw new common_1.NotFoundException('Inspection not found');
         const photos = await Promise.all(inspection.photos.map(async (photo) => ({ ...photo, fileUrl: (await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, photo.fileUrl)) })));
-        return { ...inspection, photos };
+        return {
+            ...inspection,
+            photos,
+            displayStatus: (0, inspection_display_status_1.computeInspectionDisplayStatus)(inspection),
+            durationMinutes: (0, inspection_display_status_1.computeInspectionDurationMinutes)(inspection.createdAt, inspection.completedAt),
+        };
     }
     async update(id, dto) {
-        await this.assertExists(id);
-        await this.prisma.forTenant().inspection.update({ where: { id }, data: dto });
+        const existing = await this.assertExists(id);
+        let completedAt;
+        if (dto.status === client_1.InspectionStatus.COMPLETED && existing.status !== client_1.InspectionStatus.COMPLETED) {
+            completedAt = new Date();
+        }
+        else if (dto.status === client_1.InspectionStatus.IN_PROGRESS && existing.status !== client_1.InspectionStatus.IN_PROGRESS) {
+            completedAt = null;
+        }
+        await this.prisma.forTenant().inspection.update({
+            where: { id },
+            data: { ...dto, ...(completedAt !== undefined ? { completedAt } : {}) },
+        });
         return this.findOne(id);
+    }
+    async remove(id) {
+        await this.assertExists(id);
+        return this.prisma.forTenant().inspection.update({ where: { id }, data: { deletedAt: new Date() } });
     }
     async addItem(inspectionId, dto) {
         await this.assertExists(inspectionId);
@@ -86,11 +163,13 @@ let InspectionsService = InspectionsService_1 = class InspectionsService {
         return this.findOne(inspectionId);
     }
     async updateItem(inspectionId, itemId, dto) {
+        await this.assertExists(inspectionId);
         await this.assertItemExists(inspectionId, itemId);
         await this.prisma.forTenant().inspectionItem.update({ where: { id: itemId }, data: dto });
         return this.findOne(inspectionId);
     }
     async removeItem(inspectionId, itemId) {
+        await this.assertExists(inspectionId);
         await this.assertItemExists(inspectionId, itemId);
         await this.prisma.forTenant().inspectionItem.delete({ where: { id: itemId } });
         return this.findOne(inspectionId);
@@ -103,6 +182,7 @@ let InspectionsService = InspectionsService_1 = class InspectionsService {
         return this.findOne(inspectionId);
     }
     async removePhoto(inspectionId, photoId) {
+        await this.assertExists(inspectionId);
         const photo = await this.assertPhotoExists(inspectionId, photoId);
         await this.prisma.forTenant().inspectionPhoto.delete({ where: { id: photoId } });
         try {
@@ -114,7 +194,7 @@ let InspectionsService = InspectionsService_1 = class InspectionsService {
         return this.findOne(inspectionId);
     }
     async assertExists(id) {
-        const inspection = await this.prisma.forTenant().inspection.findFirst({ where: { id } });
+        const inspection = await this.prisma.forTenant().inspection.findFirst({ where: { id, deletedAt: null } });
         if (!inspection)
             throw new common_1.NotFoundException('Inspection not found');
         return inspection;
