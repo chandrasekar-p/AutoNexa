@@ -31,6 +31,18 @@ describe('validateSupplierForm', () => {
     expect(blank.success).toBe(true);
   });
 
+  it('rejects a malformed GSTIN but accepts a blank one', () => {
+    const bad = validateSupplierForm({ name: 'Bosch', gstin: '12345' });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.errors.gstin).toBeDefined();
+
+    const good = validateSupplierForm({ name: 'Bosch', gstin: '33AAAAA0000A1Z5' });
+    expect(good.success).toBe(true);
+
+    const blank = validateSupplierForm({ name: 'Bosch', gstin: '' });
+    expect(blank.success).toBe(true);
+  });
+
   it('normalizes blank optional fields to undefined', () => {
     const result = validateSupplierForm({ name: 'Bosch', gstin: '', paymentTerms: '' });
     expect(result.success).toBe(true);

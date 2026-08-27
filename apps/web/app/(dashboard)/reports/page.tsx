@@ -593,59 +593,66 @@ export default function ReportsPage() {
         </div>
       ) : null}
 
-      {isLoading ? (
-        <ReportsLoadingSkeleton showSummary={!!report.summaryEndpoint} />
-      ) : error ? (
-        <ErrorState message={error} onRetry={refetch} />
-      ) : isEmpty ? (
-        <Card>
-          <CardBody className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-sm font-medium text-ink">No {report.label.toLowerCase()} data found</p>
-            <p className="text-xs text-ink-muted">There are no records for the selected date range.</p>
-            <Button type="button" variant="secondary" size="sm" onClick={handleResetFilters}>
-              Change Date Range
-            </Button>
-          </CardBody>
-        </Card>
-      ) : (
-        <>
-          {summaryQuery.data ? <ReportSalesKpiRow summary={summaryQuery.data} /> : null}
+      {summaryQuery.data && !isLoading && !error ? <ReportSalesKpiRow summary={summaryQuery.data} /> : null}
 
-          {/*
-            Two independent stacked columns, not two side-by-side grid
-            rows — the Report Categories list (18 reports across 6
-            categories) is naturally much taller than a single chart card,
-            so pairing "chart row" with "categories row" separately left a
-            large dead-space gap wherever the shorter card sat in a row
-            forced tall by its row-mate. Stacking each side's own cards in
-            a flex column means the two columns are only ever as
-            mismatched as their own combined content, not per-row.
-          */}
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-            <div className="flex flex-col gap-4 lg:col-span-2">
-              {summaryQuery.data ? (
-                <>
-                  <ReportSalesChart buckets={summaryQuery.data.buckets} />
-                  <Card>
-                    <CardBody className="pt-5">
-                      <SalesSummaryTable summary={summaryQuery.data} />
-                    </CardBody>
-                  </Card>
-                </>
-              ) : (
-                <Card>
-                  <CardBody className="pt-5">{report.shape === 'table' ? <ReportTable data={query.data} /> : <ReportObject data={query.data} />}</CardBody>
-                </Card>
-              )}
-            </div>
-            <div className="flex flex-col gap-4">
-              {/* Insights first — it's short and belongs near the chart/table it explains. Report Categories (18 reports across 6 categories) is the tallest card on the page by a wide margin, so it goes last and is simply allowed to run past the left column's bottom rather than dragging Insights down with it. */}
-              {summaryQuery.data ? <ReportInsightsCard insights={insights} /> : null}
-              <ReportCategoriesCard groups={CATEGORY_GROUPS} activeKey={reportKey} onSelect={handleReportChange} />
-            </div>
-          </div>
-        </>
-      )}
+      {/*
+        Two independent stacked columns, not two side-by-side grid rows —
+        the Report Categories list (18 reports across 6 categories) is
+        naturally much taller than a single chart card, so pairing "chart
+        row" with "categories row" separately left a large dead-space gap
+        wherever the shorter card sat in a row forced tall by its row-mate.
+        Stacking each side's own cards in a flex column means the two
+        columns are only ever as mismatched as their own combined content,
+        not per-row.
+
+        The right column (Insights + Report Categories) stays mounted
+        across loading/error/empty/data states — it's the page's primary
+        navigation, and hiding it whenever the current report has no rows
+        for the selected filters (a normal, frequent state, not a failure)
+        used to strand the user on a dead-end card with only the small
+        top dropdown left to escape it.
+      */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          {isLoading ? (
+            <ReportsLoadingSkeleton showSummary={!!report.summaryEndpoint} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={refetch} />
+          ) : isEmpty ? (
+            <Card>
+              <CardBody className="flex flex-col items-center gap-3 py-10 text-center">
+                <p className="text-sm font-medium text-ink">No {report.label.toLowerCase()} data found</p>
+                <p className="text-xs text-ink-muted">
+                  {report.supportsDateRange ? 'There are no records for the selected date range.' : 'There are no records for this report yet.'}
+                </p>
+                {report.supportsDateRange ? (
+                  <Button type="button" variant="secondary" size="sm" onClick={handleResetFilters}>
+                    Change Date Range
+                  </Button>
+                ) : null}
+              </CardBody>
+            </Card>
+          ) : summaryQuery.data ? (
+            <>
+              <ReportSalesChart buckets={summaryQuery.data.buckets} />
+              <Card>
+                <CardBody className="pt-5">
+                  <SalesSummaryTable summary={summaryQuery.data} />
+                </CardBody>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardBody className="pt-5">{report.shape === 'table' ? <ReportTable data={query.data} /> : <ReportObject data={query.data} />}</CardBody>
+            </Card>
+          )}
+        </div>
+        <div className="flex flex-col gap-4">
+          {/* Insights first — it's short and belongs near the chart/table it explains. Report Categories (18 reports across 6 categories) is the tallest card on the page by a wide margin, so it goes last and is simply allowed to run past the left column's bottom rather than dragging Insights down with it. */}
+          {summaryQuery.data && !isLoading && !error && !isEmpty ? <ReportInsightsCard insights={insights} /> : null}
+          <ReportCategoriesCard groups={CATEGORY_GROUPS} activeKey={reportKey} onSelect={handleReportChange} />
+        </div>
+      </div>
     </div>
   );
 }

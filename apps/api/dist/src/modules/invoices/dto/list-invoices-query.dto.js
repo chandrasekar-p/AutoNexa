@@ -15,6 +15,7 @@ const class_transformer_1 = require("class-transformer");
 const client_1 = require("@prisma/client");
 const class_validator_1 = require("class-validator");
 const uuid_like_1 = require("../../../common/validators/uuid-like");
+const invoice_overdue_1 = require("../invoice-overdue");
 class ListInvoicesQueryDto {
     constructor() {
         this.page = 1;
@@ -23,7 +24,7 @@ class ListInvoicesQueryDto {
 }
 exports.ListInvoicesQueryDto = ListInvoicesQueryDto;
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across invoice number' }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across invoice number, job card number, and vehicle registration number' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
@@ -35,11 +36,63 @@ __decorate([
     __metadata("design:type", String)
 ], ListInvoicesQueryDto.prototype, "customerId", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
+    __metadata("design:type", String)
+], ListInvoicesQueryDto.prototype, "vehicleId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
+    __metadata("design:type", String)
+], ListInvoicesQueryDto.prototype, "jobCardId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
+    __metadata("design:type", String)
+], ListInvoicesQueryDto.prototype, "serviceAdvisorId", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ enum: client_1.InvoiceStatus }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(client_1.InvoiceStatus),
     __metadata("design:type", String)
 ], ListInvoicesQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: invoice_overdue_1.INVOICE_DISPLAY_STATUSES, description: 'The derived status (Overdue included) — see invoice-overdue.ts' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(invoice_overdue_1.INVOICE_DISPLAY_STATUSES),
+    __metadata("design:type", String)
+], ListInvoicesQueryDto.prototype, "displayStatus", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'createdAt range filter start (inclusive)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListInvoicesQueryDto.prototype, "from", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'createdAt range filter end (inclusive)' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], ListInvoicesQueryDto.prototype, "to", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Minimum grandTotal' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], ListInvoicesQueryDto.prototype, "minAmount", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Maximum grandTotal' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], ListInvoicesQueryDto.prototype, "maxAmount", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

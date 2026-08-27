@@ -27,6 +27,12 @@ export class SuppliersController {
   }
 
   @Permissions('supplier:read')
+  @Get('summary')
+  summary() {
+    return this.suppliersService.summary();
+  }
+
+  @Permissions('supplier:read')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.suppliersService.findOne(id);

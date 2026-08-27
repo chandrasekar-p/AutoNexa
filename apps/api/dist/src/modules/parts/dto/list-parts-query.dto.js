@@ -13,6 +13,7 @@ exports.ListPartsQueryDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const STOCK_STATUSES = ['in_stock', 'low_stock', 'out_of_stock'];
 class ListPartsQueryDto {
     constructor() {
         this.page = 1;
@@ -41,17 +42,45 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListPartsQueryDto.prototype, "brand", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Boolean),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ListPartsQueryDto.prototype, "isActive", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Filter to currentStock <= minStock' }),
+    (0, swagger_1.ApiPropertyOptional)({ enum: STOCK_STATUSES }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(STOCK_STATUSES),
+    __metadata("design:type", String)
+], ListPartsQueryDto.prototype, "stockStatus", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ deprecated: true, description: 'Deprecated — use stockStatus=low_stock' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Boolean),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ListPartsQueryDto.prototype, "lowStock", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Minimum sellingPrice' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], ListPartsQueryDto.prototype, "minPrice", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Maximum sellingPrice' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], ListPartsQueryDto.prototype, "maxPrice", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

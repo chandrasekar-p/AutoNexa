@@ -13,6 +13,7 @@ exports.CreateSupplierDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const mobile_1 = require("../../../common/validators/mobile");
+const gstin_1 = require("../../../common/validators/gstin");
 class CreateSupplierDto {
 }
 exports.CreateSupplierDto = CreateSupplierDto;
@@ -48,9 +49,10 @@ __decorate([
     __metadata("design:type", String)
 ], CreateSupplierDto.prototype, "address", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: '33AAAAA0000A1Z5' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(gstin_1.GSTIN_REGEX, { message: gstin_1.INVALID_GSTIN_MESSAGE }),
     __metadata("design:type", String)
 ], CreateSupplierDto.prototype, "gstin", void 0);
 __decorate([

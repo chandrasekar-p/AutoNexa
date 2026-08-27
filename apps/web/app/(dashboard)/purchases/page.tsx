@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
 import { usePermission } from '@/lib/hooks/use-permission';
-import type { PaginatedResult, PurchaseOrderListItem, PurchaseOrderStatus } from '@/lib/api-types';
+import type { PaginatedResult, PurchaseOrderListItem, PurchaseOrderStatus, Supplier } from '@/lib/api-types';
 import { formatDate } from '@/lib/format';
 import { PurchaseOrderStatusBadge, PURCHASE_ORDER_STATUS_LABEL } from '@/components/domain/purchase-order-status-badge';
 import { Input } from '@/components/ui/input';
@@ -23,21 +23,28 @@ const STATUSES: PurchaseOrderStatus[] = ['DRAFT', 'SENT', 'PARTIALLY_RECEIVED', 
 
 export default function PurchaseOrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const canCreate = usePermission('purchase:create');
+
+  const preselectedSupplierId = searchParams.get('supplierId');
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<PurchaseOrderStatus | ''>('');
+  const [supplierId, setSupplierId] = useState(preselectedSupplierId ?? '');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
+
+  const suppliers = useApiQuery<PaginatedResult<Supplier>>(() => apiGet('/suppliers?pageSize=100'), []);
 
   const query = useApiQuery<PaginatedResult<PurchaseOrderListItem>>(
     () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (status) params.set('status', status);
+      if (supplierId) params.set('supplierId', supplierId);
       return apiGet(`/purchase-orders?${params.toString()}`);
     },
-    [page, debouncedSearch, status],
+    [page, debouncedSearch, status, supplierId],
   );
 
   function handleSearchChange(value: string) {
@@ -47,6 +54,11 @@ export default function PurchaseOrdersPage() {
 
   function handleStatusChange(value: string) {
     setStatus(value as PurchaseOrderStatus | '');
+    setPage(1);
+  }
+
+  function handleSupplierChange(value: string) {
+    setSupplierId(value);
     setPage(1);
   }
 
@@ -79,6 +91,18 @@ export default function PurchaseOrdersPage() {
             ))}
           </Select>
         </div>
+        {suppliers.data ? (
+          <div className="w-56">
+            <Select value={supplierId} onChange={(e) => handleSupplierChange(e.target.value)} aria-label="Filter by supplier">
+              <option value="">All suppliers</option>
+              {suppliers.data.items.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
       </div>
 
       {query.isLoading ? (

@@ -89,16 +89,31 @@ export class PurchaseOrdersService {
       ...(query.search ? { poNumber: { contains: query.search, mode: 'insensitive' as const } } : {}),
     };
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       db.purchaseOrder.findMany({
         where,
-        include: { supplier: { select: SUPPLIER_SUMMARY_SELECT } },
+        include: {
+          supplier: { select: SUPPLIER_SUMMARY_SELECT },
+          items: { select: { lineTotal: true } },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       db.purchaseOrder.count({ where }),
     ]);
+
+    // itemCount/totalAmount are the list view's only additions over the
+    // bare PO fields — real, already-stored line totals, not a new
+    // calculation — so a caller that only needs the list (the Purchase
+    // Orders page itself) can ignore them, and one that needs a quick
+    // summary (Suppliers' Purchase History) doesn't have to fetch every
+    // PO's full detail just to show an item count and an amount.
+    const items = rows.map(({ items: lineItems, ...row }) => ({
+      ...row,
+      itemCount: lineItems.length,
+      totalAmount: lineItems.reduce((sum, i) => sum.add(i.lineTotal), new Prisma.Decimal(0)).toDecimalPlaces(2),
+    }));
 
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }

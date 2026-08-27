@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { validatePartForm, type PartFormErrors, type PartFormValues } from '@/lib/validation/part';
 import type { Part, PartCategory, PaginatedResult, Supplier } from '@/lib/api-types';
+import { formatMoney } from '@/lib/format';
+import { SectionHeading } from './section-heading';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -91,8 +94,12 @@ export function PartForm({ initial, submitLabel, onSubmit, onCancel }: PartFormP
     }
   }
 
+  const purchasePriceNum = Number(values.purchasePrice) || 0;
+  const sellingPriceNum = Number(values.sellingPrice) || 0;
+  const gstRateNum = Number(values.gstRate) || 0;
+
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
       {formError ? (
         <p
           role="alert"
@@ -102,88 +109,118 @@ export function PartForm({ initial, submitLabel, onSubmit, onCancel }: PartFormP
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input label="Part Number" value={values.partNumber} onChange={(e) => set('partNumber', e.target.value)} error={errors.partNumber} required />
-        <Input label="SKU" value={values.sku} onChange={(e) => set('sku', e.target.value)} error={errors.sku} required />
-        <div className="sm:col-span-2">
-          <Input label="Name" value={values.name} onChange={(e) => set('name', e.target.value)} error={errors.name} required />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div className="flex flex-col gap-4">
+          <SectionHeading number={1} title="Basic Information" />
+          <Input label="Part Number *" value={values.partNumber} onChange={(e) => set('partNumber', e.target.value)} placeholder="e.g. PN-111-001" error={errors.partNumber} />
+          <Input label="SKU *" value={values.sku} onChange={(e) => set('sku', e.target.value)} placeholder="e.g. BRK-DISC-001" error={errors.sku} />
+          <Input label="Part Name *" value={values.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Brake Disc Front" error={errors.name} />
+          <Input label="Brand" value={values.brand} onChange={(e) => set('brand', e.target.value)} error={errors.brand} />
+          <Input
+            label="Vehicle Compatibility"
+            value={values.vehicleCompatibility}
+            onChange={(e) => set('vehicleCompatibility', e.target.value)}
+            placeholder="e.g. BMW X5 2018-2023"
+            error={errors.vehicleCompatibility}
+          />
         </div>
-        <Input label="Brand" value={values.brand} onChange={(e) => set('brand', e.target.value)} error={errors.brand} />
-        <Input
-          label="Vehicle Compatibility"
-          value={values.vehicleCompatibility}
-          onChange={(e) => set('vehicleCompatibility', e.target.value)}
-          placeholder="BMW X5 2018-2023"
-          error={errors.vehicleCompatibility}
-        />
 
-        <div className="flex flex-col gap-1.5">
-          <Select label="Category" value={values.categoryId} onChange={(e) => set('categoryId', e.target.value)} error={errors.categoryId}>
-            <option value="">—</option>
-            {categories.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+        <div className="flex flex-col gap-4">
+          <SectionHeading number={2} title="Category & Supplier" />
+          <div className="flex flex-col gap-1.5">
+            <Select label="Category" value={values.categoryId} onChange={(e) => set('categoryId', e.target.value)} error={errors.categoryId}>
+              <option value="">Select category…</option>
+              {categories.data?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+            <div className="flex gap-2">
+              <Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="New category name" className="h-8 text-xs" />
+              <Button type="button" variant="ghost" size="sm" onClick={handleAddCategory} isLoading={isAddingCategory}>
+                Add
+              </Button>
+            </div>
+          </div>
+
+          <Select label="Preferred Supplier" value={values.supplierId} onChange={(e) => set('supplierId', e.target.value)} error={errors.supplierId}>
+            <option value="">Select supplier (optional)…</option>
+            {suppliers.data?.items.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </Select>
-          <div className="flex gap-2">
-            <Input
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="New category name"
-              className="h-8 text-xs"
-            />
-            <Button type="button" variant="ghost" size="sm" onClick={handleAddCategory} isLoading={isAddingCategory}>
-              Add
-            </Button>
-          </div>
+
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={values.isActive} onChange={(e) => set('isActive', e.target.checked)} className="h-4 w-4 rounded border-line accent-accent-500" />
+            Active
+          </label>
         </div>
 
-        <Select label="Preferred Supplier" value={values.supplierId} onChange={(e) => set('supplierId', e.target.value)} error={errors.supplierId}>
-          <option value="">—</option>
-          {suppliers.data?.items.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-col gap-4">
+          <SectionHeading number={3} title="Pricing & Tax" />
+          <Input label="Purchase Price (₹) *" type="number" min={0} value={values.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)} error={errors.purchasePrice} />
+          <Input label="Selling Price (₹) *" type="number" min={0} value={values.sellingPrice} onChange={(e) => set('sellingPrice', e.target.value)} error={errors.sellingPrice} />
+          <Select label="GST Rate (%) *" value={values.gstRate} onChange={(e) => set('gstRate', e.target.value)} error={errors.gstRate}>
+            {['0', '5', '12', '18', '28'].map((rate) => (
+              <option key={rate} value={rate}>
+                {rate}%
+              </option>
+            ))}
+          </Select>
+          <Input label="HSN Code" value={values.hsnCode} onChange={(e) => set('hsnCode', e.target.value)} placeholder="e.g. 87089900" error={errors.hsnCode} />
 
-        <Input
-          label="Purchase Price"
-          type="number"
-          value={values.purchasePrice}
-          onChange={(e) => set('purchasePrice', e.target.value)}
-          error={errors.purchasePrice}
-          required
-        />
-        <Input
-          label="Selling Price"
-          type="number"
-          value={values.sellingPrice}
-          onChange={(e) => set('sellingPrice', e.target.value)}
-          error={errors.sellingPrice}
-          required
-        />
-        <Input label="GST Rate (%)" type="number" value={values.gstRate} onChange={(e) => set('gstRate', e.target.value)} error={errors.gstRate} />
-        <Input label="HSN Code" value={values.hsnCode} onChange={(e) => set('hsnCode', e.target.value)} error={errors.hsnCode} />
-        <Input label="Minimum Stock" type="number" value={values.minStock} onChange={(e) => set('minStock', e.target.value)} error={errors.minStock} />
-        <Input label="Maximum Stock" type="number" value={values.maxStock} onChange={(e) => set('maxStock', e.target.value)} error={errors.maxStock} />
-        <Input label="Bin Location" value={values.binLocation} onChange={(e) => set('binLocation', e.target.value)} error={errors.binLocation} />
-        <Input
-          label="Warranty (months)"
-          type="number"
-          value={values.warrantyPeriodMonths}
-          onChange={(e) => set('warrantyPeriodMonths', e.target.value)}
-          error={errors.warrantyPeriodMonths}
-        />
+          {purchasePriceNum > 0 || sellingPriceNum > 0 ? (
+            <div className="rounded border border-line bg-surface-hover px-3 py-2 text-xs">
+              <div className="flex justify-between text-ink-secondary">
+                <span>Purchase Price</span>
+                <span className="num text-ink">{formatMoney(purchasePriceNum)}</span>
+              </div>
+              <div className="flex justify-between text-ink-secondary">
+                <span>GST</span>
+                <span className="num text-ink">{gstRateNum}%</span>
+              </div>
+              <div className="mt-1 flex justify-between border-t border-line pt-1 font-medium text-ink">
+                <span>Selling Price</span>
+                <span className="num">{formatMoney(sellingPriceNum)}</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <SectionHeading number={4} title="Inventory" />
+          {initial ? (
+            <div className="flex flex-col gap-1">
+              <Input label="Current Stock" value={initial.currentStock} disabled />
+              <p className="text-xs text-ink-muted">
+                Stock changes should normally be recorded through{' '}
+                <Link href={`/parts-inventory/${initial.id}`} className="text-accent-600 hover:underline">
+                  Stock Adjustment
+                </Link>{' '}
+                so the inventory history remains accurate.
+              </p>
+            </div>
+          ) : (
+            <Input label="Current Stock" value="0" disabled />
+          )}
+          <Input label="Minimum Stock *" type="number" min={0} value={values.minStock} onChange={(e) => set('minStock', e.target.value)} error={errors.minStock} />
+          <Input label="Maximum Stock" type="number" min={0} value={values.maxStock} onChange={(e) => set('maxStock', e.target.value)} error={errors.maxStock} />
+          <Input label="Bin Location" value={values.binLocation} onChange={(e) => set('binLocation', e.target.value)} placeholder="e.g. A-01-03" error={errors.binLocation} />
+          <Input
+            label="Warranty (months)"
+            type="number"
+            min={0}
+            value={values.warrantyPeriodMonths}
+            onChange={(e) => set('warrantyPeriodMonths', e.target.value)}
+            error={errors.warrantyPeriodMonths}
+          />
+        </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={values.isActive} onChange={(e) => set('isActive', e.target.checked)} className="h-4 w-4 rounded border-line" />
-        Active
-      </label>
-
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex justify-end gap-3 border-t border-line pt-4">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>

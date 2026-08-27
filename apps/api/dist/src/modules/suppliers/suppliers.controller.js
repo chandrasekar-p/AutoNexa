@@ -31,6 +31,9 @@ let SuppliersController = class SuppliersController {
     findAll(query) {
         return this.suppliersService.findAll(query);
     }
+    summary() {
+        return this.suppliersService.summary();
+    }
     findOne(id) {
         return this.suppliersService.findOne(id);
     }
@@ -59,6 +62,13 @@ __decorate([
     __metadata("design:paramtypes", [list_suppliers_query_dto_1.ListSuppliersQueryDto]),
     __metadata("design:returntype", void 0)
 ], SuppliersController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('supplier:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SuppliersController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('supplier:read'),
     (0, common_1.Get)(':id'),

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE } from './mobile';
+import { GSTIN_REGEX, INVALID_GSTIN_MESSAGE } from './gstin';
 
 // Mirrors the backend's CreateSupplierDto exactly — only name is required.
 export const supplierSchema = z.object({
@@ -8,8 +9,9 @@ export const supplierSchema = z.object({
   mobile: z.string().regex(INDIAN_MOBILE_REGEX, INVALID_MOBILE_MESSAGE).optional().or(z.literal('')),
   email: z.string().email('Enter a valid email address').optional().or(z.literal('')),
   address: z.string().optional(),
-  gstin: z.string().optional(),
+  gstin: z.string().regex(GSTIN_REGEX, INVALID_GSTIN_MESSAGE).optional().or(z.literal('')),
   paymentTerms: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export type SupplierFormValues = z.infer<typeof supplierSchema>;

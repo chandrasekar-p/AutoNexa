@@ -4,24 +4,34 @@ import { z } from 'zod';
 // deliberately absent — it's never client-settable (see the DTO's own
 // comment: it only ever moves through InventoryTransaction-backed
 // operations).
-export const partSchema = z.object({
-  partNumber: z.string().min(1, 'Part number is required'),
-  sku: z.string().min(1, 'SKU is required'),
-  name: z.string().min(1, 'Name is required'),
-  categoryId: z.string().optional(),
-  brand: z.string().optional(),
-  vehicleCompatibility: z.string().optional(),
-  supplierId: z.string().optional(),
-  purchasePrice: z.number().min(0, 'Purchase price must be 0 or more'),
-  sellingPrice: z.number().min(0, 'Selling price must be 0 or more'),
-  gstRate: z.number().min(0, 'GST rate must be 0 or more'),
-  hsnCode: z.string().optional(),
-  minStock: z.union([z.number(), z.nan()]).optional(),
-  maxStock: z.union([z.number(), z.nan()]).optional(),
-  binLocation: z.string().optional(),
-  warrantyPeriodMonths: z.union([z.number(), z.nan()]).optional(),
-  isActive: z.boolean().optional(),
-});
+export const partSchema = z
+  .object({
+    partNumber: z.string().min(1, 'Part number is required'),
+    sku: z.string().min(1, 'SKU is required'),
+    name: z.string().min(1, 'Name is required'),
+    categoryId: z.string().optional(),
+    brand: z.string().optional(),
+    vehicleCompatibility: z.string().optional(),
+    supplierId: z.string().optional(),
+    purchasePrice: z.number().min(0, 'Purchase price must be 0 or more'),
+    sellingPrice: z.number().min(0, 'Selling price must be 0 or more'),
+    gstRate: z.number().min(0, 'GST rate must be 0 or more'),
+    hsnCode: z.string().optional(),
+    minStock: z.union([z.number(), z.nan()]).optional(),
+    maxStock: z.union([z.number(), z.nan()]).optional(),
+    binLocation: z.string().optional(),
+    warrantyPeriodMonths: z.union([z.number(), z.nan()]).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      const min = data.minStock;
+      const max = data.maxStock;
+      if (min === undefined || max === undefined || Number.isNaN(min) || Number.isNaN(max)) return true;
+      return min <= max;
+    },
+    { message: 'Minimum stock cannot be greater than maximum stock.', path: ['minStock'] },
+  );
 
 export type PartFormValues = z.infer<typeof partSchema>;
 

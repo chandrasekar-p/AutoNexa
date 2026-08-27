@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MoreVertical } from 'lucide-react';
 import { apiPatch, ApiError } from '@/lib/api-client';
 import { getValidJobCardTransitions } from '@/lib/job-card-transitions';
+import { useMenuPosition } from '@/lib/hooks/use-menu-position';
 import { STATUS_LABEL } from './job-card-status-badge';
 import type { JobCardStatus } from '@/lib/api-types';
 import { cn } from '@/lib/cn';
@@ -43,6 +44,8 @@ export function JobCardActionsMenu({ jobCardId, status, canUpdate, onStatusChang
   const [isOpen, setIsOpen] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const position = useMenuPosition(triggerRef, isOpen, () => setIsOpen(false));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -85,6 +88,7 @@ export function JobCardActionsMenu({ jobCardId, status, canUpdate, onStatusChang
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={(e) => {
           e.preventDefault();
@@ -100,11 +104,12 @@ export function JobCardActionsMenu({ jobCardId, status, canUpdate, onStatusChang
         <MoreVertical className="h-3.5 w-3.5" aria-hidden />
       </button>
 
-      {isOpen ? (
+      {isOpen && position ? (
         <div
           role="menu"
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-md border border-line bg-surface py-1 shadow-card"
+          style={{ top: position.top, right: position.right }}
+          className="fixed z-30 w-52 overflow-hidden rounded-md border border-line bg-surface py-1 shadow-card"
         >
           <Link
             href={`/job-cards/${jobCardId}`}

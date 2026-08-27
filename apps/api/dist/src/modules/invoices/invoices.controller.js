@@ -27,6 +27,9 @@ let InvoicesController = class InvoicesController {
     findAll(query) {
         return this.invoicesService.findAll(query);
     }
+    summary() {
+        return this.invoicesService.summary();
+    }
     findOne(id) {
         return this.invoicesService.findOne(id);
     }
@@ -50,6 +53,13 @@ __decorate([
     __metadata("design:paramtypes", [list_invoices_query_dto_1.ListInvoicesQueryDto]),
     __metadata("design:returntype", void 0)
 ], InvoicesController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('invoice:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], InvoicesController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('invoice:read'),
     (0, common_1.Get)(':id'),

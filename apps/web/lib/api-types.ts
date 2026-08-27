@@ -238,6 +238,8 @@ export interface CustomerVehicle {
 }
 
 export type InvoiceStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'REFUNDED';
+/** OVERDUE is derived (dueDate passed, not yet settled), never stored — see the backend's invoice-overdue.ts. Never overrides PAID/REFUNDED. */
+export type InvoiceDisplayStatus = InvoiceStatus | 'OVERDUE';
 
 /** An invoice as embedded in GET /customers/:id, with the server-computed `outstanding` (grandTotal minus payments) — never recompute this client-side. */
 export interface CustomerInvoice {
@@ -596,6 +598,40 @@ export interface InventoryTransactionEntry {
   refId: string | null;
   notes: string | null;
   createdAt: string;
+  createdBy: { id: string; name: string } | null;
+}
+
+/** Derived client-side from currentStock/minStock — see lib/parts/stock-status.ts's derivePartStockStatus, which mirrors the backend's low-stock.ts exactly so the two can't disagree. */
+export type PartStockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
+
+/** GET /parts/summary — KPI values for the Parts & Inventory page, see PartsService.summary(). inventoryValue is a Decimal string (currentStock × purchasePrice, never sellingPrice). brands is the tenant-wide distinct list, for the Brand filter. */
+export interface PartSummary {
+  totalParts: number;
+  inStock: number;
+  lowStock: number;
+  outOfStock: number;
+  inventoryValue: string;
+  brands: string[];
+}
+
+export const STOCK_ADJUSTMENT_REASONS = [
+  'PURCHASE_RECEIVED',
+  'PART_USED',
+  'DAMAGED',
+  'RETURNED',
+  'MANUAL_CORRECTION',
+  'WARRANTY_REPLACEMENT',
+  'OTHER',
+] as const;
+export type StockAdjustmentReason = (typeof STOCK_ADJUSTMENT_REASONS)[number];
+
+/** GET /suppliers/:id-only enrichment — real aggregates over this supplier's own purchase orders/parts, see SuppliersService.findOne(). Absent on GET /suppliers list rows. */
+export interface SupplierStats {
+  totalPurchaseOrders: number;
+  totalPurchaseValue: string;
+  outstandingPayable: string;
+  partsSuppliedCount: number;
+  lastPurchaseDate: string | null;
 }
 
 export interface Supplier {
@@ -609,6 +645,16 @@ export interface Supplier {
   paymentTerms: string | null;
   isActive: boolean;
   createdAt: string;
+  stats?: SupplierStats;
+}
+
+/** GET /suppliers/summary — see SuppliersService.summary(). */
+export interface SupplierSummary {
+  total: number;
+  active: number;
+  inactive: number;
+  totalPurchasesThisMonth: string;
+  paymentTermsOptions: string[];
 }
 
 /** A minimal reference to a supplier, as embedded in purchase order responses. */
@@ -663,9 +709,11 @@ interface PurchaseOrderFields {
   createdAt: string;
 }
 
-/** GET /purchase-orders list item — includes supplier but not items/goodsReceipts. */
+/** GET /purchase-orders list item — includes supplier and a real itemCount/totalAmount (summed from the actual line items), but not the full items/goodsReceipts arrays. */
 export interface PurchaseOrderListItem extends PurchaseOrderFields {
   supplier: SupplierRef;
+  itemCount: number;
+  totalAmount: string;
 }
 
 /** GET /purchase-orders/:id — full PURCHASE_ORDER_INCLUDE shape. */
@@ -955,30 +1003,62 @@ export interface InvoiceLineItem {
   lineTotal: string;
 }
 
+/** The job card an invoice is for, enriched with the one relation hop needed to reach Vehicle/Service Advisor/Technician — Invoice itself has no direct vehicleId. */
+export interface InvoiceJobCardRef {
+  id: string;
+  jobCardNumber: string;
+  createdAt: string;
+  vehicle: { id: string; registrationNo: string; brand: string; model: string; vin: string | null };
+  serviceAdvisor: { id: string; name: string } | null;
+  technician: { id: string; user: { name: string } } | null;
+}
+
 interface InvoiceFields {
   id: string;
   invoiceNumber: string;
   customerId: string;
   customer: CustomerRef & { state: string | null };
   jobCardId: string | null;
+  jobCard: InvoiceJobCardRef | null;
   subtotal: string;
   cgstAmount: string;
   sgstAmount: string;
   igstAmount: string;
   roundOff: string;
   grandTotal: string;
+  loyaltyDiscountAmount: string;
   status: InvoiceStatus;
+  dueDate: string | null;
   createdAt: string;
+  /** Sum of this invoice's own payments — real, computed server-side, never recomputed client-side. */
+  paidAmount: string;
+  /** grandTotal minus paidAmount — the true outstanding balance. */
+  dueAmount: string;
+  displayStatus: InvoiceDisplayStatus;
+  /** Whole calendar days past due — null unless displayStatus is OVERDUE. */
+  overdueDays: number | null;
 }
 
-/** GET /invoices list item — includes customer but not lineItems/payments/jobCard. */
+/** GET /invoices list item — includes customer + jobCard (with vehicle/advisor/technician) but not lineItems/payments. */
 export type InvoiceListItem = InvoiceFields;
 
-/** GET /invoices/:id — full INVOICE_INCLUDE shape (customer, jobCard summary, lineItems, payments). No direct create/update/delete exists — invoices are only ever generated from a job card and paid down via payments. */
+/** GET /invoices/:id — full INVOICE_INCLUDE shape. No direct create/update/delete exists — invoices are only ever generated from a job card and paid down via payments. */
 export interface InvoiceDetail extends InvoiceFields {
-  jobCard: { id: string; jobCardNumber: string } | null;
   lineItems: InvoiceLineItem[];
   payments: Payment[];
+}
+
+/** GET /invoices/summary — KPI/aging/leaderboard data for the Invoices page, see InvoicesService.summary(). */
+export interface InvoiceSummary {
+  totalInvoicesThisMonth: number;
+  paid: { count: number; amount: string };
+  unpaid: { count: number; amount: string };
+  overdue: { count: number; amount: string };
+  totalRevenueThisMonth: string;
+  aging: { d0to30: string; d31to60: string; d60plus: string };
+  recentlyPaid: { id: string; invoiceId: string; invoiceNumber: string; customerName: string; amount: string; paymentDate: string }[];
+  overdueList: { id: string; invoiceNumber: string; customerName: string; dueAmount: string; overdueDays: number }[];
+  topPayingCustomers: { name: string; amount: string }[];
 }
 
 /**

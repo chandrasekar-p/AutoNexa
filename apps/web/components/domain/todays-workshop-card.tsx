@@ -10,6 +10,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { VehicleThumbnail } from '@/components/domain/vehicle-thumbnail';
 import { STATUS_LABEL, STATUS_TONE } from '@/components/domain/job-card-status-badge';
 import { Avatar } from '@/components/ui/avatar';
+import { useMenuPosition } from '@/lib/hooks/use-menu-position';
 import { cn } from '@/lib/cn';
 import type { DashboardSummary } from '@/lib/api-types';
 
@@ -49,6 +50,8 @@ function RowActionsMenu({ row }: { row: WorkshopRow }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const position = useMenuPosition(triggerRef, isOpen, () => setIsOpen(false));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -74,6 +77,7 @@ function RowActionsMenu({ row }: { row: WorkshopRow }) {
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-haspopup="menu"
@@ -86,8 +90,8 @@ function RowActionsMenu({ row }: { row: WorkshopRow }) {
       >
         <MoreVertical className="h-4 w-4" aria-hidden />
       </button>
-      {isOpen ? (
-        <div role="menu" className="absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-lg border border-line bg-surface shadow-card">
+      {isOpen && position ? (
+        <div role="menu" style={{ top: position.top, right: position.right }} className="fixed z-20 w-44 overflow-hidden rounded-lg border border-line bg-surface shadow-card">
           <button
             type="button"
             role="menuitem"

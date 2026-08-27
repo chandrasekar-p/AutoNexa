@@ -40,7 +40,7 @@ async function computeTechnicianPerformance(db, technicianId, range) {
     const completionDays = deliveredJobs
         .filter((jc) => jc.actualDelivery !== null)
         .map((jc) => (jc.actualDelivery.getTime() - jc.createdAt.getTime()) / (24 * 60 * 60 * 1000));
-    const avgCompletionDays = completionDays.length > 0 ? completionDays.reduce((a, b) => a + b, 0) / completionDays.length : null;
+    const avgCompletionDays = completionDays.length > 0 ? Math.round((completionDays.reduce((a, b) => a + b, 0) / completionDays.length) * 100) / 100 : null;
     return {
         jobsOpen,
         jobsCompleted,

@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Download, Link2, Send } from 'lucide-react';
+import { AlertTriangle, Download, Link2, Printer, Send } from 'lucide-react';
 import { apiGet, apiGetBlob, apiPost, ApiError } from '@/lib/api-client';
 import { downloadBlob } from '@/lib/export/csv';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
 import { formatDate, formatMoney } from '@/lib/format';
 import type { DeliveryChannel, DeliveryStatus, InvoiceDetail, PaymentMethod } from '@/lib/api-types';
-import { InvoiceStatusBadge } from '@/components/domain/invoice-status-badge';
+import { InvoiceDisplayStatusBadge } from '@/components/domain/invoice-display-status-badge';
 import { RecordPaymentForm } from '@/components/domain/record-payment-form';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -84,6 +84,8 @@ export default function InvoiceDetailPage() {
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [linkResult, setLinkResult] = useState<{ tone: 'success' | 'warning' | 'danger'; message: string } | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   async function handleSend() {
     setIsSending(true);
@@ -114,6 +116,20 @@ export default function InvoiceDetailPage() {
       setDownloadError(err instanceof ApiError ? err.message : 'Could not download the invoice.');
     } finally {
       setIsDownloading(false);
+    }
+  }
+
+  async function handlePrint() {
+    setIsPrinting(true);
+    setPrintError(null);
+    try {
+      const blob = await apiGetBlob(`/invoices/${params.id}/pdf`);
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setPrintError(err instanceof ApiError ? err.message : 'Could not open the invoice for printing.');
+    } finally {
+      setIsPrinting(false);
     }
   }
 
@@ -150,8 +166,16 @@ export default function InvoiceDetailPage() {
   const invoice = query.data;
   if (!invoice) return null;
 
-  const totalPaid = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const outstanding = Number(invoice.grandTotal) - totalPaid;
+  // Server-computed — never re-derived client-side, same discipline as
+  // every other module's derived-field rule (see paidAmount/dueAmount on
+  // InvoiceFields).
+  const totalPaid = invoice.paidAmount;
+  const outstanding = Number(invoice.dueAmount);
+  const hasDiscount = Number(invoice.loyaltyDiscountAmount) > 0;
+  // subtotal is already post-discount (the proportional discount is baked
+  // into line totals before the GST split, see applyProRataDiscount in
+  // discount.ts) — reconstruct the pre-discount figure for display only.
+  const preDiscountSubtotal = Number(invoice.subtotal) + Number(invoice.loyaltyDiscountAmount);
 
   return (
     <div className="flex flex-col gap-6">
@@ -159,11 +183,20 @@ export default function InvoiceDetailPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="num text-2xl font-semibold text-ink">{invoice.invoiceNumber}</h1>
-            <InvoiceStatusBadge status={invoice.status} />
+            <InvoiceDisplayStatusBadge status={invoice.displayStatus} />
           </div>
-          <p className="text-sm text-ink-secondary">{formatDate(invoice.createdAt)}</p>
+          <p className="text-sm text-ink-secondary">
+            {formatDate(invoice.createdAt)}
+            {invoice.dueDate ? <span className="text-ink-muted"> · Due {formatDate(invoice.dueDate)}</span> : null}
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          {canSend ? (
+            <Button variant="secondary" size="sm" onClick={handlePrint} isLoading={isPrinting}>
+              <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Print
+            </Button>
+          ) : null}
           {canSend ? (
             <Button variant="secondary" size="sm" onClick={handleDownload} isLoading={isDownloading}>
               <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -189,8 +222,28 @@ export default function InvoiceDetailPage() {
       </div>
 
       {downloadError ? <ErrorState message={downloadError} /> : null}
+      {printError ? <ErrorState message={printError} /> : null}
       {sendError ? <ErrorState message={sendError} /> : null}
       {linkError ? <ErrorState message={linkError} /> : null}
+
+      {invoice.displayStatus === 'OVERDUE' ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 dark:border-warning-500/30 dark:bg-warning-500/10">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning-600 dark:text-warning-400" aria-hidden />
+            <p className="text-sm text-warning-800 dark:text-warning-300">
+              This invoice is <span className="num font-medium">{invoice.overdueDays}</span> day{invoice.overdueDays === 1 ? '' : 's'} past its due
+              date ({invoice.dueDate ? formatDate(invoice.dueDate) : '—'}), with <span className="num font-medium">{formatMoney(outstanding)}</span>{' '}
+              still outstanding.
+            </p>
+          </div>
+          {canSend ? (
+            <Button variant="secondary" size="sm" onClick={handleSend} isLoading={isSending}>
+              <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Send Reminder
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {linkResult ? (
         <p
           className={
@@ -218,7 +271,7 @@ export default function InvoiceDetailPage() {
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href={`/customers/${invoice.customer.id}`}
           className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface px-4 py-3 shadow-card hover:border-accent-400"
@@ -228,14 +281,47 @@ export default function InvoiceDetailPage() {
         </Link>
         {invoice.jobCard ? (
           <Link
+            href={`/vehicles/${invoice.jobCard.vehicle.id}`}
+            className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface px-4 py-3 shadow-card hover:border-accent-400"
+          >
+            <span className="num text-sm font-medium text-ink">{invoice.jobCard.vehicle.registrationNo}</span>
+            <span className="text-xs text-ink-muted">
+              {invoice.jobCard.vehicle.brand} {invoice.jobCard.vehicle.model}
+            </span>
+          </Link>
+        ) : null}
+        {invoice.jobCard ? (
+          <Link
             href={`/job-cards/${invoice.jobCard.id}`}
             className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface px-4 py-3 shadow-card hover:border-accent-400"
           >
             <span className="num text-sm font-medium text-ink">{invoice.jobCard.jobCardNumber}</span>
-            <span className="text-xs text-ink-muted">Source job card</span>
+            <span className="text-xs text-ink-muted">Source job card · {formatDate(invoice.jobCard.createdAt)}</span>
           </Link>
         ) : null}
       </div>
+
+      {invoice.jobCard && (invoice.jobCard.serviceAdvisor || invoice.jobCard.technician) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Job Information</CardTitle>
+          </CardHeader>
+          <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-ink-muted">Service Advisor</p>
+              <p className="text-sm text-ink">{invoice.jobCard.serviceAdvisor?.name ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-ink-muted">Technician</p>
+              <p className="text-sm text-ink">{invoice.jobCard.technician?.user.name ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-ink-muted">Job Date</p>
+              <p className="text-sm text-ink">{formatDate(invoice.jobCard.createdAt)}</p>
+            </div>
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -272,13 +358,23 @@ export default function InvoiceDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>GST Summary</CardTitle>
+            <CardTitle>Billing Breakdown</CardTitle>
           </CardHeader>
           <CardBody className="flex flex-col gap-2">
-            <SummaryRow label="Subtotal" value={formatMoney(invoice.subtotal)} />
-            <SummaryRow label="CGST" value={formatMoney(invoice.cgstAmount)} />
-            <SummaryRow label="SGST" value={formatMoney(invoice.sgstAmount)} />
-            <SummaryRow label="IGST" value={formatMoney(invoice.igstAmount)} />
+            {hasDiscount ? (
+              <>
+                <SummaryRow label="Subtotal (before discount)" value={formatMoney(preDiscountSubtotal)} />
+                <SummaryRow label="Loyalty Discount" value={`− ${formatMoney(invoice.loyaltyDiscountAmount)}`} />
+                <div className="border-t border-line pt-2">
+                  <SummaryRow label="Taxable Amount" value={formatMoney(invoice.subtotal)} />
+                </div>
+              </>
+            ) : (
+              <SummaryRow label="Subtotal" value={formatMoney(invoice.subtotal)} />
+            )}
+            {Number(invoice.cgstAmount) > 0 ? <SummaryRow label="CGST" value={formatMoney(invoice.cgstAmount)} /> : null}
+            {Number(invoice.sgstAmount) > 0 ? <SummaryRow label="SGST" value={formatMoney(invoice.sgstAmount)} /> : null}
+            {Number(invoice.igstAmount) > 0 ? <SummaryRow label="IGST" value={formatMoney(invoice.igstAmount)} /> : null}
             <SummaryRow label="Round Off" value={formatMoney(invoice.roundOff)} />
             <div className="border-t border-line pt-2">
               <SummaryRow label="Grand Total" value={formatMoney(invoice.grandTotal)} emphasized />

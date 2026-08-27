@@ -21,7 +21,7 @@ class ListSuppliersQueryDto {
 }
 exports.ListSuppliersQueryDto = ListSuppliersQueryDto;
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across name, mobile, email' }),
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across name, contact person, mobile, email, GSTIN' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
@@ -33,6 +33,24 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ListSuppliersQueryDto.prototype, "isActive", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Exact match on the stored paymentTerms string' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListSuppliersQueryDto.prototype, "paymentTerms", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'ISO date — suppliers created on/after this date' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListSuppliersQueryDto.prototype, "from", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'ISO date — suppliers created on/before this date' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListSuppliersQueryDto.prototype, "to", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),

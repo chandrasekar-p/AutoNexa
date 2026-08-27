@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
-import type { PurchaseOrderDetail, Supplier, SupplierRef } from '@/lib/api-types';
+import type { Part, PurchaseOrderDetail, Supplier, SupplierRef } from '@/lib/api-types';
 import { SupplierPicker } from '@/components/domain/supplier-picker';
 import { PurchaseOrderItemsBuilder, type PurchaseOrderDraftItem } from '@/components/domain/purchase-order-items-builder';
 import { Card, CardBody } from '@/components/ui/card';
@@ -18,16 +18,45 @@ export default function NewPurchaseOrderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedSupplierId = searchParams.get('supplierId');
+  // From a Part's "Create Purchase Order" quick action — pre-seeds one
+  // draft line for that part instead of leaving the builder empty, with a
+  // reorder quantity suggested from data already on hand (how far below
+  // minStock it currently is), not a fabricated default.
+  const preselectedPartId = searchParams.get('partId');
 
   const preselectedSupplier = useApiQuery<Supplier>(
     () => (preselectedSupplierId ? apiGet(`/suppliers/${preselectedSupplierId}`) : Promise.reject(new Error('n/a'))),
     [preselectedSupplierId],
+  );
+  const preselectedPart = useApiQuery<Part>(
+    () => (preselectedPartId ? apiGet(`/parts/${preselectedPartId}`) : Promise.reject(new Error('n/a'))),
+    [preselectedPartId],
   );
 
   const [pickedSupplier, setPickedSupplier] = useState<SupplierRef | null>(null);
   const supplier: SupplierRef | null = preselectedSupplierId ? preselectedSupplier.data : pickedSupplier;
 
   const [items, setItems] = useState<PurchaseOrderDraftItem[]>([]);
+
+  // Seeds exactly once when the preselected part loads — doesn't re-run
+  // on later renders, so removing/editing the seeded line (or adding
+  // more) via the builder isn't fought by this effect.
+  useEffect(() => {
+    if (!preselectedPart.data) return;
+    setItems((current) => {
+      if (current.length > 0) return current;
+      const part = preselectedPart.data!;
+      return [
+        {
+          key: part.id,
+          part,
+          quantityOrdered: Math.max(part.minStock - part.currentStock, 1),
+          unitCost: Number(part.purchasePrice),
+          gstRate: Number(part.gstRate),
+        },
+      ];
+    });
+  }, [preselectedPart.data]);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -72,6 +101,8 @@ export default function NewPurchaseOrderPage() {
       {preselectedSupplierId && preselectedSupplier.error ? (
         <ErrorState message={preselectedSupplier.error} onRetry={preselectedSupplier.refetch} />
       ) : null}
+      {preselectedPartId && preselectedPart.isLoading ? <Skeleton className="h-10 w-full max-w-sm" /> : null}
+      {preselectedPartId && preselectedPart.error ? <ErrorState message={preselectedPart.error} onRetry={preselectedPart.refetch} /> : null}
 
       <Card>
         <CardBody className="flex flex-col gap-5 pt-5">

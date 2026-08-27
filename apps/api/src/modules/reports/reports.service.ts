@@ -3,6 +3,7 @@ import { Prisma, PurchaseInvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../prisma/tenant-context';
 import { computeInvoiceOutstanding, sumOutstanding } from '../../common/billing/outstanding';
+import { computePurchaseInvoiceOutstanding } from '../../common/billing/purchase-outstanding';
 import { computeTechnicianPerformance } from '../technicians/technician-performance';
 import { bucketSales } from './sales-bucketing';
 import { computeSalesSummary, previousPeriodRange } from './sales-summary';
@@ -241,7 +242,6 @@ export class ReportsService {
           outstanding: computeInvoiceOutstanding(inv),
         }));
         return {
-          customerId: c.id,
           customerName: c.name,
           mobile: c.mobile,
           totalOutstanding: sumOutstanding(invoicesWithOutstanding),
@@ -271,7 +271,6 @@ export class ReportsService {
 
     const rows = grouped
       .map((g) => ({
-        partId: g.partId,
         partNumber: partsById.get(g.partId)?.partNumber,
         partName: partsById.get(g.partId)?.name,
         quantitySold: g._sum.quantity ?? 0,
@@ -288,7 +287,6 @@ export class ReportsService {
 
     const parts = await db.part.findMany({ where: { deletedAt: null } });
     const rows = parts.map((p) => ({
-      partId: p.id,
       partNumber: p.partNumber,
       name: p.name,
       currentStock: p.currentStock,
@@ -354,8 +352,7 @@ export class ReportsService {
 
     const bySupplier = new Map<string, { supplierId: string; supplierName: string; outstanding: Prisma.Decimal }>();
     for (const inv of unpaidInvoices) {
-      const paid = inv.payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
-      const outstanding = new Prisma.Decimal(inv.total).sub(paid);
+      const outstanding = computePurchaseInvoiceOutstanding(inv);
       const supplier = inv.purchaseOrder.supplier;
       const existing = bySupplier.get(supplier.id);
       if (existing) {
@@ -366,7 +363,7 @@ export class ReportsService {
     }
 
     const rows = [...bySupplier.values()]
-      .map((r) => ({ ...r, outstanding: r.outstanding.toDecimalPlaces(2) }))
+      .map((r) => ({ supplierName: r.supplierName, outstanding: r.outstanding.toDecimalPlaces(2) }))
       .sort((a, b) => b.outstanding.toNumber() - a.outstanding.toNumber());
 
     return paginate(rows, query.page ?? 1, query.pageSize ?? 20);
@@ -442,7 +439,7 @@ export class ReportsService {
     const rows = await Promise.all(
       technicians.map(async (t) => {
         const performance = await computeTechnicianPerformance(db, t.id, range);
-        return { technicianId: t.id, name: t.user.name, employeeId: t.employeeId, ...performance };
+        return { name: t.user.name, employeeId: t.employeeId, ...performance };
       }),
     );
 
@@ -471,7 +468,6 @@ export class ReportsService {
 
     const rows = grouped
       .map((g) => ({
-        customerId: g.customerId,
         customer: custById.get(g.customerId),
         totalRevenue: (g._sum.grandTotal ?? new Prisma.Decimal(0)).toDecimalPlaces(2),
       }))

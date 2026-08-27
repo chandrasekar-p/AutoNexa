@@ -74,16 +74,24 @@ let PurchaseOrdersService = class PurchaseOrdersService {
             ...(query.status ? { status: query.status } : {}),
             ...(query.search ? { poNumber: { contains: query.search, mode: 'insensitive' } } : {}),
         };
-        const [items, total] = await Promise.all([
+        const [rows, total] = await Promise.all([
             db.purchaseOrder.findMany({
                 where,
-                include: { supplier: { select: SUPPLIER_SUMMARY_SELECT } },
+                include: {
+                    supplier: { select: SUPPLIER_SUMMARY_SELECT },
+                    items: { select: { lineTotal: true } },
+                },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
             }),
             db.purchaseOrder.count({ where }),
         ]);
+        const items = rows.map(({ items: lineItems, ...row }) => ({
+            ...row,
+            itemCount: lineItems.length,
+            totalAmount: lineItems.reduce((sum, i) => sum.add(i.lineTotal), new client_1.Prisma.Decimal(0)).toDecimalPlaces(2),
+        }));
         return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     }
     async findOne(id) {

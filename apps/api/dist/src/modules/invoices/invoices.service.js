@@ -30,12 +30,26 @@ const gst_split_1 = require("./gst-split");
 const discount_1 = require("./discount");
 const payment_guard_1 = require("./payment-guard");
 const invoice_pdf_1 = require("./invoice-pdf");
+const invoice_overdue_1 = require("./invoice-overdue");
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true };
+const JOB_CARD_SUMMARY_SELECT = {
+    id: true,
+    jobCardNumber: true,
+    createdAt: true,
+    vehicle: { select: { id: true, registrationNo: true, brand: true, model: true, vin: true } },
+    serviceAdvisor: { select: { id: true, name: true } },
+    technician: { select: { id: true, user: { select: { name: true } } } },
+};
 const INVOICE_INCLUDE = {
     customer: { select: CUSTOMER_SUMMARY_SELECT },
-    jobCard: { select: { id: true, jobCardNumber: true } },
+    jobCard: { select: JOB_CARD_SUMMARY_SELECT },
     lineItems: true,
     payments: { orderBy: { paymentDate: 'desc' } },
+};
+const LIST_INCLUDE = {
+    customer: { select: CUSTOMER_SUMMARY_SELECT },
+    jobCard: { select: JOB_CARD_SUMMARY_SELECT },
+    payments: { select: { amount: true } },
 };
 const GENERATABLE_STATUSES = [client_1.JobCardStatus.READY_FOR_DELIVERY, client_1.JobCardStatus.DELIVERED];
 const INVOICE_STATUSES = {
@@ -161,6 +175,8 @@ let InvoicesService = class InvoicesService {
         const unroundedGrandTotal = subtotal.add(cgstAmount).add(sgstAmount).add(igstAmount);
         const { roundOff, grandTotal } = (0, gst_split_1.computeRoundOff)(unroundedGrandTotal);
         const invoiceNumber = await (0, generate_sequence_number_1.generateSequenceNumber)(tx, params.tenantId, 'INVOICE', params.tenantSettings.invoicePrefix);
+        const now = new Date();
+        const dueDate = new Date(now.getTime() + params.tenantSettings.invoicePaymentTermDays * 24 * 60 * 60 * 1000);
         const created = await tx.invoice.create({
             data: {
                 customerId: params.customerId,
@@ -175,6 +191,7 @@ let InvoicesService = class InvoicesService {
                 loyaltyPointsRedeemed: params.loyaltyPointsRedeemed ?? 0,
                 loyaltyDiscountAmount: params.loyaltyDiscountAmount ?? 0,
                 status: client_1.InvoiceStatus.UNPAID,
+                dueDate,
             },
         });
         await tx.invoiceLineItem.createMany({
@@ -207,20 +224,60 @@ let InvoicesService = class InvoicesService {
         const db = this.prisma.forTenant();
         const where = {
             ...(query.customerId ? { customerId: query.customerId } : {}),
-            ...(query.status ? { status: query.status } : {}),
-            ...(query.search ? { invoiceNumber: { contains: query.search, mode: 'insensitive' } } : {}),
+            ...(query.vehicleId ? { jobCard: { vehicleId: query.vehicleId } } : {}),
+            ...(query.jobCardId ? { jobCardId: query.jobCardId } : {}),
+            ...(query.serviceAdvisorId ? { jobCard: { serviceAdvisorId: query.serviceAdvisorId } } : {}),
+            ...(query.displayStatus ? (0, invoice_overdue_1.invoiceDisplayStatusWhere)(query.displayStatus) : query.status ? { status: query.status } : {}),
+            ...(query.from || query.to
+                ? {
+                    createdAt: {
+                        ...(query.from ? { gte: new Date(query.from) } : {}),
+                        ...(query.to ? { lte: new Date(`${query.to}T23:59:59.999Z`) } : {}),
+                    },
+                }
+                : {}),
+            ...(query.minAmount !== undefined || query.maxAmount !== undefined
+                ? {
+                    grandTotal: {
+                        ...(query.minAmount !== undefined ? { gte: query.minAmount } : {}),
+                        ...(query.maxAmount !== undefined ? { lte: query.maxAmount } : {}),
+                    },
+                }
+                : {}),
+            ...(query.search
+                ? {
+                    OR: [
+                        { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
+                        { jobCard: { jobCardNumber: { contains: query.search, mode: 'insensitive' } } },
+                        { jobCard: { vehicle: { registrationNo: { contains: query.search, mode: 'insensitive' } } } },
+                        { customer: { name: { contains: query.search, mode: 'insensitive' } } },
+                    ],
+                }
+                : {}),
         };
         const [items, total] = await Promise.all([
             db.invoice.findMany({
                 where,
-                include: { customer: { select: CUSTOMER_SUMMARY_SELECT } },
+                include: LIST_INCLUDE,
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,
             }),
             db.invoice.count({ where }),
         ]);
-        return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+        return { items: items.map((i) => this.toListRow(i)), total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    toListRow(invoice) {
+        const { payments, ...rest } = invoice;
+        const paidAmount = payments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
+        const dueAmount = new client_1.Prisma.Decimal(invoice.grandTotal).sub(paidAmount);
+        return {
+            ...rest,
+            paidAmount: paidAmount.toString(),
+            dueAmount: dueAmount.toString(),
+            displayStatus: (0, invoice_overdue_1.deriveInvoiceDisplayStatus)(invoice.status, invoice.dueDate),
+            overdueDays: invoice.dueDate ? (0, invoice_overdue_1.computeOverdueDays)(invoice.dueDate) : null,
+        };
     }
     async findOne(id) {
         const invoice = await this.prisma.forTenant().invoice.findFirst({
@@ -229,7 +286,15 @@ let InvoicesService = class InvoicesService {
         });
         if (!invoice)
             throw new common_1.NotFoundException('Invoice not found');
-        return invoice;
+        const paidAmount = invoice.payments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
+        const dueAmount = new client_1.Prisma.Decimal(invoice.grandTotal).sub(paidAmount);
+        return {
+            ...invoice,
+            paidAmount: paidAmount.toString(),
+            dueAmount: dueAmount.toString(),
+            displayStatus: (0, invoice_overdue_1.deriveInvoiceDisplayStatus)(invoice.status, invoice.dueDate),
+            overdueDays: invoice.dueDate ? (0, invoice_overdue_1.computeOverdueDays)(invoice.dueDate) : null,
+        };
     }
     async resend(id) {
         const invoice = await this.findOne(id);
@@ -325,7 +390,7 @@ let InvoicesService = class InvoicesService {
         if (!wasAlreadyPaid && updated.status === client_1.InvoiceStatus.PAID) {
             await this.earnLoyaltyPoints(updated);
         }
-        return updated;
+        return this.findOne(invoiceId);
     }
     async earnLoyaltyPoints(invoice) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
@@ -374,6 +439,93 @@ let InvoicesService = class InvoicesService {
             data: { status },
             include: INVOICE_INCLUDE,
         });
+    }
+    async summary() {
+        const db = this.prisma.forTenant();
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const [totalThisMonth, paidAgg, unpaidRows, overdueRows, revenueAgg, recentPayments, monthlyPayments] = await Promise.all([
+            db.invoice.count({ where: { createdAt: { gte: monthStart, lt: monthEnd } } }),
+            db.invoice.aggregate({ where: (0, invoice_overdue_1.invoiceDisplayStatusWhere)('PAID', now), _count: true, _sum: { grandTotal: true } }),
+            db.invoice.findMany({
+                where: (0, invoice_overdue_1.invoiceDisplayStatusWhere)('UNPAID', now),
+                select: { grandTotal: true, payments: { select: { amount: true } } },
+            }),
+            db.invoice.findMany({
+                where: (0, invoice_overdue_1.invoiceDisplayStatusWhere)('OVERDUE', now),
+                select: {
+                    id: true,
+                    invoiceNumber: true,
+                    grandTotal: true,
+                    dueDate: true,
+                    customer: { select: { id: true, name: true } },
+                    payments: { select: { amount: true } },
+                },
+            }),
+            db.payment.aggregate({ where: { paymentDate: { gte: monthStart, lt: monthEnd } }, _sum: { amount: true } }),
+            db.payment.findMany({
+                orderBy: { paymentDate: 'desc' },
+                take: 5,
+                select: { id: true, amount: true, paymentDate: true, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true } } } } },
+            }),
+            db.payment.findMany({
+                where: { paymentDate: { gte: monthStart, lt: monthEnd } },
+                select: { amount: true, invoice: { select: { customerId: true, customer: { select: { name: true } } } } },
+            }),
+        ]);
+        const outstandingOf = (row) => {
+            const paid = row.payments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
+            return new client_1.Prisma.Decimal(row.grandTotal).sub(paid);
+        };
+        const sumOutstanding = (rows) => rows.reduce((sum, r) => sum.add(outstandingOf(r)), new client_1.Prisma.Decimal(0));
+        const aging = { d0to30: new client_1.Prisma.Decimal(0), d31to60: new client_1.Prisma.Decimal(0), d60plus: new client_1.Prisma.Decimal(0) };
+        for (const row of overdueRows) {
+            const days = row.dueDate ? (0, invoice_overdue_1.computeOverdueDays)(row.dueDate, now) : 0;
+            const bucket = days <= 30 ? 'd0to30' : days <= 60 ? 'd31to60' : 'd60plus';
+            aging[bucket] = aging[bucket].add(outstandingOf(row));
+        }
+        const overdueList = overdueRows
+            .map((row) => ({
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            customerName: row.customer.name,
+            dueAmount: outstandingOf(row).toString(),
+            overdueDays: row.dueDate ? (0, invoice_overdue_1.computeOverdueDays)(row.dueDate, now) : 0,
+        }))
+            .sort((a, b) => b.overdueDays - a.overdueDays)
+            .slice(0, 5);
+        const recentlyPaid = recentPayments.map((p) => ({
+            id: p.id,
+            invoiceId: p.invoice.id,
+            invoiceNumber: p.invoice.invoiceNumber,
+            customerName: p.invoice.customer.name,
+            amount: p.amount.toString(),
+            paymentDate: p.paymentDate,
+        }));
+        const topCustomersMap = new Map();
+        for (const p of monthlyPayments) {
+            const existing = topCustomersMap.get(p.invoice.customerId);
+            if (existing)
+                existing.total = existing.total.add(p.amount);
+            else
+                topCustomersMap.set(p.invoice.customerId, { name: p.invoice.customer.name, total: new client_1.Prisma.Decimal(p.amount) });
+        }
+        const topPayingCustomers = Array.from(topCustomersMap.values())
+            .sort((a, b) => b.total.cmp(a.total))
+            .slice(0, 5)
+            .map((c) => ({ name: c.name, amount: c.total.toString() }));
+        return {
+            totalInvoicesThisMonth: totalThisMonth,
+            paid: { count: paidAgg._count, amount: (paidAgg._sum.grandTotal ?? new client_1.Prisma.Decimal(0)).toString() },
+            unpaid: { count: unpaidRows.length, amount: sumOutstanding(unpaidRows).toString() },
+            overdue: { count: overdueRows.length, amount: sumOutstanding(overdueRows).toString() },
+            totalRevenueThisMonth: (revenueAgg._sum.amount ?? new client_1.Prisma.Decimal(0)).toString(),
+            aging: { d0to30: aging.d0to30.toString(), d31to60: aging.d31to60.toString(), d60plus: aging.d60plus.toString() },
+            recentlyPaid,
+            overdueList,
+            topPayingCustomers,
+        };
     }
     async assertExists(id) {
         const invoice = await this.prisma.forTenant().invoice.findFirst({ where: { id } });

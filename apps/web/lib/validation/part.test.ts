@@ -61,4 +61,35 @@ describe('validatePartForm', () => {
       expect(result.data.maxStock).toBeUndefined();
     }
   });
+
+  it('rejects minStock greater than maxStock', () => {
+    const result = validatePartForm({
+      partNumber: 'PN-1',
+      sku: 'SKU-1',
+      name: 'Part',
+      purchasePrice: 100,
+      sellingPrice: 150,
+      gstRate: 18,
+      minStock: 20,
+      maxStock: 10,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.minStock).toBeDefined();
+    }
+  });
+
+  it('accepts minStock equal to maxStock', () => {
+    const result = validatePartForm({
+      partNumber: 'PN-1',
+      sku: 'SKU-1',
+      name: 'Part',
+      purchasePrice: 100,
+      sellingPrice: 150,
+      gstRate: 18,
+      minStock: 10,
+      maxStock: 10,
+    });
+    expect(result.success).toBe(true);
+  });
 });

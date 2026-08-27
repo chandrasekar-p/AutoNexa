@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MoreVertical } from 'lucide-react';
 import { apiPatch, ApiError } from '@/lib/api-client';
+import { useMenuPosition } from '@/lib/hooks/use-menu-position';
 import type { TechnicianStatus } from '@/lib/api-types';
 
 const STATUS_LABEL: Record<TechnicianStatus, string> = { ACTIVE: 'Active', ON_LEAVE: 'On Leave', INACTIVE: 'Inactive' };
@@ -31,6 +32,8 @@ export function TechnicianActionsMenu({ technicianId, status, canUpdate, onStatu
   const [statusSubmenuOpen, setStatusSubmenuOpen] = useState(false);
   const [isChanging, setIsChanging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const position = useMenuPosition(triggerRef, isOpen, () => setIsOpen(false));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,6 +64,7 @@ export function TechnicianActionsMenu({ technicianId, status, canUpdate, onStatu
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={(e) => {
           e.preventDefault();
@@ -76,8 +80,13 @@ export function TechnicianActionsMenu({ technicianId, status, canUpdate, onStatu
         <MoreVertical className="h-3.5 w-3.5" aria-hidden />
       </button>
 
-      {isOpen ? (
-        <div role="menu" onClick={(e) => e.stopPropagation()} className="absolute right-0 top-full z-30 mt-1 w-48 overflow-visible rounded-md border border-line bg-surface py-1 shadow-card">
+      {isOpen && position ? (
+        <div
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+          style={{ top: position.top, right: position.right }}
+          className="fixed z-30 w-48 overflow-visible rounded-md border border-line bg-surface py-1 shadow-card"
+        >
           <Link href={`/technicians/${technicianId}`} role="menuitem" className="block px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-hover" onClick={() => setIsOpen(false)}>
             View Profile
           </Link>

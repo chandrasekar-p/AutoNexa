@@ -18,13 +18,33 @@ import { buildInvoicePdf } from './invoice-pdf';
 import { CreateInvoicePaymentDto } from './dto/create-invoice-payment.dto';
 import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
 import { GenerateInvoiceDto } from '../job-cards/dto/generate-invoice.dto';
+import { deriveInvoiceDisplayStatus, computeOverdueDays, invoiceDisplayStatusWhere } from './invoice-overdue';
 
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true, state: true } as const;
+// One hop through JobCard to reach the Vehicle/Service Advisor/Technician
+// this invoice is actually for — Invoice itself has no direct vehicleId,
+// same relation path the detail page already uses to link "Source job card".
+const JOB_CARD_SUMMARY_SELECT = {
+  id: true,
+  jobCardNumber: true,
+  createdAt: true,
+  vehicle: { select: { id: true, registrationNo: true, brand: true, model: true, vin: true } },
+  serviceAdvisor: { select: { id: true, name: true } },
+  technician: { select: { id: true, user: { select: { name: true } } } },
+} as const;
 const INVOICE_INCLUDE = {
   customer: { select: CUSTOMER_SUMMARY_SELECT },
-  jobCard: { select: { id: true, jobCardNumber: true } },
+  jobCard: { select: JOB_CARD_SUMMARY_SELECT },
   lineItems: true,
   payments: { orderBy: { paymentDate: 'desc' as const } },
+};
+// Just enough per row to derive paidAmount/dueAmount/displayStatus (see
+// toListRow) — the list doesn't need full line items or the whole
+// payments history, just their amounts summed.
+const LIST_INCLUDE = {
+  customer: { select: CUSTOMER_SUMMARY_SELECT },
+  jobCard: { select: JOB_CARD_SUMMARY_SELECT },
+  payments: { select: { amount: true } },
 };
 const GENERATABLE_STATUSES: JobCardStatus[] = [JobCardStatus.READY_FOR_DELIVERY, JobCardStatus.DELIVERED];
 const INVOICE_STATUSES = {
@@ -222,7 +242,7 @@ export class InvoicesService {
     tx: Prisma.TransactionClient,
     params: {
       tenantId: string;
-      tenantSettings: { state: string | null; invoicePrefix: string };
+      tenantSettings: { state: string | null; invoicePrefix: string; invoicePaymentTermDays: number };
       customerId: string;
       customerState: string | null;
       jobCardId: string | null;
@@ -238,6 +258,8 @@ export class InvoicesService {
     const { roundOff, grandTotal } = computeRoundOff(unroundedGrandTotal);
 
     const invoiceNumber = await generateSequenceNumber(tx, params.tenantId, 'INVOICE', params.tenantSettings.invoicePrefix);
+    const now = new Date();
+    const dueDate = new Date(now.getTime() + params.tenantSettings.invoicePaymentTermDays * 24 * 60 * 60 * 1000);
 
     const created = await tx.invoice.create({
       data: {
@@ -253,6 +275,7 @@ export class InvoicesService {
         loyaltyPointsRedeemed: params.loyaltyPointsRedeemed ?? 0,
         loyaltyDiscountAmount: params.loyaltyDiscountAmount ?? 0,
         status: InvoiceStatus.UNPAID,
+        dueDate,
       } as unknown as Prisma.InvoiceUncheckedCreateInput,
     });
 
@@ -308,16 +331,44 @@ export class InvoicesService {
     const pageSize = query.pageSize ?? 20;
     const db = this.prisma.forTenant();
 
-    const where = {
+    const where: Prisma.InvoiceWhereInput = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.search ? { invoiceNumber: { contains: query.search, mode: 'insensitive' as const } } : {}),
+      ...(query.vehicleId ? { jobCard: { vehicleId: query.vehicleId } } : {}),
+      ...(query.jobCardId ? { jobCardId: query.jobCardId } : {}),
+      ...(query.serviceAdvisorId ? { jobCard: { serviceAdvisorId: query.serviceAdvisorId } } : {}),
+      ...(query.displayStatus ? invoiceDisplayStatusWhere(query.displayStatus) : query.status ? { status: query.status } : {}),
+      ...(query.from || query.to
+        ? {
+            createdAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(`${query.to}T23:59:59.999Z`) } : {}),
+            },
+          }
+        : {}),
+      ...(query.minAmount !== undefined || query.maxAmount !== undefined
+        ? {
+            grandTotal: {
+              ...(query.minAmount !== undefined ? { gte: query.minAmount } : {}),
+              ...(query.maxAmount !== undefined ? { lte: query.maxAmount } : {}),
+            },
+          }
+        : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { invoiceNumber: { contains: query.search, mode: 'insensitive' as const } },
+              { jobCard: { jobCardNumber: { contains: query.search, mode: 'insensitive' as const } } },
+              { jobCard: { vehicle: { registrationNo: { contains: query.search, mode: 'insensitive' as const } } } },
+              { customer: { name: { contains: query.search, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
       db.invoice.findMany({
         where,
-        include: { customer: { select: CUSTOMER_SUMMARY_SELECT } },
+        include: LIST_INCLUDE,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -325,7 +376,20 @@ export class InvoicesService {
       db.invoice.count({ where }),
     ]);
 
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return { items: items.map((i) => this.toListRow(i)), total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  private toListRow(invoice: Prisma.InvoiceGetPayload<{ include: typeof LIST_INCLUDE }>) {
+    const { payments, ...rest } = invoice;
+    const paidAmount = payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
+    const dueAmount = new Prisma.Decimal(invoice.grandTotal).sub(paidAmount);
+    return {
+      ...rest,
+      paidAmount: paidAmount.toString(),
+      dueAmount: dueAmount.toString(),
+      displayStatus: deriveInvoiceDisplayStatus(invoice.status, invoice.dueDate),
+      overdueDays: invoice.dueDate ? computeOverdueDays(invoice.dueDate) : null,
+    };
   }
 
   async findOne(id: string) {
@@ -334,7 +398,15 @@ export class InvoicesService {
       include: INVOICE_INCLUDE,
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    return invoice;
+    const paidAmount = invoice.payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
+    const dueAmount = new Prisma.Decimal(invoice.grandTotal).sub(paidAmount);
+    return {
+      ...invoice,
+      paidAmount: paidAmount.toString(),
+      dueAmount: dueAmount.toString(),
+      displayStatus: deriveInvoiceDisplayStatus(invoice.status, invoice.dueDate),
+      overdueDays: invoice.dueDate ? computeOverdueDays(invoice.dueDate) : null,
+    };
   }
 
   /**
@@ -507,7 +579,11 @@ export class InvoicesService {
     if (!wasAlreadyPaid && updated.status === InvoiceStatus.PAID) {
       await this.earnLoyaltyPoints(updated);
     }
-    return updated;
+    // findOne(), not the raw `updated` — so the public response (manual
+    // recordPayment or a captured gateway payment) is consistently
+    // enriched with paidAmount/dueAmount/displayStatus like every other
+    // read of an invoice, not a differently-shaped one-off.
+    return this.findOne(invoiceId);
   }
 
   /**
@@ -594,6 +670,108 @@ export class InvoicesService {
       data: { status },
       include: INVOICE_INCLUDE,
     });
+  }
+
+  /**
+   * KPI cards, aging summary, recently-paid, overdue list, and top-paying
+   * customers for the Invoices page — one pass, real data throughout.
+   * "Unpaid"/"Overdue" amounts are true outstanding balances
+   * (grandTotal minus that invoice's own payments), not grandTotal itself
+   * — a partially-paid overdue invoice would otherwise overstate what's
+   * actually still owed.
+   */
+  async summary() {
+    const db = this.prisma.forTenant();
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const [totalThisMonth, paidAgg, unpaidRows, overdueRows, revenueAgg, recentPayments, monthlyPayments] = await Promise.all([
+      db.invoice.count({ where: { createdAt: { gte: monthStart, lt: monthEnd } } }),
+      db.invoice.aggregate({ where: invoiceDisplayStatusWhere('PAID', now), _count: true, _sum: { grandTotal: true } }),
+      db.invoice.findMany({
+        where: invoiceDisplayStatusWhere('UNPAID', now),
+        select: { grandTotal: true, payments: { select: { amount: true } } },
+      }),
+      db.invoice.findMany({
+        where: invoiceDisplayStatusWhere('OVERDUE', now),
+        select: {
+          id: true,
+          invoiceNumber: true,
+          grandTotal: true,
+          dueDate: true,
+          customer: { select: { id: true, name: true } },
+          payments: { select: { amount: true } },
+        },
+      }),
+      db.payment.aggregate({ where: { paymentDate: { gte: monthStart, lt: monthEnd } }, _sum: { amount: true } }),
+      db.payment.findMany({
+        orderBy: { paymentDate: 'desc' },
+        take: 5,
+        select: { id: true, amount: true, paymentDate: true, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true } } } } },
+      }),
+      db.payment.findMany({
+        where: { paymentDate: { gte: monthStart, lt: monthEnd } },
+        select: { amount: true, invoice: { select: { customerId: true, customer: { select: { name: true } } } } },
+      }),
+    ]);
+
+    const outstandingOf = (row: { grandTotal: Prisma.Decimal; payments: { amount: Prisma.Decimal }[] }) => {
+      const paid = row.payments.reduce((sum, p) => sum.add(p.amount), new Prisma.Decimal(0));
+      return new Prisma.Decimal(row.grandTotal).sub(paid);
+    };
+    const sumOutstanding = (rows: { grandTotal: Prisma.Decimal; payments: { amount: Prisma.Decimal }[] }[]) =>
+      rows.reduce((sum, r) => sum.add(outstandingOf(r)), new Prisma.Decimal(0));
+
+    const aging = { d0to30: new Prisma.Decimal(0), d31to60: new Prisma.Decimal(0), d60plus: new Prisma.Decimal(0) };
+    for (const row of overdueRows) {
+      const days = row.dueDate ? computeOverdueDays(row.dueDate, now) : 0;
+      const bucket = days <= 30 ? 'd0to30' : days <= 60 ? 'd31to60' : 'd60plus';
+      aging[bucket] = aging[bucket].add(outstandingOf(row));
+    }
+
+    const overdueList = overdueRows
+      .map((row) => ({
+        id: row.id,
+        invoiceNumber: row.invoiceNumber,
+        customerName: row.customer.name,
+        dueAmount: outstandingOf(row).toString(),
+        overdueDays: row.dueDate ? computeOverdueDays(row.dueDate, now) : 0,
+      }))
+      .sort((a, b) => b.overdueDays - a.overdueDays)
+      .slice(0, 5);
+
+    const recentlyPaid = recentPayments.map((p) => ({
+      id: p.id,
+      invoiceId: p.invoice.id,
+      invoiceNumber: p.invoice.invoiceNumber,
+      customerName: p.invoice.customer.name,
+      amount: p.amount.toString(),
+      paymentDate: p.paymentDate,
+    }));
+
+    const topCustomersMap = new Map<string, { name: string; total: Prisma.Decimal }>();
+    for (const p of monthlyPayments) {
+      const existing = topCustomersMap.get(p.invoice.customerId);
+      if (existing) existing.total = existing.total.add(p.amount);
+      else topCustomersMap.set(p.invoice.customerId, { name: p.invoice.customer.name, total: new Prisma.Decimal(p.amount) });
+    }
+    const topPayingCustomers = Array.from(topCustomersMap.values())
+      .sort((a, b) => b.total.cmp(a.total))
+      .slice(0, 5)
+      .map((c) => ({ name: c.name, amount: c.total.toString() }));
+
+    return {
+      totalInvoicesThisMonth: totalThisMonth,
+      paid: { count: paidAgg._count, amount: (paidAgg._sum.grandTotal ?? new Prisma.Decimal(0)).toString() },
+      unpaid: { count: unpaidRows.length, amount: sumOutstanding(unpaidRows).toString() },
+      overdue: { count: overdueRows.length, amount: sumOutstanding(overdueRows).toString() },
+      totalRevenueThisMonth: (revenueAgg._sum.amount ?? new Prisma.Decimal(0)).toString(),
+      aging: { d0to30: aging.d0to30.toString(), d31to60: aging.d31to60.toString(), d60plus: aging.d60plus.toString() },
+      recentlyPaid,
+      overdueList,
+      topPayingCustomers,
+    };
   }
 
   private async assertExists(id: string) {

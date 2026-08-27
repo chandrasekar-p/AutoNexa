@@ -1,4 +1,4 @@
-import { isLowStock } from '../src/modules/parts/low-stock';
+import { isLowStock, derivePartStockStatus } from '../src/modules/parts/low-stock';
 
 describe('isLowStock', () => {
   it('is true when currentStock is below minStock', () => {
@@ -19,5 +19,21 @@ describe('isLowStock', () => {
 
   it('is true for zero stock even when minStock is also zero — <= includes equality', () => {
     expect(isLowStock({ currentStock: 0, minStock: 0 })).toBe(true);
+  });
+});
+
+describe('derivePartStockStatus', () => {
+  it('is out_of_stock at zero, even if minStock is also zero — a distinct bucket from low_stock, unlike isLowStock', () => {
+    expect(derivePartStockStatus({ currentStock: 0, minStock: 0 })).toBe('out_of_stock');
+    expect(derivePartStockStatus({ currentStock: 0, minStock: 5 })).toBe('out_of_stock');
+  });
+
+  it('is low_stock when positive but at or below minStock', () => {
+    expect(derivePartStockStatus({ currentStock: 5, minStock: 5 })).toBe('low_stock');
+    expect(derivePartStockStatus({ currentStock: 2, minStock: 5 })).toBe('low_stock');
+  });
+
+  it('is in_stock when above minStock', () => {
+    expect(derivePartStockStatus({ currentStock: 6, minStock: 5 })).toBe('in_stock');
   });
 });

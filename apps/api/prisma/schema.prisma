@@ -63,6 +63,10 @@ model TenantSettings {
   tenant                       Tenant   @relation(fields: [tenantId], references: [id])
   jobCardPrefix                String   @default("JC")
   invoicePrefix                String   @default("INV")
+  // How many days after generation an invoice's dueDate lands — see
+  // Invoice.dueDate's own doc comment on why the date is frozen at
+  // generation time rather than recomputed from this setting later.
+  invoicePaymentTermDays       Int      @default(15)
   estimatePrefix               String   @default("EST")
   poPrefix                     String   @default("PO")
   customerPrefix               String   @default("CUST")
@@ -960,8 +964,8 @@ model Part {
   servicePackageInclusions ServicePackagePart[]
 
   @@unique([tenantId, partNumber])
+  @@unique([tenantId, sku])
   @@index([tenantId])
-  @@index([tenantId, sku])
   @@index([tenantId, categoryId])
   @@index([tenantId, supplierId])
   @@map("parts")
@@ -1224,6 +1228,12 @@ model Invoice {
   loyaltyDiscountAmount Decimal @default(0) @db.Decimal(12, 2)
 
   status InvoiceStatus @default(UNPAID)
+  // Set once at generation from TenantSettings.invoicePaymentTermDays —
+  // never recomputed afterward, so a later change to the tenant's term
+  // setting doesn't retroactively shift an already-issued invoice's due
+  // date. "Overdue" itself is derived from this (see invoice-overdue.ts),
+  // never stored.
+  dueDate DateTime?
 
   // Set when a Razorpay Payment Link is generated for this invoice, cleared
   // once the link resolves (paid/expired/cancelled) — see the payment

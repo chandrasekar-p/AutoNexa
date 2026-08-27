@@ -5,8 +5,10 @@ import { CreatePartDto } from './dto/create-part.dto';
 import { UpdatePartDto } from './dto/update-part.dto';
 import { ListPartsQueryDto } from './dto/list-parts-query.dto';
 import { StockLedgerQueryDto } from './dto/stock-ledger-query.dto';
+import { AdjustPartStockDto } from './dto/adjust-part-stock.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Audit } from '../../common/interceptors/audit-log.interceptor';
+import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 @ApiBearerAuth()
 @ApiTags('parts')
@@ -27,6 +29,14 @@ export class PartsController {
     return this.partsService.findAll(query);
   }
 
+  // Registered before Get(':id') — otherwise ':id' would swallow the
+  // literal 'summary' segment (see CLAUDE.md's route-ordering note).
+  @Permissions('part:read')
+  @Get('summary')
+  summary() {
+    return this.partsService.summary();
+  }
+
   @Permissions('part:read')
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -37,6 +47,13 @@ export class PartsController {
   @Get(':id/stock-ledger')
   getStockLedger(@Param('id') id: string, @Query() query: StockLedgerQueryDto) {
     return this.partsService.getStockLedger(id, query);
+  }
+
+  @Permissions('inventory:update')
+  @Post(':id/stock-adjustment')
+  @Audit('part.stock.adjust', 'Part')
+  adjustStock(@Param('id') id: string, @Body() dto: AdjustPartStockDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.partsService.adjustStock(id, dto, user.userId);
   }
 
   @Permissions('part:update')

@@ -50,12 +50,20 @@ export const DEFAULT_ROLE_GRANTS: Record<string, Record<string, string[] | '*'>>
     'job-card': '*',
     labour: ['read', 'update'],
     technician: '*',
-    part: ['read'],
-    inventory: ['read'],
+    // Full inventory access per the Phase 1 role matrix — was previously
+    // read-only on both, which didn't actually let a Workshop Manager
+    // create/edit parts or record stock adjustments despite the role's
+    // own description.
+    part: '*',
+    inventory: '*',
     supplier: ['read'],
     purchase: ['read'],
-    invoice: ['read'],
-    payment: ['read'],
+    // Full access — was previously read-only on both, which didn't let a
+    // Workshop Manager generate an invoice or record a payment for a job
+    // card they otherwise have full control over end-to-end. Same class
+    // of fix as the part/inventory grants above.
+    invoice: '*',
+    payment: '*',
     report: '*',
     'audit-log': ['read'],
     settings: ['read', 'update'],

@@ -16,6 +16,7 @@ const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const tenant_context_1 = require("../../prisma/tenant-context");
 const outstanding_1 = require("../../common/billing/outstanding");
+const purchase_outstanding_1 = require("../../common/billing/purchase-outstanding");
 const technician_performance_1 = require("../technicians/technician-performance");
 const sales_bucketing_1 = require("./sales-bucketing");
 const sales_summary_1 = require("./sales-summary");
@@ -172,7 +173,6 @@ let ReportsService = class ReportsService {
                 outstanding: (0, outstanding_1.computeInvoiceOutstanding)(inv),
             }));
             return {
-                customerId: c.id,
                 customerName: c.name,
                 mobile: c.mobile,
                 totalOutstanding: (0, outstanding_1.sumOutstanding)(invoicesWithOutstanding),
@@ -196,7 +196,6 @@ let ReportsService = class ReportsService {
         const partsById = new Map(parts.map((p) => [p.id, p]));
         const rows = grouped
             .map((g) => ({
-            partId: g.partId,
             partNumber: partsById.get(g.partId)?.partNumber,
             partName: partsById.get(g.partId)?.name,
             quantitySold: g._sum.quantity ?? 0,
@@ -209,7 +208,6 @@ let ReportsService = class ReportsService {
         const db = this.prisma.forTenant();
         const parts = await db.part.findMany({ where: { deletedAt: null } });
         const rows = parts.map((p) => ({
-            partId: p.id,
             partNumber: p.partNumber,
             name: p.name,
             currentStock: p.currentStock,
@@ -265,8 +263,7 @@ let ReportsService = class ReportsService {
         });
         const bySupplier = new Map();
         for (const inv of unpaidInvoices) {
-            const paid = inv.payments.reduce((sum, p) => sum.add(p.amount), new client_1.Prisma.Decimal(0));
-            const outstanding = new client_1.Prisma.Decimal(inv.total).sub(paid);
+            const outstanding = (0, purchase_outstanding_1.computePurchaseInvoiceOutstanding)(inv);
             const supplier = inv.purchaseOrder.supplier;
             const existing = bySupplier.get(supplier.id);
             if (existing) {
@@ -277,7 +274,7 @@ let ReportsService = class ReportsService {
             }
         }
         const rows = [...bySupplier.values()]
-            .map((r) => ({ ...r, outstanding: r.outstanding.toDecimalPlaces(2) }))
+            .map((r) => ({ supplierName: r.supplierName, outstanding: r.outstanding.toDecimalPlaces(2) }))
             .sort((a, b) => b.outstanding.toNumber() - a.outstanding.toNumber());
         return paginate(rows, query.page ?? 1, query.pageSize ?? 20);
     }
@@ -335,7 +332,7 @@ let ReportsService = class ReportsService {
         const technicians = await db.technician.findMany({ include: { user: { select: { id: true, name: true } } } });
         const rows = await Promise.all(technicians.map(async (t) => {
             const performance = await (0, technician_performance_1.computeTechnicianPerformance)(db, t.id, range);
-            return { technicianId: t.id, name: t.user.name, employeeId: t.employeeId, ...performance };
+            return { name: t.user.name, employeeId: t.employeeId, ...performance };
         }));
         rows.sort((a, b) => b.revenueGenerated.toNumber() - a.revenueGenerated.toNumber());
         return paginate(rows, query.page ?? 1, query.pageSize ?? 20);
@@ -357,7 +354,6 @@ let ReportsService = class ReportsService {
         const custById = new Map(customers.map((c) => [c.id, c]));
         const rows = grouped
             .map((g) => ({
-            customerId: g.customerId,
             customer: custById.get(g.customerId),
             totalRevenue: (g._sum.grandTotal ?? new client_1.Prisma.Decimal(0)).toDecimalPlaces(2),
         }))

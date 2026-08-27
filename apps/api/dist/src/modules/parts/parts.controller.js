@@ -20,8 +20,10 @@ const create_part_dto_1 = require("./dto/create-part.dto");
 const update_part_dto_1 = require("./dto/update-part.dto");
 const list_parts_query_dto_1 = require("./dto/list-parts-query.dto");
 const stock_ledger_query_dto_1 = require("./dto/stock-ledger-query.dto");
+const adjust_part_stock_dto_1 = require("./dto/adjust-part-stock.dto");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 let PartsController = class PartsController {
     constructor(partsService) {
         this.partsService = partsService;
@@ -32,11 +34,17 @@ let PartsController = class PartsController {
     findAll(query) {
         return this.partsService.findAll(query);
     }
+    summary() {
+        return this.partsService.summary();
+    }
     findOne(id) {
         return this.partsService.findOne(id);
     }
     getStockLedger(id, query) {
         return this.partsService.getStockLedger(id, query);
+    }
+    adjustStock(id, dto, user) {
+        return this.partsService.adjustStock(id, dto, user.userId);
     }
     update(id, dto) {
         return this.partsService.update(id, dto);
@@ -65,6 +73,13 @@ __decorate([
 ], PartsController.prototype, "findAll", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('part:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PartsController.prototype, "summary", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('part:read'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -80,6 +95,17 @@ __decorate([
     __metadata("design:paramtypes", [String, stock_ledger_query_dto_1.StockLedgerQueryDto]),
     __metadata("design:returntype", void 0)
 ], PartsController.prototype, "getStockLedger", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('inventory:update'),
+    (0, common_1.Post)(':id/stock-adjustment'),
+    (0, audit_log_interceptor_1.Audit)('part.stock.adjust', 'Part'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, adjust_part_stock_dto_1.AdjustPartStockDto, Object]),
+    __metadata("design:returntype", void 0)
+], PartsController.prototype, "adjustStock", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('part:update'),
     (0, common_1.Patch)(':id'),
