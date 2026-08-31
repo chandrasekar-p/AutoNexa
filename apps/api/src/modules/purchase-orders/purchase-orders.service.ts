@@ -21,6 +21,16 @@ const RECEIVE_FLOW_ONLY_STATUSES: PurchaseOrderStatus[] = [
   PurchaseOrderStatus.PARTIALLY_RECEIVED,
   PurchaseOrderStatus.RECEIVED,
 ];
+// No literal "PENDING" status exists on PurchaseOrderStatus — this is a
+// derived UI bucket (placed but not yet received or cancelled), same
+// "real states grouped into one KPI/quick-filter" pattern as Invoices'
+// Unpaid/Overdue split. Shared by summary() and findAll()'s `bucket`
+// filter so the two can never disagree on what "pending"/"received" mean.
+const PENDING_BUCKET_STATUSES: PurchaseOrderStatus[] = [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.SENT];
+const RECEIVED_BUCKET_STATUSES: PurchaseOrderStatus[] = [
+  PurchaseOrderStatus.PARTIALLY_RECEIVED,
+  PurchaseOrderStatus.RECEIVED,
+];
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -83,11 +93,64 @@ export class PurchaseOrdersService {
     const pageSize = query.pageSize ?? 20;
     const db = this.prisma.forTenant();
 
+    const statusFilter = query.status
+      ? { status: query.status }
+      : query.bucket === 'pending'
+        ? { status: { in: PENDING_BUCKET_STATUSES } }
+        : query.bucket === 'received'
+          ? { status: { in: RECEIVED_BUCKET_STATUSES } }
+          : query.bucket === 'cancelled'
+            ? { status: PurchaseOrderStatus.CANCELLED }
+            : {};
+
     const where = {
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
-      ...(query.status ? { status: query.status } : {}),
+      ...statusFilter,
       ...(query.search ? { poNumber: { contains: query.search, mode: 'insensitive' as const } } : {}),
+      ...(query.from || query.to
+        ? {
+            createdAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+      ...(query.expectedFrom || query.expectedTo
+        ? {
+            expectedDeliveryDate: {
+              ...(query.expectedFrom ? { gte: new Date(query.expectedFrom) } : {}),
+              ...(query.expectedTo ? { lte: new Date(query.expectedTo) } : {}),
+            },
+          }
+        : {}),
     };
+
+    // itemCount/totalAmount are computed from the relation, not a stored
+    // column, so a value-range filter on them can't be pushed into the DB
+    // where-clause — fetch every matching row (no skip/take), derive, filter,
+    // and paginate in memory instead. Same "fetch-all, derive, filter,
+    // paginate" shape as reports.service.ts's outstanding()-style aggregates.
+    if (query.minValue !== undefined || query.maxValue !== undefined) {
+      const allRows = await db.purchaseOrder.findMany({
+        where,
+        include: { supplier: { select: SUPPLIER_SUMMARY_SELECT }, items: { select: { lineTotal: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const allItems = allRows.map(({ items: lineItems, ...row }) => ({
+        ...row,
+        itemCount: lineItems.length,
+        totalAmount: lineItems.reduce((sum, i) => sum.add(i.lineTotal), new Prisma.Decimal(0)).toDecimalPlaces(2),
+      }));
+      const filtered = allItems.filter((row) => {
+        const amount = row.totalAmount.toNumber();
+        if (query.minValue !== undefined && amount < query.minValue) return false;
+        if (query.maxValue !== undefined && amount > query.maxValue) return false;
+        return true;
+      });
+      const total = filtered.length;
+      const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+      return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
 
     const [rows, total] = await Promise.all([
       db.purchaseOrder.findMany({
@@ -116,6 +179,37 @@ export class PurchaseOrdersService {
     }));
 
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  /**
+   * Total/Pending/Received/Cancelled counts plus all-time Total Order
+   * Value (Σ lineTotal) and Total Received Value (Σ quantityReceived ×
+   * unitCost) — the latter computed on read from PurchaseOrderItem, never
+   * stored, so it can never drift from the items it's derived from.
+   */
+  async summary() {
+    const db = this.prisma.forTenant();
+    const [total, pending, received, cancelled, items] = await Promise.all([
+      db.purchaseOrder.count(),
+      db.purchaseOrder.count({ where: { status: { in: PENDING_BUCKET_STATUSES } } }),
+      db.purchaseOrder.count({ where: { status: { in: RECEIVED_BUCKET_STATUSES } } }),
+      db.purchaseOrder.count({ where: { status: PurchaseOrderStatus.CANCELLED } }),
+      db.purchaseOrderItem.findMany({ select: { lineTotal: true, unitCost: true, quantityReceived: true } }),
+    ]);
+
+    const totalOrderValue = items.reduce((sum, i) => sum.add(i.lineTotal), new Prisma.Decimal(0)).toDecimalPlaces(2);
+    const totalReceivedValue = items
+      .reduce((sum, i) => sum.add(new Prisma.Decimal(i.quantityReceived).mul(i.unitCost)), new Prisma.Decimal(0))
+      .toDecimalPlaces(2);
+
+    return {
+      total,
+      pending,
+      received,
+      cancelled,
+      totalOrderValue: totalOrderValue.toString(),
+      totalReceivedValue: totalReceivedValue.toString(),
+    };
   }
 
   async findOne(id: string) {

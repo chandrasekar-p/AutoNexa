@@ -51,6 +51,7 @@ let PurchaseInvoicesService = class PurchaseInvoicesService {
         const [items, total] = await Promise.all([
             db.purchaseInvoice.findMany({
                 where,
+                include: { payments: { orderBy: { paymentDate: 'desc' } } },
                 orderBy: { invoiceDate: 'desc' },
                 skip: (page - 1) * pageSize,
                 take: pageSize,

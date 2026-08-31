@@ -33,6 +33,9 @@ let PurchaseOrdersController = class PurchaseOrdersController {
     findAll(query) {
         return this.purchaseOrdersService.findAll(query);
     }
+    summary() {
+        return this.purchaseOrdersService.summary();
+    }
     findOne(id) {
         return this.purchaseOrdersService.findOne(id);
     }
@@ -61,6 +64,13 @@ __decorate([
     __metadata("design:paramtypes", [list_purchase_orders_query_dto_1.ListPurchaseOrdersQueryDto]),
     __metadata("design:returntype", void 0)
 ], PurchaseOrdersController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('purchase:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('purchase:read'),
     (0, common_1.Get)(':id'),

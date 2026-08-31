@@ -33,11 +33,23 @@ export function PurchaseOrderItemsBuilder({ items, onChange }: PurchaseOrderItem
   const [quantityOrdered, setQuantityOrdered] = useState('1');
   const [unitCost, setUnitCost] = useState('');
   const [gstRate, setGstRate] = useState('18');
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
-  const total = items.reduce((sum, i) => sum + i.quantityOrdered * i.unitCost, 0);
+  const subtotal = items.reduce((sum, i) => sum + i.quantityOrdered * i.unitCost, 0);
+  const gstAmount = items.reduce((sum, i) => sum + (i.quantityOrdered * i.unitCost * i.gstRate) / 100, 0);
+  const grandTotal = subtotal + gstAmount;
 
   function handleAddRow() {
     if (!picked) return;
+    // No backend uniqueness rule either forbids or allows the same part
+    // twice on one order — this is a client-side UX guard only, since two
+    // separate lines for the same part would just split its received
+    // quantity confusingly across both when goods are receipted.
+    if (items.some((i) => i.part.id === picked.id)) {
+      setDuplicateError(`${picked.partNumber} is already on this order — remove it first or adjust its quantity.`);
+      return;
+    }
+    setDuplicateError(null);
     onChange([
       ...items,
       {
@@ -56,6 +68,7 @@ export function PurchaseOrderItemsBuilder({ items, onChange }: PurchaseOrderItem
 
   function handleRemoveRow(key: string) {
     onChange(items.filter((i) => i.key !== key));
+    setDuplicateError(null);
   }
 
   return (
@@ -99,7 +112,22 @@ export function PurchaseOrderItemsBuilder({ items, onChange }: PurchaseOrderItem
         </Table>
       )}
 
-      <p className="num text-right text-sm font-medium text-ink">Subtotal (excl. GST): {formatMoney(total)}</p>
+      {items.length > 0 ? (
+        <div className="ml-auto flex w-full max-w-xs flex-col gap-1 text-sm">
+          <div className="flex justify-between text-ink-secondary">
+            <span>Subtotal</span>
+            <span className="num">{formatMoney(subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-ink-secondary">
+            <span>GST</span>
+            <span className="num">{formatMoney(gstAmount)}</span>
+          </div>
+          <div className="flex justify-between border-t border-line pt-1 font-semibold text-ink">
+            <span>Grand Total</span>
+            <span className="num">{formatMoney(grandTotal)}</span>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-end gap-2 border-t border-line pt-3">
         <PartPicker value={picked} onChange={setPicked} />
@@ -130,6 +158,7 @@ export function PurchaseOrderItemsBuilder({ items, onChange }: PurchaseOrderItem
           Add Row
         </Button>
       </div>
+      {duplicateError ? <p className="text-xs text-danger-600 dark:text-danger-400">{duplicateError}</p> : null}
     </div>
   );
 }

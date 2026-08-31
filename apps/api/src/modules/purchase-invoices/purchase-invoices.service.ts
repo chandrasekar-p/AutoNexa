@@ -47,8 +47,13 @@ export class PurchaseInvoicesService {
     };
 
     const [items, total] = await Promise.all([
+      // include: payments — every consumer (this list is always fetched in
+      // the context of one purchase order, to show payment status/history
+      // per invoice) reads invoice.payments; findOne() already included it,
+      // this list endpoint just hadn't been updated to match.
       db.purchaseInvoice.findMany({
         where,
+        include: { payments: { orderBy: { paymentDate: 'desc' } } },
         orderBy: { invoiceDate: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,

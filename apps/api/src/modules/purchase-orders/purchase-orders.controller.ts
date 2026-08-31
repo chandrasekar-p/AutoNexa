@@ -29,6 +29,12 @@ export class PurchaseOrdersController {
   }
 
   @Permissions('purchase:read')
+  @Get('summary')
+  summary() {
+    return this.purchaseOrdersService.summary();
+  }
+
+  @Permissions('purchase:read')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.purchaseOrdersService.findOne(id);

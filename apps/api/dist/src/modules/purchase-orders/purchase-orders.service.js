@@ -28,6 +28,11 @@ const RECEIVE_FLOW_ONLY_STATUSES = [
     client_1.PurchaseOrderStatus.PARTIALLY_RECEIVED,
     client_1.PurchaseOrderStatus.RECEIVED,
 ];
+const PENDING_BUCKET_STATUSES = [client_1.PurchaseOrderStatus.DRAFT, client_1.PurchaseOrderStatus.SENT];
+const RECEIVED_BUCKET_STATUSES = [
+    client_1.PurchaseOrderStatus.PARTIALLY_RECEIVED,
+    client_1.PurchaseOrderStatus.RECEIVED,
+];
 let PurchaseOrdersService = class PurchaseOrdersService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -69,11 +74,59 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         const page = query.page ?? 1;
         const pageSize = query.pageSize ?? 20;
         const db = this.prisma.forTenant();
+        const statusFilter = query.status
+            ? { status: query.status }
+            : query.bucket === 'pending'
+                ? { status: { in: PENDING_BUCKET_STATUSES } }
+                : query.bucket === 'received'
+                    ? { status: { in: RECEIVED_BUCKET_STATUSES } }
+                    : query.bucket === 'cancelled'
+                        ? { status: client_1.PurchaseOrderStatus.CANCELLED }
+                        : {};
         const where = {
             ...(query.supplierId ? { supplierId: query.supplierId } : {}),
-            ...(query.status ? { status: query.status } : {}),
+            ...statusFilter,
             ...(query.search ? { poNumber: { contains: query.search, mode: 'insensitive' } } : {}),
+            ...(query.from || query.to
+                ? {
+                    createdAt: {
+                        ...(query.from ? { gte: new Date(query.from) } : {}),
+                        ...(query.to ? { lte: new Date(query.to) } : {}),
+                    },
+                }
+                : {}),
+            ...(query.expectedFrom || query.expectedTo
+                ? {
+                    expectedDeliveryDate: {
+                        ...(query.expectedFrom ? { gte: new Date(query.expectedFrom) } : {}),
+                        ...(query.expectedTo ? { lte: new Date(query.expectedTo) } : {}),
+                    },
+                }
+                : {}),
         };
+        if (query.minValue !== undefined || query.maxValue !== undefined) {
+            const allRows = await db.purchaseOrder.findMany({
+                where,
+                include: { supplier: { select: SUPPLIER_SUMMARY_SELECT }, items: { select: { lineTotal: true } } },
+                orderBy: { createdAt: 'desc' },
+            });
+            const allItems = allRows.map(({ items: lineItems, ...row }) => ({
+                ...row,
+                itemCount: lineItems.length,
+                totalAmount: lineItems.reduce((sum, i) => sum.add(i.lineTotal), new client_1.Prisma.Decimal(0)).toDecimalPlaces(2),
+            }));
+            const filtered = allItems.filter((row) => {
+                const amount = row.totalAmount.toNumber();
+                if (query.minValue !== undefined && amount < query.minValue)
+                    return false;
+                if (query.maxValue !== undefined && amount > query.maxValue)
+                    return false;
+                return true;
+            });
+            const total = filtered.length;
+            const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+            return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+        }
         const [rows, total] = await Promise.all([
             db.purchaseOrder.findMany({
                 where,
@@ -93,6 +146,28 @@ let PurchaseOrdersService = class PurchaseOrdersService {
             totalAmount: lineItems.reduce((sum, i) => sum.add(i.lineTotal), new client_1.Prisma.Decimal(0)).toDecimalPlaces(2),
         }));
         return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async summary() {
+        const db = this.prisma.forTenant();
+        const [total, pending, received, cancelled, items] = await Promise.all([
+            db.purchaseOrder.count(),
+            db.purchaseOrder.count({ where: { status: { in: PENDING_BUCKET_STATUSES } } }),
+            db.purchaseOrder.count({ where: { status: { in: RECEIVED_BUCKET_STATUSES } } }),
+            db.purchaseOrder.count({ where: { status: client_1.PurchaseOrderStatus.CANCELLED } }),
+            db.purchaseOrderItem.findMany({ select: { lineTotal: true, unitCost: true, quantityReceived: true } }),
+        ]);
+        const totalOrderValue = items.reduce((sum, i) => sum.add(i.lineTotal), new client_1.Prisma.Decimal(0)).toDecimalPlaces(2);
+        const totalReceivedValue = items
+            .reduce((sum, i) => sum.add(new client_1.Prisma.Decimal(i.quantityReceived).mul(i.unitCost)), new client_1.Prisma.Decimal(0))
+            .toDecimalPlaces(2);
+        return {
+            total,
+            pending,
+            received,
+            cancelled,
+            totalOrderValue: totalOrderValue.toString(),
+            totalReceivedValue: totalReceivedValue.toString(),
+        };
     }
     async findOne(id) {
         const po = await this.prisma.forTenant().purchaseOrder.findFirst({

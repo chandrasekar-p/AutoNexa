@@ -5,17 +5,23 @@ import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
 import { Input } from '@/components/ui/input';
-import type { PaginatedResult, Supplier, SupplierRef } from '@/lib/api-types';
+import type { PaginatedResult, Supplier } from '@/lib/api-types';
 
 interface SupplierPickerProps {
-  value: SupplierRef | null;
-  onChange: (supplier: SupplierRef | null) => void;
+  value: Supplier | null;
+  onChange: (supplier: Supplier | null) => void;
   error?: string;
 }
 
 const EMPTY_RESULT: PaginatedResult<Supplier> = { items: [], total: 0, page: 1, pageSize: 8, totalPages: 0 };
 
-/** Search-and-select for suppliers — same shape as CustomerPicker, for the Purchase Order form. */
+/**
+ * Search-and-select for suppliers — same shape as CustomerPicker, for the
+ * Purchase Order form. Its search results are already full `Supplier`
+ * objects (GSTIN/contactPerson/address included, not just the leaner
+ * SupplierRef), so the "selected" summary below can show real contact/GST
+ * details without a second fetch.
+ */
 export function SupplierPicker({ value, onChange, error }: SupplierPickerProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -33,11 +39,20 @@ export function SupplierPicker({ value, onChange, error }: SupplierPickerProps) 
     return (
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-ink-secondary">Supplier</span>
-        <div className="flex h-10 items-center justify-between rounded border border-line bg-surface px-3">
-          <span className="text-sm text-ink">{value.name}</span>
-          <button type="button" onClick={() => onChange(null)} className="text-xs text-accent-600 hover:underline">
-            Change
-          </button>
+        <div className="flex flex-col gap-2 rounded border border-line bg-surface px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-ink">{value.name}</span>
+            <button type="button" onClick={() => onChange(null)} className="text-xs text-accent-600 hover:underline">
+              Change Supplier
+            </button>
+          </div>
+          {value.contactPerson || value.mobile || value.gstin ? (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
+              {value.contactPerson ? <span>{value.contactPerson}</span> : null}
+              {value.mobile ? <span className="num">{value.mobile}</span> : null}
+              {value.gstin ? <span className="num">{value.gstin}</span> : null}
+            </div>
+          ) : null}
         </div>
       </div>
     );

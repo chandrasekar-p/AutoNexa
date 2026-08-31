@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { apiGet, apiPost, ApiError } from '@/lib/api-client';
-import { useApiQuery } from '@/lib/hooks/use-api-query';
+import { apiPost, ApiError } from '@/lib/api-client';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { PaginatedResult, PurchaseInvoice, PurchaseInvoiceStatus } from '@/lib/api-types';
+import type { PurchaseInvoice, PurchaseInvoiceStatus } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,6 +20,11 @@ const STATUS_TONE: Record<PurchaseInvoiceStatus, 'neutral' | 'warning' | 'succes
 interface PurchaseInvoicesSectionProps {
   purchaseOrderId: string;
   canCreate: boolean;
+  invoices: PurchaseInvoice[];
+  isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onRecorded: () => void;
 }
 
 function RecordPaymentForm({ invoiceId, onRecorded }: { invoiceId: string; onRecorded: () => void }) {
@@ -150,27 +154,31 @@ function RecordInvoiceForm({ purchaseOrderId, onRecorded }: { purchaseOrderId: s
   );
 }
 
-/** Nests both the supplier-invoice-recording flow and per-invoice payment recording — no separate top-level nav for either, since both are always viewed in the context of a purchase order. */
-export function PurchaseInvoicesSection({ purchaseOrderId, canCreate }: PurchaseInvoicesSectionProps) {
-  const query = useApiQuery<PaginatedResult<PurchaseInvoice>>(
-    () => apiGet(`/purchase-invoices?purchaseOrderId=${purchaseOrderId}&pageSize=20`),
-    [purchaseOrderId],
-  );
-
+/**
+ * Nests both the supplier-invoice-recording flow and per-invoice payment
+ * recording (the spec's "Supplier Payment" concept always exists in the
+ * context of one specific invoice, so it's shown there rather than as a
+ * separate, disconnected card) — no separate top-level nav for either,
+ * since both are always viewed in the context of a purchase order. Data
+ * is owned by the parent detail page (not fetched here) so the page can
+ * share the same invoices/payments with the Order Progress stepper
+ * without a second, duplicate request.
+ */
+export function PurchaseInvoicesSection({ purchaseOrderId, canCreate, invoices, isLoading, error, onRetry, onRecorded }: PurchaseInvoicesSectionProps) {
   return (
-    <Card>
+    <Card id="invoices">
       <CardHeader>
-        <CardTitle>Purchase Invoices</CardTitle>
+        <CardTitle>Purchase Invoice &amp; Supplier Payment</CardTitle>
       </CardHeader>
       <CardBody className="flex flex-col gap-4">
-        {query.isLoading ? <Skeleton className="h-10 w-full" /> : null}
-        {query.error ? <ErrorState message={query.error} onRetry={query.refetch} /> : null}
-        {query.data && query.data.items.length === 0 ? (
-          <p className="text-sm text-ink-muted">No purchase invoices recorded yet.</p>
+        {isLoading ? <Skeleton className="h-10 w-full" /> : null}
+        {error ? <ErrorState message={error} onRetry={onRetry} /> : null}
+        {!isLoading && !error && invoices.length === 0 ? (
+          <p className="text-sm text-ink-muted">No purchase invoice recorded yet.</p>
         ) : null}
-        {query.data && query.data.items.length > 0 ? (
+        {invoices.length > 0 ? (
           <ul className="flex flex-col divide-y divide-line">
-            {query.data.items.map((invoice) => {
+            {invoices.map((invoice) => {
               const paid = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
               return (
                 <li key={invoice.id} className="flex flex-col gap-2 py-3">
@@ -200,7 +208,7 @@ export function PurchaseInvoicesSection({ purchaseOrderId, canCreate }: Purchase
                       <span className="num text-xs text-ink-muted">
                         Outstanding: {formatMoney(Number(invoice.total) - paid)}
                       </span>
-                      <RecordPaymentForm invoiceId={invoice.id} onRecorded={query.refetch} />
+                      <RecordPaymentForm invoiceId={invoice.id} onRecorded={onRecorded} />
                     </div>
                   ) : null}
                 </li>
@@ -209,7 +217,7 @@ export function PurchaseInvoicesSection({ purchaseOrderId, canCreate }: Purchase
           </ul>
         ) : null}
 
-        {canCreate ? <RecordInvoiceForm purchaseOrderId={purchaseOrderId} onRecorded={query.refetch} /> : null}
+        {canCreate ? <RecordInvoiceForm purchaseOrderId={purchaseOrderId} onRecorded={onRecorded} /> : null}
       </CardBody>
     </Card>
   );

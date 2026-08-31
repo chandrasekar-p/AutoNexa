@@ -723,6 +723,18 @@ export interface PurchaseOrderDetail extends PurchaseOrderFields {
   goodsReceipts: GoodsReceipt[];
 }
 
+export type PurchaseOrderBucket = 'pending' | 'received' | 'cancelled';
+
+/** GET /purchase-orders/summary — see PurchaseOrdersService.summary(). "Pending" (DRAFT+SENT) and "Received" (PARTIALLY_RECEIVED+RECEIVED) are derived buckets over the real statuses, not stored values. */
+export interface PurchaseOrderSummary {
+  total: number;
+  pending: number;
+  received: number;
+  cancelled: number;
+  totalOrderValue: string;
+  totalReceivedValue: string;
+}
+
 export type PurchaseInvoiceStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
 
 export interface SupplierPayment {
