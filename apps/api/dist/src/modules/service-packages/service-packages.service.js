@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServicePackagesService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const PACKAGE_INCLUDE = {
     includedLabourItems: { include: { labourItem: { select: { id: true, code: true, description: true } } } },
@@ -44,6 +45,18 @@ let ServicePackagesService = class ServicePackagesService {
         const where = {
             deletedAt: null,
             ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+            ...(query.validityMonths !== undefined ? { validityMonths: query.validityMonths } : {}),
+            ...(query.visitLimit !== undefined
+                ? { visitLimit: query.visitLimit === 'unlimited' ? null : Number(query.visitLimit) }
+                : {}),
+            ...(query.minPrice !== undefined || query.maxPrice !== undefined
+                ? {
+                    price: {
+                        ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
+                        ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
+                    },
+                }
+                : {}),
             ...(query.search
                 ? {
                     OR: [
@@ -59,6 +72,37 @@ let ServicePackagesService = class ServicePackagesService {
         ]);
         return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     }
+    async summary() {
+        const db = this.prisma.forTenant();
+        const [total, active, inactive, packages, soldGrouped] = await Promise.all([
+            db.servicePackage.count({ where: { deletedAt: null } }),
+            db.servicePackage.count({ where: { deletedAt: null, isActive: true } }),
+            db.servicePackage.count({ where: { deletedAt: null, isActive: false } }),
+            db.servicePackage.findMany({ where: { deletedAt: null }, select: { price: true, validityMonths: true, visitLimit: true } }),
+            db.customerServicePackage.groupBy({ by: ['servicePackageId'], _count: { _all: true } }),
+        ]);
+        const avgPrice = packages.length > 0
+            ? packages.reduce((sum, p) => sum.add(p.price), new client_1.Prisma.Decimal(0)).div(packages.length).toDecimalPlaces(2)
+            : new client_1.Prisma.Decimal(0);
+        const validityOptions = Array.from(new Set(packages.map((p) => p.validityMonths))).sort((a, b) => a - b);
+        const visitLimitOptions = Array.from(new Set(packages.map((p) => p.visitLimit).filter((v) => v != null))).sort((a, b) => a - b);
+        let mostPopular = null;
+        if (soldGrouped.length > 0) {
+            const top = soldGrouped.reduce((max, g) => (g._count._all > max._count._all ? g : max), soldGrouped[0]);
+            const pkg = await db.servicePackage.findFirst({ where: { id: top.servicePackageId }, select: { id: true, name: true } });
+            if (pkg)
+                mostPopular = { id: pkg.id, name: pkg.name, soldCount: top._count._all };
+        }
+        return {
+            total,
+            active,
+            inactive,
+            avgPrice: avgPrice.toString(),
+            validityOptions,
+            visitLimitOptions,
+            mostPopular,
+        };
+    }
     async findOne(id) {
         const pkg = await this.prisma.forTenant().servicePackage.findFirst({
             where: { id, deletedAt: null },
@@ -66,7 +110,16 @@ let ServicePackagesService = class ServicePackagesService {
         });
         if (!pkg)
             throw new common_1.NotFoundException('Service package not found');
-        return pkg;
+        const db = this.prisma.forTenant();
+        const [soldCount, activeSoldCount, soldInvoices] = await Promise.all([
+            db.customerServicePackage.count({ where: { servicePackageId: id } }),
+            db.customerServicePackage.count({ where: { servicePackageId: id, status: 'ACTIVE' } }),
+            db.customerServicePackage.findMany({ where: { servicePackageId: id }, select: { purchaseInvoice: { select: { grandTotal: true } } } }),
+        ]);
+        const totalRevenue = soldInvoices
+            .reduce((sum, s) => sum.add(s.purchaseInvoice.grandTotal), new client_1.Prisma.Decimal(0))
+            .toDecimalPlaces(2);
+        return { ...pkg, stats: { soldCount, activeSoldCount, totalRevenue: totalRevenue.toString() } };
     }
     async update(id, dto) {
         await this.assertExists(id);
@@ -79,6 +132,10 @@ let ServicePackagesService = class ServicePackagesService {
     }
     async remove(id) {
         await this.assertExists(id);
+        const soldCount = await this.prisma.forTenant().customerServicePackage.count({ where: { servicePackageId: id } });
+        if (soldCount > 0) {
+            throw new common_1.ConflictException('This package has been sold to customers — deactivate it instead of deleting.');
+        }
         return this.prisma.forTenant().servicePackage.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
     }
     async replaceInclusions(servicePackageId, dto) {

@@ -30,6 +30,12 @@ export class ServicePackagesController {
   }
 
   @Permissions('service-package:read')
+  @Get('summary')
+  summary() {
+    return this.servicePackagesService.summary();
+  }
+
+  @Permissions('service-package:read')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.servicePackagesService.findOne(id);

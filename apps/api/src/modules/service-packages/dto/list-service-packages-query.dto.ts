@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListServicePackagesQueryDto {
   @ApiPropertyOptional({ description: 'Free-text search across name and description' })
@@ -13,6 +13,31 @@ export class ListServicePackagesQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Exact match on validityMonths' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  validityMonths?: number;
+
+  @ApiPropertyOptional({ description: '"unlimited" for visitLimit: null, or an exact visit count' })
+  @IsOptional()
+  @IsString()
+  visitLimit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice?: number;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

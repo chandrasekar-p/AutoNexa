@@ -146,6 +146,7 @@ export class CustomerServicePackagesService {
     const db = this.prisma.forTenant();
 
     const where = {
+      ...(query.servicePackageId ? { servicePackageId: query.servicePackageId } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
       ...(query.status ? { status: query.status } : {}),

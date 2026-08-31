@@ -31,6 +31,9 @@ let ServicePackagesController = class ServicePackagesController {
     findAll(query) {
         return this.servicePackagesService.findAll(query);
     }
+    summary() {
+        return this.servicePackagesService.summary();
+    }
     findOne(id) {
         return this.servicePackagesService.findOne(id);
     }
@@ -59,6 +62,13 @@ __decorate([
     __metadata("design:paramtypes", [list_service_packages_query_dto_1.ListServicePackagesQueryDto]),
     __metadata("design:returntype", void 0)
 ], ServicePackagesController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('service-package:read'),
+    (0, common_1.Get)('summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ServicePackagesController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('service-package:read'),
     (0, common_1.Get)(':id'),

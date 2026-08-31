@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { apiGet, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
@@ -27,6 +27,10 @@ interface ServicePackageFormProps {
 interface RefChip {
   id: string;
   label: string;
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">{children}</h2>;
 }
 
 function ChipList({ items, onRemove, emptyLabel }: { items: RefChip[]; onRemove: (id: string) => void; emptyLabel: string }) {
@@ -64,8 +68,8 @@ export function ServicePackageForm({ initial, submitLabel, onSubmit, onCancel }:
   const [partCategoryIds, setPartCategoryIds] = useState<Set<string>>(
     new Set((initial?.includedPartCategories ?? []).map((r) => r.partCategory.id)),
   );
-  const [pickedLabourItem, setPickedLabourItem] = useState<LabourItemRef | null>(null);
-  const [pickedPart, setPickedPart] = useState<PartRef | null>(null);
+  const [pickedLabourItem] = useState<LabourItemRef | null>(null);
+  const [pickedPart] = useState<PartRef | null>(null);
 
   const [errors, setErrors] = useState<ServicePackageFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -122,7 +126,7 @@ export function ServicePackageForm({ initial, submitLabel, onSubmit, onCancel }:
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
       {formError ? (
         <p
           role="alert"
@@ -132,81 +136,99 @@ export function ServicePackageForm({ initial, submitLabel, onSubmit, onCancel }:
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Input label="Name" value={values.name} onChange={(e) => set('name', e.target.value)} error={errors.name} required />
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <div className="flex flex-col gap-4">
+          <SectionTitle>Basic Information</SectionTitle>
+          <Input label="Package Name" value={values.name} onChange={(e) => set('name', e.target.value)} error={errors.name} required />
+          <Textarea label="Description" value={values.description} onChange={(e) => set('description', e.target.value)} error={errors.description} />
         </div>
-        <Input label="Price" type="number" value={values.price} onChange={(e) => set('price', e.target.value)} error={errors.price} required />
-        <Input label="GST Rate (%)" type="number" value={values.gstRate} onChange={(e) => set('gstRate', e.target.value)} error={errors.gstRate} required />
-        <Input
-          label="Validity (months)"
-          type="number"
-          value={values.validityMonths}
-          onChange={(e) => set('validityMonths', e.target.value)}
-          error={errors.validityMonths}
-          required
-        />
-        <Input
-          label="Visit Limit"
-          type="number"
-          value={values.visitLimit}
-          onChange={(e) => set('visitLimit', e.target.value)}
-          placeholder="Unlimited"
-          error={errors.visitLimit}
-        />
-      </div>
 
-      <Textarea label="Description" value={values.description} onChange={(e) => set('description', e.target.value)} error={errors.description} />
-
-      <label className="flex items-center gap-2.5 text-sm text-ink">
-        <input
-          type="checkbox"
-          checked={values.isActive}
-          onChange={(e) => set('isActive', e.target.checked)}
-          className="h-4 w-4 rounded border-line accent-accent-500"
-        />
-        Offered to customers (visible when selling a new package)
-      </label>
-
-      <div className="flex flex-col gap-2 border-t border-line pt-4">
-        <span className="text-xs font-medium text-ink-secondary">Included Labour (free when redeemed)</span>
-        <ChipList items={labourItems} onRemove={(id) => setLabourItems((prev) => prev.filter((l) => l.id !== id))} emptyLabel="No labour items included." />
-        <LabourItemPicker value={null} onChange={addLabourItem} />
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-line pt-4">
-        <span className="text-xs font-medium text-ink-secondary">Included Parts (free when redeemed)</span>
-        <ChipList items={parts} onRemove={(id) => setParts((prev) => prev.filter((p) => p.id !== id))} emptyLabel="No parts included." />
-        <PartPicker value={null} onChange={addPart} />
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-line pt-4">
-        <span className="text-xs font-medium text-ink-secondary">Included Part Categories (any part in these categories, free when redeemed)</span>
-        {categories.data && categories.data.length > 0 ? (
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {categories.data.map((category) => (
-              <label key={category.id} className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={partCategoryIds.has(category.id)}
-                  onChange={() => toggleCategory(category.id)}
-                  className="h-4 w-4 rounded border-line accent-accent-500"
-                />
-                {category.name}
-              </label>
-            ))}
+        <div className="flex flex-col gap-4">
+          <SectionTitle>Pricing &amp; Validity</SectionTitle>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Price (₹)" type="number" value={values.price} onChange={(e) => set('price', e.target.value)} error={errors.price} required />
+            <Input label="GST Rate (%)" type="number" value={values.gstRate} onChange={(e) => set('gstRate', e.target.value)} error={errors.gstRate} required />
+            <Input
+              label="Validity (months)"
+              type="number"
+              value={values.validityMonths}
+              onChange={(e) => set('validityMonths', e.target.value)}
+              error={errors.validityMonths}
+              required
+            />
+            <Input
+              label="Visit Limit"
+              type="number"
+              value={values.visitLimit}
+              onChange={(e) => set('visitLimit', e.target.value)}
+              placeholder="Unlimited"
+              error={errors.visitLimit}
+            />
           </div>
-        ) : (
-          <p className="text-xs text-ink-muted">No part categories on file yet.</p>
-        )}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <SectionTitle>What&rsquo;s Included</SectionTitle>
+          <p className="-mt-2 text-xs text-ink-muted">Labour, parts, and part categories redeemed for free from this package on a job card.</p>
+
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-ink-secondary">Included Labour</span>
+              <ChipList items={labourItems} onRemove={(id) => setLabourItems((prev) => prev.filter((l) => l.id !== id))} emptyLabel="No labour items included." />
+              <LabourItemPicker value={pickedLabourItem} onChange={addLabourItem} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-ink-secondary">Included Parts</span>
+              <ChipList items={parts} onRemove={(id) => setParts((prev) => prev.filter((p) => p.id !== id))} emptyLabel="No parts included." />
+              <PartPicker value={pickedPart} onChange={addPart} />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-line pt-4">
+            <span className="text-xs font-medium text-ink-secondary">Included Part Categories (any part in these categories)</span>
+            {categories.data && categories.data.length > 0 ? (
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {categories.data.map((category) => (
+                  <label key={category.id} className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={partCategoryIds.has(category.id)}
+                      onChange={() => toggleCategory(category.id)}
+                      className="h-4 w-4 rounded border-line accent-accent-500"
+                    />
+                    {category.name}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-ink-muted">No part categories on file yet.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <SectionTitle>Status</SectionTitle>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="radio" name="isActive" checked={values.isActive} onChange={() => set('isActive', true)} className="h-4 w-4 accent-accent-500" />
+              Active
+            </label>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="radio" name="isActive" checked={!values.isActive} onChange={() => set('isActive', false)} className="h-4 w-4 accent-accent-500" />
+              Inactive
+            </label>
+          </div>
+          <p className="text-xs text-ink-muted">Active packages are offered to customers when selling a new package or job card.</p>
+        </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex justify-end gap-3 border-t border-line pt-5">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button type="submit" isLoading={isSubmitting}>
-          {submitLabel}
+          {isSubmitting ? (initial ? 'Saving Changes…' : 'Creating Package…') : submitLabel}
         </Button>
       </div>
     </form>

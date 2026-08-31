@@ -5,6 +5,11 @@ import { CustomerPackageStatus } from '@prisma/client';
 import { UUID_SHAPE_REGEX, INVALID_UUID_MESSAGE } from '../../../common/validators/uuid-like';
 
 export class ListCustomerServicePackagesQueryDto {
+  @ApiPropertyOptional({ description: 'Sold instances of this catalogue template' })
+  @IsOptional()
+  @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })
+  servicePackageId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Matches(UUID_SHAPE_REGEX, { message: INVALID_UUID_MESSAGE })

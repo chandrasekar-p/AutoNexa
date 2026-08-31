@@ -23,6 +23,12 @@ class ListCustomerServicePackagesQueryDto {
 }
 exports.ListCustomerServicePackagesQueryDto = ListCustomerServicePackagesQueryDto;
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Sold instances of this catalogue template' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),
+    __metadata("design:type", String)
+], ListCustomerServicePackagesQueryDto.prototype, "servicePackageId", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.Matches)(uuid_like_1.UUID_SHAPE_REGEX, { message: uuid_like_1.INVALID_UUID_MESSAGE }),

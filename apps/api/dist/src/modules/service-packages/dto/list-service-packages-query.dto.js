@@ -34,6 +34,35 @@ __decorate([
     __metadata("design:type", Boolean)
 ], ListServicePackagesQueryDto.prototype, "isActive", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Exact match on validityMonths' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], ListServicePackagesQueryDto.prototype, "validityMonths", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: '"unlimited" for visitLimit: null, or an exact visit count' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListServicePackagesQueryDto.prototype, "visitLimit", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], ListServicePackagesQueryDto.prototype, "minPrice", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], ListServicePackagesQueryDto.prototype, "maxPrice", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 1 }),
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),

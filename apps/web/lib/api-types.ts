@@ -1149,6 +1149,13 @@ export interface ServicePackagePartCategoryRef {
 }
 
 /** GET /service-packages(/:id) — the sellable template, not a specific sale (see CustomerServicePackage for that). Included-items arrays define what redeeming this package covers for free on a job card. */
+/** GET /service-packages/:id-only enrichment — see ServicePackagesService.findOne(). Absent on GET /service-packages list rows. */
+export interface ServicePackageStats {
+  soldCount: number;
+  activeSoldCount: number;
+  totalRevenue: string;
+}
+
 export interface ServicePackage {
   id: string;
   name: string;
@@ -1162,6 +1169,18 @@ export interface ServicePackage {
   includedLabourItems: ServicePackageLabourItemRef[];
   includedParts: ServicePackagePartRef[];
   includedPartCategories: ServicePackagePartCategoryRef[];
+  stats?: ServicePackageStats;
+}
+
+/** GET /service-packages/summary — see ServicePackagesService.summary(). */
+export interface ServicePackageSummary {
+  total: number;
+  active: number;
+  inactive: number;
+  avgPrice: string;
+  validityOptions: number[];
+  visitLimitOptions: number[];
+  mostPopular: { id: string; name: string; soldCount: number } | null;
 }
 
 export type CustomerPackageStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
