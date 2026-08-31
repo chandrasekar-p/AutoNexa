@@ -12,7 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UploadFileDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
-const CATEGORIES = ['vehicle-photo', 'inspection-photo', 'vehicle-document', 'workshop-logo', 'user-avatar'];
+const CATEGORIES = ['vehicle-photo', 'inspection-photo', 'vehicle-document', 'workshop-logo', 'user-avatar', 'login-background'];
 class UploadFileDto {
 }
 exports.UploadFileDto = UploadFileDto;

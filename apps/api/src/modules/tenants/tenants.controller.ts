@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { SuperAdminGuard } from '../../common/guards/super-admin.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { Audit } from '../../common/interceptors/audit-log.interceptor';
 
 @ApiBearerAuth()
@@ -25,6 +26,17 @@ export class TenantsController {
   @Get()
   listAll() {
     return this.tenantsService.listAll();
+  }
+
+  // ── Public (pre-auth) ─────────────────────────────────────────────
+  // The login screen doesn't know which tenant it's for until the user
+  // types the workshop slug, so this has to be reachable with no token.
+  // Different literal segment from `me`/`me/settings` below — no route-
+  // ordering conflict.
+  @Public()
+  @Get('branding/:slug')
+  getBranding(@Param('slug') slug: string) {
+    return this.tenantsService.getBrandingBySlug(slug);
   }
 
   // ── Self-service (any authenticated workshop user with permission) ──

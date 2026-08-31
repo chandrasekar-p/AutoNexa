@@ -131,7 +131,14 @@ let TenantsService = class TenantsService {
             throw new common_1.NotFoundException('Tenant not found');
         if (!tenant.settings)
             return tenant;
-        return { ...tenant, settings: { ...tenant.settings, logoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, tenant.settings.logoUrl) } };
+        return {
+            ...tenant,
+            settings: {
+                ...tenant.settings,
+                logoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, tenant.settings.logoUrl),
+                loginBackgroundUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, tenant.settings.loginBackgroundUrl),
+            },
+        };
     }
     async updateSettings(dto) {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();
@@ -139,7 +146,20 @@ let TenantsService = class TenantsService {
             where: { tenantId },
             data: dto,
         });
-        return { ...settings, logoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, settings.logoUrl) };
+        return {
+            ...settings,
+            logoUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, settings.logoUrl),
+            loginBackgroundUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, settings.loginBackgroundUrl),
+        };
+    }
+    async getBrandingBySlug(slug) {
+        const tenant = await this.prisma.platform.tenant.findUnique({
+            where: { slug },
+            include: { settings: true },
+        });
+        if (!tenant?.settings)
+            return { loginBackgroundUrl: null };
+        return { loginBackgroundUrl: await (0, resolve_display_url_1.resolveDisplayUrl)(this.storage, tenant.settings.loginBackgroundUrl) };
     }
 };
 exports.TenantsService = TenantsService;

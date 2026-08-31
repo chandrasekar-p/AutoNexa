@@ -51,6 +51,13 @@ export class UpdateTenantSettingsDto {
   logoUrl?: string;
 
   @ApiPropertyOptional({
+    description: 'Relative path from POST /uploads — shown behind the sign-in card on the login screen for this workshop',
+  })
+  @IsOptional()
+  @IsString()
+  loginBackgroundUrl?: string;
+
+  @ApiPropertyOptional({
     description: "Incoming webhook URL for this workshop's own Slack — internal ops pings only, never customer-facing",
   })
   @IsOptional()

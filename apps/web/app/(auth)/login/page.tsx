@@ -6,12 +6,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
 import { validateLoginForm, type LoginFormErrors } from '@/lib/validation/login';
+import { useSetLoginTenantSlug } from '@/components/layout/login-branding-context';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
+  const setLoginTenantSlug = useSetLoginTenantSlug();
 
   const [tenantSlug, setTenantSlug] = useState('');
   const [email, setEmail] = useState('');
@@ -60,7 +62,10 @@ export default function LoginPage() {
           label="Workshop ID"
           autoComplete="organization"
           value={tenantSlug}
-          onChange={(e) => setTenantSlug(e.target.value)}
+          onChange={(e) => {
+            setTenantSlug(e.target.value);
+            setLoginTenantSlug(e.target.value);
+          }}
           placeholder="demo-workshop"
           error={errors.tenantSlug}
         />

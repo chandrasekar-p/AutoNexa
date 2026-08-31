@@ -7,7 +7,7 @@
 
 export const STORAGE_SERVICE = Symbol('STORAGE_SERVICE');
 
-export type UploadCategory = 'vehicle-photo' | 'inspection-photo' | 'vehicle-document' | 'workshop-logo' | 'user-avatar';
+export type UploadCategory = 'vehicle-photo' | 'inspection-photo' | 'vehicle-document' | 'workshop-logo' | 'user-avatar' | 'login-background';
 
 export interface UploadParams {
   buffer: Buffer;

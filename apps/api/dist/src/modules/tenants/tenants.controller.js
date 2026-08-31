@@ -20,6 +20,7 @@ const create_tenant_dto_1 = require("./dto/create-tenant.dto");
 const update_tenant_settings_dto_1 = require("./dto/update-tenant-settings.dto");
 const super_admin_guard_1 = require("../../common/guards/super-admin.guard");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
+const public_decorator_1 = require("../../common/decorators/public.decorator");
 const audit_log_interceptor_1 = require("../../common/interceptors/audit-log.interceptor");
 let TenantsController = class TenantsController {
     constructor(tenantsService) {
@@ -30,6 +31,9 @@ let TenantsController = class TenantsController {
     }
     listAll() {
         return this.tenantsService.listAll();
+    }
+    getBranding(slug) {
+        return this.tenantsService.getBrandingBySlug(slug);
     }
     getCurrentTenant() {
         return this.tenantsService.getCurrentTenant();
@@ -55,6 +59,14 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "listAll", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('branding/:slug'),
+    __param(0, (0, common_1.Param)('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], TenantsController.prototype, "getBranding", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('tenant:read'),
     (0, common_1.Get)('me'),

@@ -83,6 +83,13 @@ model TenantSettings {
   // a bare filename. Printed on this workshop's own exported PDF reports
   // (their branding, not the AutoNexa platform's).
   logoUrl                      String?
+  // Same shape/precedent as logoUrl above (set via POST /uploads then
+  // PATCH /tenants/me/settings, a raw stored reference, resolved on every
+  // read via resolveDisplayUrl). Shown behind the sign-in card on
+  // GET /tenants/branding/:slug — the one field that endpoint exposes
+  // publicly (pre-auth), since a login screen doesn't know which tenant
+  // it's for until the user types the workshop slug.
+  loginBackgroundUrl           String?
   // Incoming webhook URL for this workshop's own Slack — internal ops
   // pings only (new appointment, invoice issued, etc.), never customer-facing.
   // Sent via POST to the URL with a plain {"text": "..."} body.

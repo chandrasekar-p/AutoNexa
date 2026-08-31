@@ -101,7 +101,14 @@ export class TenantsService {
     if (!tenant) throw new NotFoundException('Tenant not found');
     if (!tenant.settings) return tenant;
 
-    return { ...tenant, settings: { ...tenant.settings, logoUrl: await resolveDisplayUrl(this.storage, tenant.settings.logoUrl) } };
+    return {
+      ...tenant,
+      settings: {
+        ...tenant.settings,
+        logoUrl: await resolveDisplayUrl(this.storage, tenant.settings.logoUrl),
+        loginBackgroundUrl: await resolveDisplayUrl(this.storage, tenant.settings.loginBackgroundUrl),
+      },
+    };
   }
 
   async updateSettings(dto: UpdateTenantSettingsDto) {
@@ -110,6 +117,27 @@ export class TenantsService {
       where: { tenantId },
       data: dto,
     });
-    return { ...settings, logoUrl: await resolveDisplayUrl(this.storage, settings.logoUrl) };
+    return {
+      ...settings,
+      logoUrl: await resolveDisplayUrl(this.storage, settings.logoUrl),
+      loginBackgroundUrl: await resolveDisplayUrl(this.storage, settings.loginBackgroundUrl),
+    };
+  }
+
+  /**
+   * Public (pre-auth) lookup by slug — the login screen doesn't know which
+   * tenant it's for until the user types the workshop slug into the form,
+   * so there's no TenantContext yet; `platform` is the correct escape
+   * hatch here, not a request-scoped bypass. Returns the same shape
+   * (nulls) for an unknown slug rather than 404ing, so this can't be used
+   * to enumerate which workshop slugs exist.
+   */
+  async getBrandingBySlug(slug: string) {
+    const tenant = await this.prisma.platform.tenant.findUnique({
+      where: { slug },
+      include: { settings: true },
+    });
+    if (!tenant?.settings) return { loginBackgroundUrl: null };
+    return { loginBackgroundUrl: await resolveDisplayUrl(this.storage, tenant.settings.loginBackgroundUrl) };
   }
 }

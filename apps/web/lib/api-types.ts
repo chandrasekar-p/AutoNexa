@@ -117,6 +117,8 @@ export interface TenantSettings {
   state: string | null;
   /** Relative path from POST /uploads — resolve with lib/uploads.ts's resolveUploadUrl before use in an <img src>. Printed on this workshop's own exported PDF reports. */
   logoUrl: string | null;
+  /** Relative path from POST /uploads — shown behind the sign-in card on this workshop's login screen. Also readable pre-auth via GET /tenants/branding/:slug (see TenantBranding). */
+  loginBackgroundUrl: string | null;
   /** Incoming webhook URL for this workshop's own Slack — internal ops pings only (new appointment, invoice issued, ...), never customer-facing. */
   slackWebhookUrl: string | null;
   /** "HH:mm" 24h, e.g. "09:00" — both null means business hours were never set; see lib/workshop-hours.ts for the derived Open/Closed status. */
@@ -157,6 +159,11 @@ export interface BranchRef {
   id: string;
   name: string;
   city: string | null;
+}
+
+/** GET /tenants/branding/:slug — public, pre-auth. `loginBackgroundUrl` is null for an unknown slug too, so this can't be used to probe which workshop slugs exist. */
+export interface TenantBranding {
+  loginBackgroundUrl: string | null;
 }
 
 /** GET /tenants/me — requires tenant:read, which only Workshop Owner gets by default. */

@@ -72,6 +72,14 @@ __decorate([
 ], UpdateTenantSettingsDto.prototype, "logoUrl", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({
+        description: 'Relative path from POST /uploads — shown behind the sign-in card on the login screen for this workshop',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateTenantSettingsDto.prototype, "loginBackgroundUrl", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
         description: "Incoming webhook URL for this workshop's own Slack — internal ops pings only, never customer-facing",
     }),
     (0, class_validator_1.IsOptional)(),

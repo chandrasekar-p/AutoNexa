@@ -1,56 +1,71 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import {
-  clearLoginBackground,
-  getLoginBackground,
-  readFileAsDataUrl,
-  setLoginBackground,
-  validateLoginBackgroundFile,
-} from '@/lib/settings/login-background';
+import { useRef, useState, type ChangeEvent } from 'react';
+import { apiGet, apiPatch, apiPost, ApiError } from '@/lib/api-client';
+import { useApiQuery } from '@/lib/hooks/use-api-query';
+import { usePermission } from '@/lib/hooks/use-permission';
+import { resolveUploadUrl } from '@/lib/uploads';
+import type { CurrentTenant } from '@/lib/api-types';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/error-state';
 
+/**
+ * Workshop-wide (tenant) setting — every device signing into this workshop
+ * sees the same wallpaper, via the public GET /tenants/branding/:slug
+ * lookup on the login screen (see LoginBrandingProvider). Same
+ * upload-then-PATCH pattern as WorkshopLogoSetting in
+ * workshop-settings-card.tsx; independently fetches its own GET
+ * /tenants/me, matching ReminderSettingsCard/NotificationChannelsCard's
+ * same per-card-fetch precedent rather than sharing one query.
+ */
 export function LoginBackgroundSetting() {
-  const [preview, setPreview] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const canRead = usePermission('tenant:read');
+  const canUpdate = usePermission('settings:update');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // localStorage doesn't exist during SSR — read it after mount rather
-  // than in useState's initializer, same pattern as ThemeProvider's
-  // readInitialTheme (see lib/theme/theme-context.tsx), except here there's
-  // no pre-hydration script to race against, so a plain post-mount read is
-  // enough.
-  useEffect(() => {
-    setPreview(getLoginBackground());
-  }, []);
+  const query = useApiQuery<CurrentTenant>(
+    () => (canRead ? apiGet('/tenants/me') : Promise.reject(new Error('n/a'))),
+    [canRead],
+  );
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    event.target.value = ''; // lets the same file be re-selected later (e.g. after Remove)
+    event.target.value = '';
     if (!file) return;
 
-    const validationError = validateLoginBackgroundFile(file);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    const dataUrl = await readFileAsDataUrl(file);
-    const storeError = setLoginBackground(dataUrl);
-    if (storeError) {
-      setError(storeError);
-      return;
-    }
+    setIsUploading(true);
     setError(null);
-    setPreview(dataUrl);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'login-background');
+      const uploaded = await apiPost<{ url: string }>('/uploads', formData);
+      await apiPatch('/tenants/me/settings', { loginBackgroundUrl: uploaded.url });
+      query.refetch();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload this image.');
+    } finally {
+      setIsUploading(false);
+    }
   }
 
-  function handleRemove() {
-    clearLoginBackground();
-    setPreview(null);
+  async function handleRemove() {
     setError(null);
+    try {
+      await apiPatch('/tenants/me/settings', { loginBackgroundUrl: null });
+      query.refetch();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not remove this image.');
+    }
   }
+
+  if (!canRead) return null;
+
+  const backgroundUrl = query.data?.settings.loginBackgroundUrl ?? null;
 
   return (
     <Card>
@@ -61,32 +76,37 @@ export function LoginBackgroundSetting() {
         <div>
           <p className="text-sm text-ink">Login screen wallpaper</p>
           <p className="text-xs text-ink-muted">
-            Shown behind the sign-in card — saved to this browser only, not shared with other users or devices.
-            JPEG, PNG, or WEBP, up to 3MB.
+            Shown behind the sign-in card for everyone signing into this workshop, on any device.
+            JPEG, PNG, or WEBP.
           </p>
         </div>
 
-        {preview ? (
+        {query.isLoading ? <Skeleton className="h-32 w-full max-w-xs" /> : null}
+        {query.error ? <ErrorState message={query.error} onRetry={query.refetch} /> : null}
+
+        {query.data && backgroundUrl ? (
           <div
             role="img"
             aria-label="Current login wallpaper"
             className="h-32 w-full max-w-xs rounded-lg border border-line bg-cover bg-center"
-            style={{ backgroundImage: `url(${preview})` }}
+            style={{ backgroundImage: `url(${resolveUploadUrl(backgroundUrl)})` }}
           />
         ) : null}
 
         {error ? <p className="text-xs text-danger-600 dark:text-danger-400">{error}</p> : null}
 
-        <div className="flex gap-3">
-          <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
-            {preview ? 'Change image' : 'Choose image'}
-          </Button>
-          {preview ? (
-            <Button type="button" variant="ghost" size="sm" onClick={handleRemove}>
-              Remove
+        {query.data && canUpdate ? (
+          <div className="flex gap-3">
+            <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()} isLoading={isUploading}>
+              {backgroundUrl ? 'Change image' : 'Choose image'}
             </Button>
-          ) : null}
-        </div>
+            {backgroundUrl ? (
+              <Button type="button" variant="ghost" size="sm" onClick={handleRemove}>
+                Remove
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <input
           ref={inputRef}
           type="file"
