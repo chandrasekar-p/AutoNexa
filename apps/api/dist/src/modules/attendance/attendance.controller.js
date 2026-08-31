@@ -42,6 +42,9 @@ let AttendanceController = class AttendanceController {
     findAll(query) {
         return this.attendanceService.findAll(query);
     }
+    summary(date) {
+        return this.attendanceService.summary(date);
+    }
     create(dto, user) {
         return this.attendanceService.create(dto, user.userId);
     }
@@ -92,6 +95,14 @@ __decorate([
     __metadata("design:paramtypes", [list_attendance_query_dto_1.ListAttendanceQueryDto]),
     __metadata("design:returntype", void 0)
 ], AttendanceController.prototype, "findAll", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('attendance:read'),
+    (0, common_1.Get)('summary'),
+    __param(0, (0, common_1.Query)('date')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AttendanceController.prototype, "summary", null);
 __decorate([
     (0, permissions_decorator_1.Permissions)('attendance:create'),
     (0, common_1.Post)(),

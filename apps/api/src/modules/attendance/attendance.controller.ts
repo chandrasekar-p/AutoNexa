@@ -48,6 +48,12 @@ export class AttendanceController {
     return this.attendanceService.findAll(query);
   }
 
+  @Permissions('attendance:read')
+  @Get('summary')
+  summary(@Query('date') date?: string) {
+    return this.attendanceService.summary(date);
+  }
+
   @Permissions('attendance:create')
   @Post()
   @Audit('attendance.mark', 'AttendanceRecord')

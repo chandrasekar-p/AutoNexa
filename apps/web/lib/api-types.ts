@@ -1149,6 +1149,16 @@ export interface AttendanceRecord {
   markedBy?: { id: string; name: string } | null;
 }
 
+/** GET /attendance/summary — see AttendanceService.summary(). notMarked/totalStaff are derived from active-user count, not stored. No "late" bucket — AttendanceStatus has no such value. */
+export interface AttendanceSummary {
+  present: number;
+  absent: number;
+  halfDay: number;
+  onLeave: number;
+  notMarked: number;
+  totalStaff: number;
+}
+
 /** A single {labourItem}/{part}/{partCategory} join row from GET /service-packages(/:id) — only the nested ref is ever rendered, the join row's own id isn't used. */
 export interface ServicePackageLabourItemRef {
   labourItem: { id: string; code: string; description: string };

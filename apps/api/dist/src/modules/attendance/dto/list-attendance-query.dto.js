@@ -22,6 +22,12 @@ class ListAttendanceQueryDto {
 }
 exports.ListAttendanceQueryDto = ListAttendanceQueryDto;
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Free-text search across staff name and employee ID' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListAttendanceQueryDto.prototype, "search", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: 'Restrict to one staff member' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsUUID)(),

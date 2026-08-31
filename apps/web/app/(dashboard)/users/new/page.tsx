@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Check } from 'lucide-react';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { validateCreateUserForm, type CreateUserFormErrors } from '@/lib/validation/user';
 import type { AppUser, Role } from '@/lib/api-types';
-import { Card, CardBody } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,7 +44,7 @@ export default function NewUserPage() {
     setIsSubmitting(true);
     try {
       const user = await apiPost<AppUser>('/users', result.data);
-      router.push(`/users/${user.id}`);
+      router.push(`/users/${user.id}?created=1`);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
       setIsSubmitting(false);
@@ -50,29 +52,28 @@ export default function NewUserPage() {
   }
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-ink">New User</h1>
-        <p className="text-sm text-ink-secondary">Create a new workshop staff account.</p>
+        <Link href="/users" className="text-sm text-ink-secondary hover:text-ink">
+          &larr; Back to Users
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold text-ink">New User</h1>
+        <p className="text-sm text-ink-secondary">Create a new workshop staff account and assign their roles.</p>
       </div>
 
       {roles.isLoading ? <Skeleton className="h-64 w-full" /> : null}
       {roles.error ? <ErrorState message={roles.error} onRetry={roles.refetch} /> : null}
 
       {roles.data ? (
-        <Card>
-          <CardBody className="pt-5">
-            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required />
-                <Input
-                  label="Email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  error={errors.email}
-                  required
-                />
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Information</CardTitle>
+            </CardHeader>
+            <CardBody className="grid grid-cols-1 gap-4 pt-3 sm:grid-cols-2">
+              <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required />
+              <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} required />
+              <div className="flex flex-col gap-1.5">
                 <Input
                   label="Password"
                   type="password"
@@ -81,47 +82,67 @@ export default function NewUserPage() {
                   error={errors.password}
                   required
                 />
-                <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={errors.phone} />
+                {!errors.password ? <p className="text-xs text-ink-muted">At least 8 characters.</p> : null}
               </div>
+              <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={errors.phone} />
+            </CardBody>
+          </Card>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium text-ink-secondary">Roles</span>
-                <div className="flex flex-wrap gap-3">
-                  {roles.data.map((role) => (
-                    <label key={role.id} className="flex items-center gap-2 rounded border border-line px-3 py-1.5 text-sm text-ink">
-                      <input
-                        type="checkbox"
-                        checked={roleIds.includes(role.id)}
-                        onChange={() => toggleRole(role.id)}
-                        className="h-4 w-4 rounded border-line"
-                      />
-                      {role.name}
-                    </label>
-                  ))}
-                </div>
-                {errors.roleIds ? <p className="text-xs text-danger-600 dark:text-danger-400">{errors.roleIds}</p> : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>Roles & Access</CardTitle>
+            </CardHeader>
+            <CardBody className="flex flex-col gap-3 pt-3">
+              <p className="text-xs text-ink-muted">Select one or more roles. Permissions for each role are managed under Roles & Permissions.</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {roles.data.map((role) => {
+                  const checked = roleIds.includes(role.id);
+                  return (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => toggleRole(role.id)}
+                      aria-pressed={checked}
+                      className={
+                        checked
+                          ? 'flex items-center justify-between gap-2 rounded-lg border border-accent-400 bg-accent-50 px-4 py-3 text-left transition-colors dark:bg-accent-500/10'
+                          : 'flex items-center justify-between gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-hover'
+                      }
+                    >
+                      <span className="text-sm font-medium text-ink">{role.name}</span>
+                      {checked ? (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-500 text-white">
+                          <Check className="h-3 w-3" aria-hidden />
+                        </span>
+                      ) : (
+                        <span className="h-5 w-5 shrink-0 rounded-full border border-line" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
+              {errors.roleIds ? <p className="text-xs text-danger-600 dark:text-danger-400">{errors.roleIds}</p> : null}
+            </CardBody>
+          </Card>
 
-              {formError ? (
-                <p
-                  role="alert"
-                  className="rounded border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-400"
-                >
-                  {formError}
-                </p>
-              ) : null}
+          {formError ? (
+            <p
+              role="alert"
+              className="rounded border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-400"
+            >
+              {formError}
+            </p>
+          ) : null}
 
-              <div className="flex justify-end gap-3 pt-2">
-                <Button type="button" variant="secondary" onClick={() => router.back()} disabled={isSubmitting}>
-                  Cancel
-                </Button>
-                <Button type="submit" isLoading={isSubmitting}>
-                  Create User
-                </Button>
-              </div>
-            </form>
-          </CardBody>
-        </Card>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => router.back()} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmitting}>
+              Create User
+            </Button>
+          </div>
+        </form>
       ) : null}
     </div>
   );

@@ -112,18 +112,27 @@ let UsersService = class UsersService {
             await this.assertRolesBelongToTenant(dto.roleIds);
             await db.userRole.deleteMany({ where: { userId: id } });
         }
-        return db.user.update({
-            where: { id },
-            data: {
-                name: dto.name,
-                phone: dto.phone,
-                avatarUrl: dto.avatarUrl,
-                branchId: dto.branchId,
-                isActive: dto.isActive,
-                ...(dto.roleIds ? { roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } } : {}),
-            },
-            select: SAFE_SELECT,
-        });
+        const [user] = await Promise.all([
+            db.user.update({
+                where: { id },
+                data: {
+                    name: dto.name,
+                    phone: dto.phone,
+                    avatarUrl: dto.avatarUrl,
+                    branchId: dto.branchId,
+                    isActive: dto.isActive,
+                    ...(dto.roleIds ? { roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } } : {}),
+                },
+                select: SAFE_SELECT,
+            }),
+            dto.isActive === false
+                ? this.prisma.platform.refreshToken.updateMany({
+                    where: { userId: id, revokedAt: null },
+                    data: { revokedAt: new Date() },
+                })
+                : Promise.resolve(),
+        ]);
+        return user;
     }
     async remove(id) {
         await this.findOne(id);

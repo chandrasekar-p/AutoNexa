@@ -41,6 +41,24 @@ export function formatDurationMinutes(minutes: number): string {
   return rest === 0 ? `${hours} hr` : `${hours} hr ${rest} min`;
 }
 
+/** "9h 07m" — the Attendance table's compact hours-worked notation. A distinct style from formatDurationMinutes's "9 hr 7 min" (already used by Inspections/Appointments/Job Cards), not a replacement for it. */
+export function formatHoursMinutesCompact(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `${hours}h ${String(rest).padStart(2, '0')}m`;
+}
+
+/** "Today, 09:12 AM" / "Yesterday, 06:25 PM" / "2 Aug 2026, 11:40 AM" — the Users table's "Last Login" hybrid, precise but reads naturally for anything recent. */
+export function formatLastLogin(value: string | Date, now: Date = new Date()): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const dayDiff = Math.round((startOfDay(now).getTime() - startOfDay(d).getTime()) / 86400000);
+  const time = formatTime(d);
+  if (dayDiff === 0) return `Today, ${time}`;
+  if (dayDiff === 1) return `Yesterday, ${time}`;
+  return `${formatDate(d)}, ${time}`;
+}
+
 /** "Just now" / "5m ago" / "3h ago" / "2d ago" — for compact timestamps like a Kanban card's "Created X ago", not a substitute for formatDate on anything meant to be precise. */
 export function formatRelativeTimeAgo(value: string | Date): string {
   const d = typeof value === 'string' ? new Date(value) : value;

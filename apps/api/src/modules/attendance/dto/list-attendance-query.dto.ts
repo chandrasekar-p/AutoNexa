@@ -1,10 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { AttendanceStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 /** Owner/Manager view across all staff — GET /attendance (attendance:read). */
 export class ListAttendanceQueryDto {
+  @ApiPropertyOptional({ description: 'Free-text search across staff name and employee ID' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
   @ApiPropertyOptional({ description: 'Restrict to one staff member' })
   @IsOptional()
   @IsUUID()

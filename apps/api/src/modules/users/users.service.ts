@@ -82,18 +82,32 @@ export class UsersService {
       await db.userRole.deleteMany({ where: { userId: id } });
     }
 
-    return db.user.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        phone: dto.phone,
-        avatarUrl: dto.avatarUrl,
-        branchId: dto.branchId,
-        isActive: dto.isActive,
-        ...(dto.roleIds ? { roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } } : {}),
-      },
-      select: SAFE_SELECT,
-    });
+    const [user] = await Promise.all([
+      db.user.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          phone: dto.phone,
+          avatarUrl: dto.avatarUrl,
+          branchId: dto.branchId,
+          isActive: dto.isActive,
+          ...(dto.roleIds ? { roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } } : {}),
+        },
+        select: SAFE_SELECT,
+      }),
+      // Deactivating via this reversible PATCH path (not just the
+      // destructive DELETE /users/:id) must also take effect immediately —
+      // same reasoning and same code as remove()'s own token revocation.
+      // A no-op when dto.isActive isn't explicitly false (undefined/true
+      // never match this clause).
+      dto.isActive === false
+        ? this.prisma.platform.refreshToken.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt: new Date() },
+          })
+        : Promise.resolve(),
+    ]);
+    return user;
   }
 
   async remove(id: string) {

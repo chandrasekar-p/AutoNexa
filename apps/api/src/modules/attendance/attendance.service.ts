@@ -106,6 +106,16 @@ export class AttendanceService {
             },
           }
         : {}),
+      ...(query.search
+        ? {
+            user: {
+              OR: [
+                { name: { contains: query.search, mode: 'insensitive' as const } },
+                { technician: { employeeId: { contains: query.search, mode: 'insensitive' as const } } },
+              ],
+            },
+          }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -120,6 +130,38 @@ export class AttendanceService {
     ]);
 
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  /**
+   * KPI counts for one calendar day (defaults to today) — the four real
+   * statuses via one groupBy, plus totalStaff (active users) and the
+   * derived notMarked = totalStaff - (sum of the four). Never negative:
+   * a record left behind for a since-deactivated user can't push it below
+   * zero.
+   */
+  async summary(date?: string) {
+    const db = this.prisma.forTenant();
+    const targetDate = date ? dateOnly(new Date(date)) : todayDateOnly();
+
+    const [grouped, totalStaff] = await Promise.all([
+      db.attendanceRecord.groupBy({ by: ['status'], where: { date: targetDate }, _count: { _all: true } }),
+      db.user.count({ where: { isActive: true, deletedAt: null } }),
+    ]);
+
+    const counts: Record<AttendanceStatus, number> = { PRESENT: 0, ABSENT: 0, HALF_DAY: 0, ON_LEAVE: 0 };
+    for (const g of grouped) counts[g.status] = g._count._all;
+
+    const markedTotal = counts.PRESENT + counts.ABSENT + counts.HALF_DAY + counts.ON_LEAVE;
+    const notMarked = Math.max(totalStaff - markedTotal, 0);
+
+    return {
+      present: counts.PRESENT,
+      absent: counts.ABSENT,
+      halfDay: counts.HALF_DAY,
+      onLeave: counts.ON_LEAVE,
+      notMarked,
+      totalStaff,
+    };
   }
 
   /**

@@ -96,6 +96,16 @@ let AttendanceService = class AttendanceService {
                     },
                 }
                 : {}),
+            ...(query.search
+                ? {
+                    user: {
+                        OR: [
+                            { name: { contains: query.search, mode: 'insensitive' } },
+                            { technician: { employeeId: { contains: query.search, mode: 'insensitive' } } },
+                        ],
+                    },
+                }
+                : {}),
         };
         const [items, total] = await Promise.all([
             db.attendanceRecord.findMany({
@@ -108,6 +118,27 @@ let AttendanceService = class AttendanceService {
             db.attendanceRecord.count({ where }),
         ]);
         return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async summary(date) {
+        const db = this.prisma.forTenant();
+        const targetDate = date ? (0, date_only_1.dateOnly)(new Date(date)) : (0, date_only_1.todayDateOnly)();
+        const [grouped, totalStaff] = await Promise.all([
+            db.attendanceRecord.groupBy({ by: ['status'], where: { date: targetDate }, _count: { _all: true } }),
+            db.user.count({ where: { isActive: true, deletedAt: null } }),
+        ]);
+        const counts = { PRESENT: 0, ABSENT: 0, HALF_DAY: 0, ON_LEAVE: 0 };
+        for (const g of grouped)
+            counts[g.status] = g._count._all;
+        const markedTotal = counts.PRESENT + counts.ABSENT + counts.HALF_DAY + counts.ON_LEAVE;
+        const notMarked = Math.max(totalStaff - markedTotal, 0);
+        return {
+            present: counts.PRESENT,
+            absent: counts.ABSENT,
+            halfDay: counts.HALF_DAY,
+            onLeave: counts.ON_LEAVE,
+            notMarked,
+            totalStaff,
+        };
     }
     async create(dto, markedByUserId) {
         await this.assertUserExists(dto.userId);
