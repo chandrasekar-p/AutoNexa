@@ -1,21 +1,17 @@
 'use client';
 
 import { AlertTriangle } from 'lucide-react';
-import { apiGet } from '@/lib/api-client';
-import { useApiQuery } from '@/lib/hooks/use-api-query';
+import { useTrialStatus } from '@/lib/hooks/use-trial-status';
 import { daysUntil } from '@/lib/format';
-import type { TrialStatus } from '@/lib/api-types';
 
 /**
  * Soft warning only, per today's scope — never blocks access. Renders
- * nothing for a non-trial plan, or a trial with more than 3 days left.
- * GET /tenants/me/trial-status has no @Permissions() gate (any
- * authenticated staff member, not just Workshop Owner) specifically so
- * this shows for whoever's logged in, not only the owner.
+ * nothing for a non-trial plan, or a trial with more than 3 days left
+ * (see TrialStatusChip in the Topbar for the always-visible countdown —
+ * this banner is only the urgent last-3-days/expired escalation).
  */
 export function TrialStatusBanner() {
-  const query = useApiQuery<TrialStatus>(() => apiGet('/tenants/me/trial-status'), []);
-  const status = query.data;
+  const status = useTrialStatus();
 
   if (!status || status.planTier !== 'trial' || !status.trialEndsAt) return null;
 

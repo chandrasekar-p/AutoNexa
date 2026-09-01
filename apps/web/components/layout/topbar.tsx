@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { GlobalSearch } from '@/components/domain/global-search';
 import { AttendanceClockWidget } from '@/components/domain/attendance-clock-widget';
 import { NotificationBell } from '@/components/domain/notification-bell';
+import { TrialStatusChip } from '@/components/domain/trial-status-chip';
 import { UserMenu } from './user-menu';
 
 interface TopbarProps {
@@ -44,6 +45,7 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
         ) : (
           <span className="hidden shrink-0 text-sm font-medium text-ink md:block">&nbsp;</span>
         )}
+        <TrialStatusChip />
         <GlobalSearch />
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
