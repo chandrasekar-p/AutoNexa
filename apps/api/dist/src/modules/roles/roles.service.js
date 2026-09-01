@@ -75,7 +75,9 @@ let RolesService = class RolesService {
         if (assignedCount > 0) {
             throw new common_1.BadRequestException(`Cannot delete role: ${assignedCount} user(s) are still assigned to it. Reassign them first.`);
         }
-        return this.prisma.forTenant().role.delete({ where: { id } });
+        const db = this.prisma.forTenant();
+        await db.rolePermission.deleteMany({ where: { roleId: id } });
+        return db.role.delete({ where: { id } });
     }
     async assertPermissionsExist(permissionIds) {
         if (permissionIds.length === 0)

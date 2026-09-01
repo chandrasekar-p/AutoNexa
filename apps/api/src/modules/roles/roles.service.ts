@@ -74,7 +74,14 @@ export class RolesService {
         `Cannot delete role: ${assignedCount} user(s) are still assigned to it. Reassign them first.`,
       );
     }
-    return this.prisma.forTenant().role.delete({ where: { id } });
+    const db = this.prisma.forTenant();
+    // RolePermission has no onDelete: Cascade on its roleId relation — every
+    // role has at least one of these rows (roles are created with
+    // permissions), so deleting the Role first always violated the FK
+    // constraint and 500'd. Clear its own permission rows first, same as
+    // update() already does when replacing them.
+    await db.rolePermission.deleteMany({ where: { roleId: id } });
+    return db.role.delete({ where: { id } });
   }
 
   private async assertPermissionsExist(permissionIds: string[]) {
