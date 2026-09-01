@@ -17,6 +17,7 @@ import { JobCardPartLines } from '@/components/domain/job-card-part-lines';
 import { JobCardNotes } from '@/components/domain/job-card-notes';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -300,11 +301,10 @@ export default function JobCardDetailPage() {
               onChange={(e) => setOdometer(e.target.value)}
               disabled={!canUpdate}
             />
-            <Input
+            <DatePicker
               label="Expected Delivery"
-              type="date"
               value={expectedDelivery ?? jobCard.expectedDelivery?.slice(0, 10) ?? ''}
-              onChange={(e) => setExpectedDelivery(e.target.value)}
+              onChange={setExpectedDelivery}
               disabled={!canUpdate}
             />
             {jobCard.actualDelivery ? <Input label="Actual Delivery" value={formatDate(jobCard.actualDelivery)} disabled /> : null}

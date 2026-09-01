@@ -34,6 +34,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -141,7 +142,7 @@ function MarkAttendanceForm({ editing, onSaved, onCancelEdit }: MarkAttendanceFo
                 </option>
               ))}
             </Select>
-            <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={!!editing} required />
+            <DatePicker label="Date" value={date} onChange={setDate} disabled={!!editing} required />
             <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value as AttendanceStatus)}>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>

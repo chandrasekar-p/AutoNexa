@@ -11,6 +11,7 @@ import { SupplierPicker } from '@/components/domain/supplier-picker';
 import { PurchaseOrderItemsBuilder, type PurchaseOrderDraftItem } from '@/components/domain/purchase-order-items-builder';
 import { Card, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -144,11 +145,10 @@ export default function NewPurchaseOrderPage() {
               <div className="grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <SectionTitle>Delivery</SectionTitle>
-                  <Input
+                  <DatePicker
                     label="Expected Delivery Date"
-                    type="date"
                     value={expectedDeliveryDate}
-                    onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                    onChange={setExpectedDeliveryDate}
                   />
                 </div>
                 <div className="flex flex-col gap-2">

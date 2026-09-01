@@ -5,6 +5,7 @@ import { apiPost, ApiError } from '@/lib/api-client';
 import { validatePaymentForm, type PaymentFormErrors, type PaymentFormValues } from '@/lib/validation/payment';
 import type { InvoiceDetail } from '@/lib/api-types';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
@@ -83,7 +84,7 @@ export function RecordPaymentForm({ invoiceId, onRecorded }: RecordPaymentFormPr
             </option>
           ))}
         </Select>
-        <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} error={errors.paymentDate} />
+        <DatePicker value={paymentDate} onChange={setPaymentDate} error={errors.paymentDate} />
         <Input
           value={referenceNumber}
           onChange={(e) => setReferenceNumber(e.target.value)}

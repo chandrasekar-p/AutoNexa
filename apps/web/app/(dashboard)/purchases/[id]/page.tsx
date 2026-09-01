@@ -19,6 +19,7 @@ import { KpiCard } from '@/components/domain/kpi-card';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -161,7 +162,7 @@ export default function PurchaseOrderDetailPage() {
           <CardBody className="flex flex-col gap-4">
             <p className="text-xs text-ink-muted">Purchase order items are fixed after creation. Receiving is tracked separately.</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input label="Expected Delivery Date" type="date" value={draftExpectedDelivery} onChange={(e) => setDraftExpectedDelivery(e.target.value)} />
+              <DatePicker label="Expected Delivery Date" value={draftExpectedDelivery} onChange={setDraftExpectedDelivery} />
             </div>
             <Textarea label="Notes" value={draftNotes} onChange={(e) => setDraftNotes(e.target.value)} />
             <div className="flex justify-end gap-3">

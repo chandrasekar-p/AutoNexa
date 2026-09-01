@@ -7,6 +7,7 @@ import type { PurchaseInvoice, PurchaseInvoiceStatus } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -74,7 +75,7 @@ function RecordPaymentForm({ invoiceId, onRecorded }: { invoiceId: string; onRec
   return (
     <div className="flex flex-wrap items-end gap-2 rounded border border-line bg-surface-hover p-3">
       <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" className="h-9 w-28" />
-      <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="h-9 w-40" />
+      <DatePicker value={paymentDate} onChange={setPaymentDate} className="h-9 w-40" />
       <Input value={method} onChange={(e) => setMethod(e.target.value)} placeholder="Method" className="h-9 w-32" />
       <Input
         value={referenceNumber}
@@ -141,7 +142,7 @@ function RecordInvoiceForm({ purchaseOrderId, onRecorded }: { purchaseOrderId: s
           placeholder="Supplier invoice #"
           className="h-9 w-40"
         />
-        <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="h-9 w-40" />
+        <DatePicker value={invoiceDate} onChange={setInvoiceDate} className="h-9 w-40" />
         <Input type="number" value={subtotal} onChange={(e) => setSubtotal(e.target.value)} placeholder="Subtotal" className="h-9 w-28" />
         <Input type="number" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} placeholder="Tax" className="h-9 w-24" />
         <Input type="number" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="Total" className="h-9 w-28" />

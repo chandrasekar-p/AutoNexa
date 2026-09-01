@@ -8,6 +8,7 @@ import { VEHICLE_BRANDS, MODELS_BY_BRAND, FUEL_TYPES, TRANSMISSIONS, VEHICLE_COL
 import type { CustomerRef, VehicleDetail } from '@/lib/api-types';
 import { daysUntil, initialsFor } from '@/lib/format';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -331,14 +332,14 @@ export function VehicleForm({ customer, initial, submitLabel, onSubmit, onCancel
               <SectionHeading number={2} title="Documents & Compliance" subtitle="Insurance, PUC and warranty details." />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <Input label="Insurance Expiry" type="date" value={values.insuranceExpiry} onChange={(e) => set('insuranceExpiry', e.target.value)} error={errors.insuranceExpiry} />
+                  <DatePicker label="Insurance Expiry" value={values.insuranceExpiry} onChange={(v) => set('insuranceExpiry', v)} error={errors.insuranceExpiry} />
                   <ExpiryHint date={values.insuranceExpiry} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Input label="PUC Expiry" type="date" value={values.pucExpiry} onChange={(e) => set('pucExpiry', e.target.value)} error={errors.pucExpiry} />
+                  <DatePicker label="PUC Expiry" value={values.pucExpiry} onChange={(v) => set('pucExpiry', v)} error={errors.pucExpiry} />
                   <ExpiryHint date={values.pucExpiry} />
                 </div>
-                <Input label="Purchase Date" type="date" value={values.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} error={errors.purchaseDate} />
+                <DatePicker label="Purchase Date" value={values.purchaseDate} onChange={(v) => set('purchaseDate', v)} error={errors.purchaseDate} />
 
                 {forceCustomWarranty ? (
                   <div className="flex flex-col gap-1.5">

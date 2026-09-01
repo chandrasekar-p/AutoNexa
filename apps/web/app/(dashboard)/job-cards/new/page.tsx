@@ -10,6 +10,7 @@ import type { CustomerRef, JobCardDetail, JobCardPriority, PaginatedResult, Tech
 import { CustomerPicker } from '@/components/domain/customer-picker';
 import { Card, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -161,12 +162,7 @@ export default function NewJobCardPage() {
                   <option value="URGENT">Urgent</option>
                 </Select>
                 <Input label="Odometer (km)" type="number" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
-                <Input
-                  label="Expected Delivery"
-                  type="date"
-                  value={expectedDelivery}
-                  onChange={(e) => setExpectedDelivery(e.target.value)}
-                />
+                <DatePicker label="Expected Delivery" value={expectedDelivery} onChange={setExpectedDelivery} />
                 {technicians.data && technicians.data.items.length > 0 ? (
                   <Select label="Technician" value={technicianId} onChange={(e) => setTechnicianId(e.target.value)}>
                     <option value="">—</option>

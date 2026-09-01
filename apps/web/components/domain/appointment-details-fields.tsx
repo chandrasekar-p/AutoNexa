@@ -6,6 +6,7 @@ import { useStaffOptions } from '@/lib/hooks/use-staff-options';
 import { SERVICE_TYPE_PRESETS, OTHER_SERVICE_TYPE, estimatedDurationFor } from '@/lib/data/service-types';
 import { formatDurationMinutes } from '@/lib/format';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { TimePicker } from '@/components/ui/time-picker';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -71,11 +72,10 @@ export function AppointmentDetailsFields({ values, errors, onChange }: Appointme
           {duration ? <p className="text-xs text-ink-muted">Estimated duration: ~{formatDurationMinutes(duration)}</p> : null}
         </div>
         <div />
-        <Input
+        <DatePicker
           label="Date"
-          type="date"
           value={values.appointmentDate}
-          onChange={(e) => onChange('appointmentDate', e.target.value)}
+          onChange={(v) => onChange('appointmentDate', v)}
           error={errors.appointmentDate}
           required
         />
