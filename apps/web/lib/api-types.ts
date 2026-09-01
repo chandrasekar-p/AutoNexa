@@ -178,6 +178,28 @@ export interface CurrentTenant {
   branches: BranchRef[];
 }
 
+export type PlanTier = 'trial' | 'starter' | 'pro' | 'standard';
+
+/** GET /tenants, GET /tenants/:id (both Super Admin only) — the platform-admin workshop list/detail views. */
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  gstin: string | null;
+  planTier: string;
+  /** Null means no trial — either a permanent/paid plan, or created before this field existed. */
+  trialEndsAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /tenants/me/trial-status — any authenticated staff member, not just Workshop Owner (see the backend's own doc comment on why). Powers TrialStatusBanner. */
+export interface TrialStatus {
+  planTier: string;
+  trialEndsAt: string | null;
+}
+
 /** Shape returned by every paginated list endpoint (GET /customers, etc.) — see ListCustomersQueryDto and its siblings on the backend. */
 export interface PaginatedResult<T> {
   items: T[];

@@ -9,9 +9,10 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateTenantDto = void 0;
+exports.CreateTenantDto = exports.PLAN_TIERS = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+exports.PLAN_TIERS = ['trial', 'starter', 'pro'];
 class CreateTenantDto {
 }
 exports.CreateTenantDto = CreateTenantDto;
@@ -50,4 +51,17 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CreateTenantDto.prototype, "ownerPassword", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: exports.PLAN_TIERS, example: 'trial', description: 'Defaults to "standard" (permanent, no trial) when omitted' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(exports.PLAN_TIERS),
+    __metadata("design:type", String)
+], CreateTenantDto.prototype, "planTier", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 14, description: 'Only meaningful when planTier is "trial" — days from creation until trialEndsAt. Defaults to 14.' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CreateTenantDto.prototype, "trialDays", void 0);
 //# sourceMappingURL=create-tenant.dto.js.map

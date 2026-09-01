@@ -62,12 +62,16 @@ let TenantsService = class TenantsService {
         const existing = await this.prisma.platform.tenant.findUnique({ where: { slug: dto.slug } });
         if (existing)
             throw new common_1.ConflictException(`Slug "${dto.slug}" is already in use`);
+        const planTier = dto.planTier ?? 'standard';
+        const trialEndsAt = planTier === 'trial' ? new Date(Date.now() + (dto.trialDays ?? 14) * 24 * 60 * 60 * 1000) : null;
         return this.prisma.platform.$transaction(async (tx) => {
             const tenant = await tx.tenant.create({
                 data: {
                     name: dto.name,
                     slug: dto.slug,
                     gstin: dto.gstin,
+                    planTier,
+                    trialEndsAt,
                     settings: { create: {} },
                 },
             });
@@ -120,6 +124,32 @@ let TenantsService = class TenantsService {
             where: { deletedAt: null, NOT: { slug: 'platform' } },
             orderBy: { createdAt: 'desc' },
         });
+    }
+    async findOne(id) {
+        const tenant = await this.prisma.platform.tenant.findUnique({ where: { id } });
+        if (!tenant)
+            throw new common_1.NotFoundException('Tenant not found');
+        return tenant;
+    }
+    async updatePlan(id, dto) {
+        await this.findOne(id);
+        return this.prisma.platform.tenant.update({
+            where: { id },
+            data: {
+                planTier: dto.planTier,
+                trialEndsAt: dto.trialEndsAt === undefined ? undefined : dto.trialEndsAt === null ? null : new Date(dto.trialEndsAt),
+            },
+        });
+    }
+    async getTrialStatus() {
+        const tenantId = tenant_context_1.TenantContext.requireTenantId();
+        const tenant = await this.prisma.platform.tenant.findUnique({
+            where: { id: tenantId },
+            select: { planTier: true, trialEndsAt: true },
+        });
+        if (!tenant)
+            throw new common_1.NotFoundException('Tenant not found');
+        return tenant;
     }
     async getCurrentTenant() {
         const tenantId = tenant_context_1.TenantContext.requireTenantId();

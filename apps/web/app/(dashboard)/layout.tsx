@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { AppFooter } from '@/components/layout/footer';
+import { TrialStatusBanner } from '@/components/domain/trial-status-banner';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -47,6 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar mobileOpen={isMobileNavOpen} onMobileClose={() => setIsMobileNavOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar onOpenMobileNav={() => setIsMobileNavOpen(true)} />
+        <TrialStatusBanner />
         <main className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-6">{children}</main>
         <AppFooter />
       </div>

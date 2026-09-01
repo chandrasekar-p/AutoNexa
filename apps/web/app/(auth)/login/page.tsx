@@ -35,8 +35,8 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await login(result.data.tenantSlug, result.data.email, result.data.password);
-      router.push('/dashboard');
+      const { isSuperAdmin } = await login(result.data.tenantSlug, result.data.email, result.data.password);
+      router.push(isSuperAdmin ? '/admin/workshops' : '/dashboard');
     } catch (err) {
       // The backend deliberately doesn't reveal which field was wrong
       // ("Invalid workshop, email, or password" for any of the three) —

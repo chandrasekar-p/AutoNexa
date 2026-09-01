@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
+import { UpdateTenantPlanDto } from './dto/update-tenant-plan.dto';
 import { SuperAdminGuard } from '../../common/guards/super-admin.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -51,5 +52,30 @@ export class TenantsController {
   @Audit('tenant.settings.update', 'TenantSettings')
   updateSettings(@Body() dto: UpdateTenantSettingsDto) {
     return this.tenantsService.updateSettings(dto);
+  }
+
+  // Any authenticated staff member, not permission-gated — see
+  // getTrialStatus()'s own doc comment for why. Two literal segments
+  // ('me' + 'trial-status'), so no ordering conflict with the single-
+  // segment `:id` route below.
+  @Get('me/trial-status')
+  getTrialStatus() {
+    return this.tenantsService.getTrialStatus();
+  }
+
+  // ── Platform-level (Super Admin only), continued ────────────────────
+  // Single-segment `:id` routes registered last so they can't shadow the
+  // literal `me`/`branding` prefixes above.
+  @UseGuards(SuperAdminGuard)
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.tenantsService.findOne(id);
+  }
+
+  @UseGuards(SuperAdminGuard)
+  @Patch(':id/plan')
+  @Audit('tenant.plan.update', 'Tenant')
+  updatePlan(@Param('id') id: string, @Body() dto: UpdateTenantPlanDto) {
+    return this.tenantsService.updatePlan(id, dto);
   }
 }

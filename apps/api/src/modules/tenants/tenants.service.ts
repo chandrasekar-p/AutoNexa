@@ -7,6 +7,7 @@ import { STORAGE_SERVICE, StorageService } from '../storage/storage.types';
 import { resolveDisplayUrl } from '../storage/resolve-display-url';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
+import { UpdateTenantPlanDto } from './dto/update-tenant-plan.dto';
 import { RESOURCES, ACTIONS, DEFAULT_ROLE_GRANTS } from '../roles/default-role-grants';
 
 @Injectable()
@@ -27,12 +28,17 @@ export class TenantsService {
     const existing = await this.prisma.platform.tenant.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug "${dto.slug}" is already in use`);
 
+    const planTier = dto.planTier ?? 'standard';
+    const trialEndsAt = planTier === 'trial' ? new Date(Date.now() + (dto.trialDays ?? 14) * 24 * 60 * 60 * 1000) : null;
+
     return this.prisma.platform.$transaction(async (tx: Prisma.TransactionClient) => {
       const tenant = await tx.tenant.create({
         data: {
           name: dto.name,
           slug: dto.slug,
           gstin: dto.gstin,
+          planTier,
+          trialEndsAt,
           settings: { create: {} },
         },
       });
@@ -89,6 +95,43 @@ export class TenantsService {
       where: { deletedAt: null, NOT: { slug: 'platform' } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** Platform-level: fetch any single tenant by id, for the Super Admin workshop detail page. */
+  async findOne(id: string) {
+    const tenant = await this.prisma.platform.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return tenant;
+  }
+
+  /** Platform-level: change plan tier and/or trial end date on an existing tenant (e.g. a trial converting to paid). */
+  async updatePlan(id: string, dto: UpdateTenantPlanDto) {
+    await this.findOne(id);
+    return this.prisma.platform.tenant.update({
+      where: { id },
+      data: {
+        planTier: dto.planTier,
+        trialEndsAt: dto.trialEndsAt === undefined ? undefined : dto.trialEndsAt === null ? null : new Date(dto.trialEndsAt),
+      },
+    });
+  }
+
+  /**
+   * Deliberately no @Permissions() guard on the controller route for this
+   * one — tenant:read (which GET /tenants/me requires) only Workshop Owner
+   * gets by default, but every staff member should see a trial-ending
+   * warning, not just the owner. Just needs a valid token (JwtAuthGuard),
+   * same posture as GET /auth/me. Returns only the two fields the banner
+   * needs, nothing else about the tenant.
+   */
+  async getTrialStatus() {
+    const tenantId = TenantContext.requireTenantId();
+    const tenant = await this.prisma.platform.tenant.findUnique({
+      where: { id: tenantId },
+      select: { planTier: true, trialEndsAt: true },
+    });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return tenant;
   }
 
   /** Self-service: the caller's own tenant, resolved from TenantContext. */

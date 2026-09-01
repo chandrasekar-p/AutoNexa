@@ -20,6 +20,11 @@ model Tenant {
   slug      String    @unique
   gstin     String?
   planTier  String    @default("standard")
+  // Null means no trial — either a permanent/paid plan, or a tenant
+  // created before this field existed. Only meaningful when planTier is
+  // "trial"; set at provisioning time from CreateTenantDto.trialDays,
+  // updatable later via PATCH /tenants/:id/plan when a trial converts.
+  trialEndsAt DateTime?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

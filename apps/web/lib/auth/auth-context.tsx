@@ -8,7 +8,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   accessToken: string | null;
   isLoading: boolean;
-  login: (tenantSlug: string, email: string, password: string) => Promise<void>;
+  /** Resolves to the freshly-logged-in user's isSuperAdmin flag — read synchronously off the return value (not the `user` state) since a state update isn't guaranteed to have committed yet right after this resolves. Used by the login page to route a Super Admin straight to /admin/workshops instead of /dashboard. */
+  login: (tenantSlug: string, email: string, password: string) => Promise<{ isSuperAdmin: boolean }>;
   logout: () => Promise<void>;
   /** Called by the profile page after a successful PATCH /users/me so the topbar/sidebar reflect a name change immediately, without a reload. */
   setUserName: (name: string) => void;
@@ -94,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // flattened permissions array — that only comes from /auth/me.
       const me = await apiFetch<MeResponse>('/auth/me');
       setUser({ ...me, name: data.user.name });
+      return { isSuperAdmin: me.isSuperAdmin };
     },
     [applyToken],
   );
