@@ -8,6 +8,7 @@ import { resolveUploadUrl } from '@/lib/uploads';
 import type { CurrentTenant, TenantSettings } from '@/lib/api-types';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { TimePicker } from '@/components/ui/time-picker';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -190,18 +191,18 @@ export function WorkshopSettingsCard() {
                 placeholder="Tamil Nadu"
                 disabled={!canUpdate}
               />
-              <Input
+              <TimePicker
                 label="Opens At"
-                type="time"
+                format="24h"
                 value={values.businessHoursOpen ?? query.data.settings.businessHoursOpen ?? ''}
-                onChange={(e) => set('businessHoursOpen', e.target.value)}
+                onChange={(v) => set('businessHoursOpen', v)}
                 disabled={!canUpdate}
               />
-              <Input
+              <TimePicker
                 label="Closes At"
-                type="time"
+                format="24h"
                 value={values.businessHoursClose ?? query.data.settings.businessHoursClose ?? ''}
-                onChange={(e) => set('businessHoursClose', e.target.value)}
+                onChange={(v) => set('businessHoursClose', v)}
                 disabled={!canUpdate}
               />
               <div className="flex flex-col gap-1.5">

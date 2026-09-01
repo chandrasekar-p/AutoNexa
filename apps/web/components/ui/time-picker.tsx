@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { parseTime, formatTime, nearestFive, type ParsedTime } from '@/lib/time-picker';
+import { parseTime, formatTime, parseTime24, formatTime24, nearestFive, type ParsedTime } from '@/lib/time-picker';
 import { Input } from './input';
 
 // Matches CHART_COLORS.accent (lib/chart-colors.ts) — same reasoning: SVG
@@ -17,6 +17,17 @@ interface TimePickerProps {
   onChange: (value: string) => void;
   error?: string;
   required?: boolean;
+  /**
+   * '12h' (default) round-trips the app's free-text "10:30 AM" string
+   * (CreateAppointmentDto.appointmentTime, Technician.workingHours*). '24h'
+   * round-trips a strict "HH:mm" string instead — for fields a backend
+   * validates with @Matches(HH_MM_REGEX) (TenantSettings.businessHours*) or
+   * that get spliced straight into a Date-string (Attendance's
+   * check-in/out). The dial itself is always a 12-hour face either way —
+   * only what gets parsed in and emitted out differs.
+   */
+  format?: '12h' | '24h';
+  disabled?: boolean;
 }
 
 const HOUR_LABELS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -37,15 +48,18 @@ function pointOnDial(index: number): { x: number; y: number } {
  * CreateAppointmentDto.appointmentTime), so no backend change was needed;
  * this only replaces how that string gets typed in.
  */
-export function TimePicker({ label, value, onChange, error, required }: TimePickerProps) {
+export function TimePicker({ label, value, onChange, error, required, format = '12h', disabled }: TimePickerProps) {
+  const parse = format === '24h' ? parseTime24 : parseTime;
+  const emit = format === '24h' ? formatTime24 : formatTime;
+
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<'hour' | 'minute'>('hour');
-  const [draft, setDraft] = useState<ParsedTime>(() => parseTime(value));
+  const [draft, setDraft] = useState<ParsedTime>(() => parse(value));
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setDraft(parseTime(value));
+      setDraft(parse(value));
       setMode('hour');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,7 +86,7 @@ export function TimePicker({ label, value, onChange, error, required }: TimePick
   }, [isOpen]);
 
   function commit() {
-    onChange(formatTime(draft));
+    onChange(emit(draft));
     setIsOpen(false);
   }
 
@@ -85,6 +99,11 @@ export function TimePicker({ label, value, onChange, error, required }: TimePick
     }
   }
 
+  // The trigger input always reads "2:30 PM" regardless of `format` — the
+  // 24h mode only changes what's parsed in / emitted out, not how it's
+  // displayed (an admin reads AM/PM more naturally than "14:30").
+  const displayValue = value ? formatTime(parse(value)) : '';
+
   const labels = mode === 'hour' ? HOUR_LABELS : MINUTE_LABELS;
   const selectedLabel = mode === 'hour' ? draft.hour12 : nearestFive(draft.minute);
   const selectedIndex = labels.indexOf(selectedLabel);
@@ -95,13 +114,14 @@ export function TimePicker({ label, value, onChange, error, required }: TimePick
       <div className="relative">
         <Input
           label={label}
-          value={value}
+          value={displayValue}
           placeholder="Select time"
           readOnly
           required={required}
           error={error}
-          onClick={() => setIsOpen((v) => !v)}
-          className="cursor-pointer pr-10"
+          disabled={disabled}
+          onClick={() => !disabled && setIsOpen((v) => !v)}
+          className={cn('pr-10', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}
         />
         <Clock
           aria-hidden

@@ -34,6 +34,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { TimePicker } from '@/components/ui/time-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -152,8 +153,8 @@ function MarkAttendanceForm({ editing, onSaved, onCancelEdit }: MarkAttendanceFo
 
           {showCheckTimes ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input label="Check In" type="time" value={checkInAt} onChange={(e) => setCheckInAt(e.target.value)} />
-              <Input label="Check Out" type="time" value={checkOutAt} onChange={(e) => setCheckOutAt(e.target.value)} />
+              <TimePicker label="Check In" format="24h" value={checkInAt} onChange={setCheckInAt} />
+              <TimePicker label="Check Out" format="24h" value={checkOutAt} onChange={setCheckOutAt} />
             </div>
           ) : (
             <p className="text-xs text-ink-muted">Check in/out isn’t tracked for {ATTENDANCE_STATUS_LABEL[status].toLowerCase()}.</p>
