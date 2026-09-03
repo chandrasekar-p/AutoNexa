@@ -1,6 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const part_stock_adjustment_1 = require("../src/modules/parts/part-stock-adjustment");
+function decimalString(value) {
+    return value.toString();
+}
 describe('mapAdjustmentReasonToTxnType', () => {
     it('maps DAMAGED and RETURNED to their own dedicated enum values', () => {
         expect((0, part_stock_adjustment_1.mapAdjustmentReasonToTxnType)('DAMAGED')).toBe('DAMAGED');
@@ -16,10 +19,16 @@ describe('mapAdjustmentReasonToTxnType', () => {
 });
 describe('computeAdjustmentDelta', () => {
     it('is positive for Stock In', () => {
-        expect((0, part_stock_adjustment_1.computeAdjustmentDelta)('IN', 10)).toBe(10);
+        expect(decimalString((0, part_stock_adjustment_1.computeAdjustmentDelta)('IN', 10))).toBe('10');
     });
     it('is negative for Stock Out', () => {
-        expect((0, part_stock_adjustment_1.computeAdjustmentDelta)('OUT', 10)).toBe(-10);
+        expect(decimalString((0, part_stock_adjustment_1.computeAdjustmentDelta)('OUT', 10))).toBe('-10');
+    });
+    it('is positive and precise for a fractional Stock In', () => {
+        expect(decimalString((0, part_stock_adjustment_1.computeAdjustmentDelta)('IN', '2.750'))).toBe('2.75');
+    });
+    it('is negative and precise for a fractional Stock Out', () => {
+        expect(decimalString((0, part_stock_adjustment_1.computeAdjustmentDelta)('OUT', '2.750'))).toBe('-2.75');
     });
 });
 describe('formatAdjustmentNotes', () => {

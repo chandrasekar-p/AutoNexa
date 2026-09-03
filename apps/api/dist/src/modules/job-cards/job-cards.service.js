@@ -23,6 +23,7 @@ const job_card_progress_1 = require("./job-card-progress");
 const job_card_delay_1 = require("./job-card-delay");
 const resolve_converted_labour_line_1 = require("./resolve-converted-labour-line");
 const stock_guard_1 = require("./stock-guard");
+const low_stock_1 = require("../parts/low-stock");
 const package_eligibility_1 = require("../service-packages/package-eligibility");
 const VEHICLE_SUMMARY_SELECT = { id: true, registrationNo: true, brand: true, model: true, photoUrl: true };
 const CUSTOMER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
@@ -200,7 +201,7 @@ let JobCardsService = class JobCardsService {
         const estimatedHours = labourItems
             .reduce((sum, l) => sum.add(l.hours), new client_1.Prisma.Decimal(0))
             .toNumber();
-        const partsPending = parts.filter((p) => p.part.currentStock <= p.part.minStock).length;
+        const partsPending = parts.filter((p) => (0, low_stock_1.isLowStock)(p.part)).length;
         return {
             ...rest,
             technician: technician ? { id: technician.id, name: technician.user.name } : null,

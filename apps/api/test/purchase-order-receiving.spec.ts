@@ -17,6 +17,14 @@ describe('isOverReceiving', () => {
   it('rejects any receipt once the line is already fully received', () => {
     expect(isOverReceiving(10, 10, 1)).toBe(true);
   });
+
+  it('allows receiving exactly a fractional outstanding amount', () => {
+    expect(isOverReceiving('50.500', '0', '50.500')).toBe(false);
+  });
+
+  it('rejects receiving a hair more than a fractional outstanding amount', () => {
+    expect(isOverReceiving('50.500', '48.000', '2.501')).toBe(true);
+  });
 });
 
 describe('rollupPurchaseOrderStatus', () => {
@@ -38,6 +46,16 @@ describe('rollupPurchaseOrderStatus', () => {
 
   it('returns PARTIALLY_RECEIVED when nothing has been received yet', () => {
     const status = rollupPurchaseOrderStatus([{ quantityOrdered: 10, quantityReceived: 0 }]);
+    expect(status).toBe(PurchaseOrderStatus.PARTIALLY_RECEIVED);
+  });
+
+  it('returns RECEIVED for a fractional line received exactly in full', () => {
+    const status = rollupPurchaseOrderStatus([{ quantityOrdered: '50.500', quantityReceived: '50.500' }]);
+    expect(status).toBe(PurchaseOrderStatus.RECEIVED);
+  });
+
+  it('returns PARTIALLY_RECEIVED for a fractional line short by a thousandth', () => {
+    const status = rollupPurchaseOrderStatus([{ quantityOrdered: '50.500', quantityReceived: '50.499' }]);
     expect(status).toBe(PurchaseOrderStatus.PARTIALLY_RECEIVED);
   });
 });

@@ -7,7 +7,7 @@ import { Pencil, Wrench, ShoppingCart } from 'lucide-react';
 import { apiDelete, apiGet, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
-import { formatDate, formatMoney } from '@/lib/format';
+import { formatDate, formatMoney, formatQuantity } from '@/lib/format';
 import { derivePartStockStatus } from '@/lib/parts/stock-status';
 import type { InventoryTransactionEntry, PaginatedResult, Part, PartCategory, Supplier } from '@/lib/api-types';
 import { StockStatusBadge } from '@/components/domain/stock-status-badge';
@@ -105,7 +105,7 @@ export default function PartDetailPage() {
   const part = query.data;
   if (!part) return null;
   const status = derivePartStockStatus(part);
-  const inventoryValue = part.currentStock * Number(part.purchasePrice);
+  const inventoryValue = Number(part.currentStock) * Number(part.purchasePrice);
 
   return (
     <div className="flex flex-col gap-6">
@@ -158,17 +158,17 @@ export default function PartDetailPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <Card>
           <CardBody className="py-4">
-            <Stat label="Current Stock" value={String(part.currentStock)} />
+            <Stat label="Current Stock" value={formatQuantity(part.currentStock, part.unit)} />
           </CardBody>
         </Card>
         <Card>
           <CardBody className="py-4">
-            <Stat label="Minimum Stock" value={String(part.minStock)} />
+            <Stat label="Minimum Stock" value={formatQuantity(part.minStock, part.unit)} />
           </CardBody>
         </Card>
         <Card>
           <CardBody className="py-4">
-            <Stat label="Maximum Stock" value={part.maxStock !== null ? String(part.maxStock) : '—'} />
+            <Stat label="Maximum Stock" value={part.maxStock !== null ? formatQuantity(part.maxStock, part.unit) : '—'} />
           </CardBody>
         </Card>
         <Card>
@@ -239,9 +239,10 @@ export default function PartDetailPage() {
             <CardTitle>Inventory</CardTitle>
           </CardHeader>
           <CardBody className="grid grid-cols-2 gap-4">
-            <Field label="Current Stock" value={part.currentStock} />
-            <Field label="Minimum Stock" value={part.minStock} />
-            <Field label="Maximum Stock" value={part.maxStock} />
+            <Field label="Current Stock" value={formatQuantity(part.currentStock, part.unit)} />
+            <Field label="Minimum Stock" value={formatQuantity(part.minStock, part.unit)} />
+            <Field label="Maximum Stock" value={part.maxStock !== null ? formatQuantity(part.maxStock, part.unit) : null} />
+            <Field label="Unit" value={part.unit} />
             <Field label="Bin Location" value={part.binLocation} />
           </CardBody>
         </Card>
@@ -276,9 +277,9 @@ export default function PartDetailPage() {
                       <TableRow key={txn.id}>
                         <TableCell className="text-ink-secondary">{formatDate(txn.createdAt)}</TableCell>
                         <TableCell>{TXN_LABEL[txn.type] ?? txn.type}</TableCell>
-                        <TableCell className={`num font-medium ${txn.quantity >= 0 ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400'}`}>
-                          {txn.quantity >= 0 ? '+' : ''}
-                          {txn.quantity}
+                        <TableCell className={`num font-medium ${Number(txn.quantity) >= 0 ? 'text-success-600 dark:text-success-400' : 'text-danger-600 dark:text-danger-400'}`}>
+                          {Number(txn.quantity) >= 0 ? '+' : '-'}
+                          {formatQuantity(Math.abs(Number(txn.quantity)), part.unit)}
                         </TableCell>
                         <TableCell className="text-ink-secondary">{txn.refType ?? '—'}</TableCell>
                         <TableCell className="text-ink-secondary">{txn.createdBy?.name ?? '—'}</TableCell>

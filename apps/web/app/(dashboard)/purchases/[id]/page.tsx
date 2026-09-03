@@ -7,7 +7,7 @@ import { Printer, Pencil } from 'lucide-react';
 import { apiGet, apiPatch, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
-import { formatDate, formatMoney } from '@/lib/format';
+import { formatDate, formatMoney, formatQuantity } from '@/lib/format';
 import { computePurchaseOrderProgress } from '@/lib/purchases/purchase-order-progress';
 import type { PaginatedResult, PurchaseInvoice, PurchaseOrderDetail, PurchaseOrderStatus } from '@/lib/api-types';
 import { PurchaseOrderStatusBadge } from '@/components/domain/purchase-order-status-badge';
@@ -112,7 +112,7 @@ export default function PurchaseOrderDetailPage() {
   const progress = computePurchaseOrderProgress(po, invoices);
 
   const orderValue = po.items.reduce((sum, i) => sum + Number(i.lineTotal), 0);
-  const receivedValue = po.items.reduce((sum, i) => sum + i.quantityReceived * Number(i.unitCost), 0);
+  const receivedValue = po.items.reduce((sum, i) => sum + Number(i.quantityReceived) * Number(i.unitCost), 0);
   const outstandingValue = orderValue - receivedValue;
   const gstAmount = po.items.reduce((sum, i) => sum + (Number(i.lineTotal) * Number(i.gstRate)) / 100, 0);
   const grandTotal = orderValue + gstAmount;
@@ -228,9 +228,9 @@ export default function PurchaseOrderDetailPage() {
                   <TableCell>
                     <span className="font-medium text-ink">{item.part.partNumber}</span> <span className="text-ink-muted">— {item.part.name}</span>
                   </TableCell>
-                  <TableCell className="num text-right">{item.quantityOrdered}</TableCell>
-                  <TableCell className="num text-right">{item.quantityReceived}</TableCell>
-                  <TableCell className="num text-right">{item.quantityOrdered - item.quantityReceived}</TableCell>
+                  <TableCell className="num text-right">{formatQuantity(item.quantityOrdered, item.part.unit)}</TableCell>
+                  <TableCell className="num text-right">{formatQuantity(item.quantityReceived, item.part.unit)}</TableCell>
+                  <TableCell className="num text-right">{formatQuantity(Number(item.quantityOrdered) - Number(item.quantityReceived), item.part.unit)}</TableCell>
                   <TableCell className="num text-right">{formatMoney(item.unitCost)}</TableCell>
                   <TableCell className="num text-right">{item.gstRate}%</TableCell>
                   <TableCell className="num text-right font-medium">{formatMoney(item.lineTotal)}</TableCell>

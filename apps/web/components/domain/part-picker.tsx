@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { apiGet } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatQuantity } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 import type { PaginatedResult, PartRef } from '@/lib/api-types';
 
@@ -75,7 +75,7 @@ export function PartPicker({ value, onChange }: PartPickerProps) {
                 {part.partNumber} <span className="text-ink-muted">— {part.name}</span>
               </span>
               <span className="num text-xs text-ink-muted">
-                {formatMoney(part.sellingPrice)} · {part.currentStock} in stock
+                {formatMoney(part.sellingPrice)} · {formatQuantity(part.currentStock, part.unit)} in stock
               </span>
             </button>
           ))}

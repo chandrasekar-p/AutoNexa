@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { apiPost, ApiError } from '@/lib/api-client';
 import type { PurchaseOrderItem } from '@/lib/api-types';
+import { formatQuantity } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,9 @@ interface GoodsReceiptFormProps {
 
 /** Only shown for items with outstanding quantity — see the PO detail page's status gate (SENT/PARTIALLY_RECEIVED only). */
 export function GoodsReceiptForm({ purchaseOrderId, items, onReceived }: GoodsReceiptFormProps) {
-  const outstandingItems = items.filter((i) => i.quantityReceived < i.quantityOrdered);
+  // quantityReceived/quantityOrdered are Decimal strings — never compare
+  // them with native `<`, that's lexicographic ("9.5" < "10.25" is false).
+  const outstandingItems = items.filter((i) => Number(i.quantityReceived) < Number(i.quantityOrdered));
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -57,16 +60,18 @@ export function GoodsReceiptForm({ purchaseOrderId, items, onReceived }: GoodsRe
       </CardHeader>
       <CardBody className="flex flex-col gap-4">
         {outstandingItems.map((item) => {
-          const outstanding = item.quantityOrdered - item.quantityReceived;
+          const outstanding = Number(item.quantityOrdered) - Number(item.quantityReceived);
           return (
             <div key={item.id} className="flex items-center justify-between gap-3">
               <span className="text-sm text-ink">
                 {item.part.partNumber} <span className="text-ink-muted">— {item.part.name}</span>
               </span>
               <div className="flex items-center gap-2">
-                <span className="num text-xs text-ink-muted">{outstanding} outstanding</span>
+                <span className="num text-xs text-ink-muted">{formatQuantity(outstanding, item.part.unit)} outstanding</span>
                 <Input
                   type="number"
+                  step="0.001"
+                  min="0"
                   value={quantities[item.id] ?? ''}
                   onChange={(e) => setQuantities((q) => ({ ...q, [item.id]: e.target.value }))}
                   placeholder="Qty"

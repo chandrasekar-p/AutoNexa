@@ -3,7 +3,7 @@ import { Package } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatNumber } from '@/lib/format';
+import { formatQuantity } from '@/lib/format';
 import type { AlertsLowStockPart } from '@/lib/api-types';
 
 interface Props {
@@ -38,7 +38,7 @@ export function LowStockPartsCard({ parts, isLoading }: Props) {
                   <Package className="h-4 w-4 shrink-0 text-ink-secondary" aria-hidden />
                   <span className="min-w-0 flex-1 truncate text-sm text-ink">{part.name}</span>
                   {/* Critically low (at or under half of the reorder threshold) reads danger, not just warning — same severity signal Needs Attention's "urgent vs. attention" color rule uses. */}
-                  <Badge tone={part.currentStock <= part.minStock / 2 ? 'danger' : 'warning'}>{formatNumber(part.currentStock)} left</Badge>
+                  <Badge tone={Number(part.currentStock) <= Number(part.minStock) / 2 ? 'danger' : 'warning'}>{formatQuantity(part.currentStock, part.unit)} left</Badge>
                 </Link>
               </li>
             ))}

@@ -18,6 +18,30 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat('en-IN').format(value);
 }
 
+const UNIT_SUFFIX: Record<string, string> = {
+  PIECE: '',
+  LITRE: ' L',
+  ML: ' mL',
+  KG: ' kg',
+  GRAM: ' g',
+};
+
+/**
+ * Quantity fields arrive from the API as Decimal strings (see api-types.ts),
+ * same convention as money. PIECE quantities show as a plain integer count
+ * ("150"); every other unit keeps up to 3 decimal places but trims trailing
+ * zeros for readability ("2.5 L", not "2.500 L") — the one place this
+ * trim-zeros rule lives, so every quantity display stays consistent.
+ */
+export function formatQuantity(value: string | number, unit: string): string {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (Number.isNaN(n)) return '—';
+  const suffix = UNIT_SUFFIX[unit] ?? '';
+  if (unit === 'PIECE') return `${new Intl.NumberFormat('en-IN').format(n)}${suffix}`;
+  const formatted = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(n);
+  return `${formatted}${suffix}`;
+}
+
 export function formatDate(value: string | Date): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);

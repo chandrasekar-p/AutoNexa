@@ -4,6 +4,8 @@ import { z } from 'zod';
 // deliberately absent — it's never client-settable (see the DTO's own
 // comment: it only ever moves through InventoryTransaction-backed
 // operations).
+export const PART_UNITS = ['PIECE', 'LITRE', 'ML', 'KG', 'GRAM'] as const;
+
 export const partSchema = z
   .object({
     partNumber: z.string().min(1, 'Part number is required'),
@@ -17,6 +19,7 @@ export const partSchema = z
     sellingPrice: z.number().min(0, 'Selling price must be 0 or more'),
     gstRate: z.number().min(0, 'GST rate must be 0 or more'),
     hsnCode: z.string().optional(),
+    unit: z.enum(PART_UNITS).optional(),
     minStock: z.union([z.number(), z.nan()]).optional(),
     maxStock: z.union([z.number(), z.nan()]).optional(),
     binLocation: z.string().optional(),

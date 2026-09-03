@@ -2,11 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isLowStock = isLowStock;
 exports.derivePartStockStatus = derivePartStockStatus;
+const client_1 = require("@prisma/client");
 function isLowStock(part) {
-    return part.currentStock <= part.minStock;
+    return new client_1.Prisma.Decimal(part.currentStock).lte(new client_1.Prisma.Decimal(part.minStock));
 }
 function derivePartStockStatus(part) {
-    if (part.currentStock <= 0)
+    if (new client_1.Prisma.Decimal(part.currentStock).lte(0))
         return 'out_of_stock';
     if (isLowStock(part))
         return 'low_stock';

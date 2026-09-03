@@ -301,7 +301,7 @@ export default function PartsInventoryPage() {
                       <TableCell className="text-ink-secondary">{categories.data?.find((c) => c.id === part.categoryId)?.name ?? '—'}</TableCell>
                       <TableCell className="text-ink-secondary">{part.brand ?? '—'}</TableCell>
                       <TableCell className="w-36">
-                        <StockProgressBar currentStock={part.currentStock} maxStock={part.maxStock} status={status} />
+                        <StockProgressBar currentStock={part.currentStock} maxStock={part.maxStock} unit={part.unit} status={status} />
                       </TableCell>
                       <TableCell className="num text-ink">{formatMoney(part.sellingPrice)}</TableCell>
                       <TableCell>
@@ -352,7 +352,7 @@ export default function PartsInventoryPage() {
                   </div>
                   <p className="text-xs text-ink-secondary">{part.brand ?? '—'}</p>
                   <div className="flex items-center justify-between text-sm">
-                    <StockProgressBar currentStock={part.currentStock} maxStock={part.maxStock} status={status} />
+                    <StockProgressBar currentStock={part.currentStock} maxStock={part.maxStock} unit={part.unit} status={status} />
                     <span className="num font-medium text-ink">{formatMoney(part.sellingPrice)}</span>
                   </div>
                   <div className="flex justify-end gap-1 border-t border-line pt-2">

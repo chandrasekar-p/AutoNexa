@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { PartUnit } from '@prisma/client';
 
 // currentStock is deliberately not settable here — it always starts at 0
 // and only ever moves through InventoryTransaction-backed operations
@@ -62,15 +63,23 @@ export class CreatePartDto {
   @IsString()
   hsnCode?: string;
 
+  @ApiPropertyOptional({ enum: PartUnit, default: PartUnit.PIECE, description: 'How this part is measured/stocked — PIECE for countable parts, LITRE/ML/KG/GRAM for anything measured by volume/weight' })
+  @IsOptional()
+  @IsEnum(PartUnit)
+  unit?: PartUnit;
+
+  // Decimal(10,3) — minStock/maxStock are compared directly against
+  // currentStock (see low-stock.ts), which is fractional, so these need
+  // to be too. Zero is a valid value (no reorder point set).
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   minStock?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   maxStock?: number;
 

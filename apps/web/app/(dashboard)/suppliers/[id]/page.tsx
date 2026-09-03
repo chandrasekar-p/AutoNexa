@@ -7,7 +7,7 @@ import { ClipboardList, IndianRupee, Wallet, Package, Clock } from 'lucide-react
 import { apiGet, apiPatch, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
 import { usePermission } from '@/lib/hooks/use-permission';
-import { formatDate, formatMoney, formatNumber } from '@/lib/format';
+import { formatDate, formatMoney, formatNumber, formatQuantity } from '@/lib/format';
 import type { PaginatedResult, Part, PartCategory, PurchaseOrderListItem, Supplier } from '@/lib/api-types';
 import { PurchaseOrderStatusBadge } from '@/components/domain/purchase-order-status-badge';
 import { SupplierStatusBadge } from '@/components/domain/supplier-status-badge';
@@ -211,7 +211,7 @@ export default function SupplierDetailPage() {
                       </Link>
                       {categoryName ? <Badge tone="neutral">{categoryName}</Badge> : null}
                       <span className="num text-sm text-ink">{formatMoney(part.purchasePrice)}</span>
-                      <span className="num text-xs text-ink-secondary">{part.currentStock} units</span>
+                      <span className="num text-xs text-ink-secondary">{formatQuantity(part.currentStock, part.unit)} in stock</span>
                     </li>
                   );
                 })}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatQuantity } from '@/lib/format';
 import type { PartRef } from '@/lib/api-types';
 import { PartPicker } from '@/components/domain/part-picker';
 import { Input } from '@/components/ui/input';
@@ -93,7 +93,7 @@ export function PurchaseOrderItemsBuilder({ items, onChange }: PurchaseOrderItem
                 <TableCell>
                   {item.part.partNumber} <span className="text-ink-muted">— {item.part.name}</span>
                 </TableCell>
-                <TableCell className="num">{item.quantityOrdered}</TableCell>
+                <TableCell className="num">{formatQuantity(item.quantityOrdered, item.part.unit)}</TableCell>
                 <TableCell className="num">{formatMoney(item.unitCost)}</TableCell>
                 <TableCell className="num">{item.gstRate}%</TableCell>
                 <TableCell className="num font-medium">{formatMoney(item.quantityOrdered * item.unitCost)}</TableCell>
@@ -133,6 +133,8 @@ export function PurchaseOrderItemsBuilder({ items, onChange }: PurchaseOrderItem
         <PartPicker value={picked} onChange={setPicked} />
         <Input
           type="number"
+          step="0.001"
+          min="0.001"
           value={quantityOrdered}
           onChange={(e) => setQuantityOrdered(e.target.value)}
           className="h-9 w-20"

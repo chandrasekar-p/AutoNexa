@@ -18,7 +18,7 @@ const generate_sequence_number_1 = require("../../common/sequence/generate-seque
 const purchase_order_receiving_1 = require("./purchase-order-receiving");
 const purchase_order_status_transitions_1 = require("./purchase-order-status-transitions");
 const SUPPLIER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true };
-const PART_SUMMARY_SELECT = { id: true, partNumber: true, sku: true, name: true };
+const PART_SUMMARY_SELECT = { id: true, partNumber: true, sku: true, name: true, unit: true };
 const PURCHASE_ORDER_INCLUDE = {
     supplier: { select: SUPPLIER_SUMMARY_SELECT },
     items: { include: { part: { select: PART_SUMMARY_SELECT } } },
@@ -215,7 +215,7 @@ let PurchaseOrdersService = class PurchaseOrdersService {
                     throw new common_1.NotFoundException(`Purchase order item ${line.purchaseOrderItemId} not found on this order`);
                 }
                 if ((0, purchase_order_receiving_1.isOverReceiving)(item.quantityOrdered, item.quantityReceived, line.quantityReceived)) {
-                    const outstanding = item.quantityOrdered - item.quantityReceived;
+                    const outstanding = new client_1.Prisma.Decimal(item.quantityOrdered).sub(item.quantityReceived);
                     throw new common_1.BadRequestException(`Cannot receive ${line.quantityReceived} of item ${line.purchaseOrderItemId} — only ${outstanding} outstanding`);
                 }
             }

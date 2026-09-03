@@ -17,4 +17,12 @@ describe('isValidStockBounds', () => {
     expect(isValidStockBounds(50, null)).toBe(true);
     expect(isValidStockBounds(50, undefined)).toBe(true);
   });
+
+  it('is valid when a fractional minStock is below a fractional maxStock', () => {
+    expect(isValidStockBounds('5.500', '10.250')).toBe(true);
+  });
+
+  it('is invalid when a fractional minStock exceeds a fractional maxStock by a thousandth', () => {
+    expect(isValidStockBounds('10.251', '10.250')).toBe(false);
+  });
 });

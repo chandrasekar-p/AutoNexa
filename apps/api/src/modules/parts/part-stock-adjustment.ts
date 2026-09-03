@@ -1,4 +1,6 @@
-import { InventoryTxnType } from '@prisma/client';
+import { InventoryTxnType, Prisma } from '@prisma/client';
+
+type DecimalInput = number | string | Prisma.Decimal;
 
 export type StockAdjustmentDirection = 'IN' | 'OUT';
 
@@ -44,9 +46,18 @@ export function mapAdjustmentReasonToTxnType(reason: StockAdjustmentReason): Inv
   }
 }
 
-/** Stock In is a positive delta, Stock Out negative — the guarded UPDATE this feeds must never let OUT drive currentStock below zero. */
-export function computeAdjustmentDelta(direction: StockAdjustmentDirection, quantity: number): number {
-  return direction === 'IN' ? quantity : -quantity;
+/**
+ * Stock In is a positive delta, Stock Out negative — the guarded UPDATE
+ * this feeds must never let OUT drive currentStock below zero.
+ *
+ * Returns a Prisma.Decimal, not a plain number negation — quantity is
+ * fractional (Decimal(10,3)), and unary `-` on a Prisma.Decimal doesn't do
+ * numeric negation, so callers must use `.negated()` (see parts.service.ts's
+ * guarded UPDATE), not a raw `-delta`.
+ */
+export function computeAdjustmentDelta(direction: StockAdjustmentDirection, quantity: DecimalInput): Prisma.Decimal {
+  const value = new Prisma.Decimal(quantity);
+  return direction === 'IN' ? value : value.negated();
 }
 
 export function formatAdjustmentNotes(reason: StockAdjustmentReason, notes?: string): string {

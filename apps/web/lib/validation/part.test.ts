@@ -92,4 +92,37 @@ describe('validatePartForm', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('accepts a fractional minStock/maxStock alongside a non-PIECE unit', () => {
+    const result = validatePartForm({
+      partNumber: 'PN-1',
+      sku: 'SKU-1',
+      name: 'Engine Oil 5W-30',
+      purchasePrice: 350,
+      sellingPrice: 500,
+      gstRate: 18,
+      unit: 'LITRE',
+      minStock: 5.5,
+      maxStock: 50.25,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.unit).toBe('LITRE');
+    }
+  });
+
+  it('rejects a fractional minStock that exceeds maxStock', () => {
+    const result = validatePartForm({
+      partNumber: 'PN-1',
+      sku: 'SKU-1',
+      name: 'Coolant',
+      purchasePrice: 100,
+      sellingPrice: 150,
+      gstRate: 18,
+      unit: 'LITRE',
+      minStock: 10.251,
+      maxStock: 10.25,
+    });
+    expect(result.success).toBe(false);
+  });
 });

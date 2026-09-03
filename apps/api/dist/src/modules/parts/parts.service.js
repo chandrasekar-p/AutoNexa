@@ -156,7 +156,7 @@ let PartsService = class PartsService {
             if (!part)
                 throw new common_1.NotFoundException('Part not found');
             const updated = await tx.part.updateMany({
-                where: { id: partId, currentStock: { gte: -delta } },
+                where: { id: partId, currentStock: { gte: delta.negated() } },
                 data: { currentStock: { increment: delta } },
             });
             if (updated.count === 0) {

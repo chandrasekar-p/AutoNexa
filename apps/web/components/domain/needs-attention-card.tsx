@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ChevronRight, FileText, IndianRupee, PackageX } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatMoney, formatNumber } from '@/lib/format';
+import { formatMoney, formatNumber, formatQuantity } from '@/lib/format';
 import type { AlertsLowStockPart, DashboardSummary } from '@/lib/api-types';
 
 interface NeedsAttentionRow {
@@ -61,7 +61,7 @@ export function NeedsAttentionCard({ summary, lowStockParts, isLoading }: Props)
       icon: PackageX,
       tone: 'warning',
       title: `${formatNumber(lowStockParts.length)} Low Stock Part${lowStockParts.length === 1 ? '' : 's'}`,
-      subtitle: `${first.name} — ${first.currentStock} remaining`,
+      subtitle: `${first.name} — ${formatQuantity(first.currentStock, first.unit)} remaining`,
     });
   }
 

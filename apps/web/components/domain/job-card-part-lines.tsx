@@ -45,8 +45,8 @@ export function JobCardPartLines({ jobCardId, vehicleId, lines, readOnly, onUpda
   async function handleAdd() {
     if (!picked) return;
     const qty = Number(quantity);
-    if (!Number.isInteger(qty) || qty < 1) {
-      setError('Quantity must be a whole number of at least 1.');
+    if (!(qty > 0) || !/^\d+(\.\d{1,3})?$/.test(quantity.trim())) {
+      setError('Quantity must be greater than 0 (up to 3 decimal places).');
       return;
     }
     setIsSaving(true);
@@ -96,7 +96,7 @@ export function JobCardPartLines({ jobCardId, vehicleId, lines, readOnly, onUpda
           <TableBody>
             {lines.map((line) => (
               <TableRow key={line.id}>
-                <TableCell className="num">{line.quantity}</TableCell>
+                <TableCell className="num">{Number(line.quantity)}</TableCell>
                 <TableCell className="num">{formatMoney(line.unitPrice)}</TableCell>
                 <TableCell>
                   {line.warrantyMonths || line.warrantyKm ? (
@@ -141,6 +141,8 @@ export function JobCardPartLines({ jobCardId, vehicleId, lines, readOnly, onUpda
           <PartPicker value={picked} onChange={setPicked} />
           <Input
             type="number"
+            step="0.001"
+            min="0.001"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             className="h-9 w-24"

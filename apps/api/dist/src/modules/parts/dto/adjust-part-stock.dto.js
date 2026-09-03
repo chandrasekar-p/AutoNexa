@@ -22,9 +22,9 @@ __decorate([
     __metadata("design:type", String)
 ], AdjustPartStockDto.prototype, "direction", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ minimum: 1 }),
-    (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.Min)(1),
+    (0, swagger_1.ApiProperty)({ minimum: 0.001, example: 2.5 }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 3 }),
+    (0, class_validator_1.Min)(0.001),
     __metadata("design:type", Number)
 ], AdjustPartStockDto.prototype, "quantity", void 0);
 __decorate([

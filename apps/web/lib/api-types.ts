@@ -77,8 +77,9 @@ export interface AlertsLowStockPart {
   partNumber: string;
   sku: string;
   name: string;
-  currentStock: number;
-  minStock: number;
+  unit: PartUnit;
+  currentStock: string;
+  minStock: string;
 }
 
 export interface AlertsExpiringDocument {
@@ -574,13 +575,17 @@ export interface LabourItemRef {
   labourRate: string;
 }
 
+/** Small, fixed unit set — not a generic UoM system. Matches the backend's PartUnit enum. */
+export type PartUnit = 'PIECE' | 'LITRE' | 'ML' | 'KG' | 'GRAM';
+
 /** Minimal projection of GET /parts — enough for the Add Part Line picker. */
 export interface PartRef {
   id: string;
   partNumber: string;
   name: string;
   sellingPrice: string;
-  currentStock: number;
+  currentStock: string;
+  unit: PartUnit;
 }
 
 export interface PartCategory {
@@ -607,9 +612,10 @@ export interface Part {
   sellingPrice: string;
   gstRate: string;
   hsnCode: string | null;
-  currentStock: number;
-  minStock: number;
-  maxStock: number | null;
+  unit: PartUnit;
+  currentStock: string;
+  minStock: string;
+  maxStock: string | null;
   binLocation: string | null;
   warrantyPeriodMonths: number | null;
   isActive: boolean;
@@ -622,7 +628,7 @@ export type InventoryTxnType = 'PURCHASE_IN' | 'JOB_CARD_CONSUMPTION' | 'SALE' |
 export interface InventoryTransactionEntry {
   id: string;
   type: InventoryTxnType;
-  quantity: number;
+  quantity: string;
   refType: string | null;
   refId: string | null;
   notes: string | null;
@@ -702,13 +708,14 @@ export interface PartInPurchaseOrderRef {
   partNumber: string;
   sku: string;
   name: string;
+  unit: PartUnit;
 }
 
 export interface PurchaseOrderItem {
   id: string;
   part: PartInPurchaseOrderRef;
-  quantityOrdered: number;
-  quantityReceived: number;
+  quantityOrdered: string;
+  quantityReceived: string;
   unitCost: string;
   gstRate: string;
   lineTotal: string;
@@ -717,7 +724,7 @@ export interface PurchaseOrderItem {
 export interface GoodsReceiptItem {
   id: string;
   purchaseOrderItemId: string;
-  quantityReceived: number;
+  quantityReceived: string;
 }
 
 export interface GoodsReceipt {
@@ -853,11 +860,11 @@ export interface JobCardLabourLine {
   warrantyClaimId: string | null;
 }
 
-/** quantity is Int; unitPrice/gstRate/lineTotal are Decimal → strings. Same add/remove-only discipline as JobCardLabourLine — removing restores stock (see VehiclesService.removePart). */
+/** quantity/unitPrice/gstRate/lineTotal are all Decimal → strings. Same add/remove-only discipline as JobCardLabourLine — removing restores stock (see VehiclesService.removePart). */
 export interface JobCardPartLine {
   id: string;
   partId: string;
-  quantity: number;
+  quantity: string;
   unitPrice: string;
   gstRate: string;
   lineTotal: string;

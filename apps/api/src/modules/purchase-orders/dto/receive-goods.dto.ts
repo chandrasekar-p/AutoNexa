@@ -1,15 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 export class ReceiveGoodsItemDto {
   @ApiProperty()
   @IsUUID()
   purchaseOrderItemId: string;
 
-  @ApiProperty()
-  @IsInt()
-  @Min(1)
+  // Decimal(10,3) — fractional receiving (e.g. 50.500 L of coolant), not
+  // just whole pieces.
+  @ApiProperty({ example: 50.5 })
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
   quantityReceived: number;
 }
 

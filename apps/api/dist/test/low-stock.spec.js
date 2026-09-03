@@ -17,6 +17,15 @@ describe('isLowStock', () => {
     it('is true for zero stock even when minStock is also zero — <= includes equality', () => {
         expect((0, low_stock_1.isLowStock)({ currentStock: 0, minStock: 0 })).toBe(true);
     });
+    it('is false just above a fractional minStock threshold', () => {
+        expect((0, low_stock_1.isLowStock)({ currentStock: '6.000', minStock: '5.500' })).toBe(false);
+    });
+    it('is true exactly at a fractional minStock threshold', () => {
+        expect((0, low_stock_1.isLowStock)({ currentStock: '5.500', minStock: '5.500' })).toBe(true);
+    });
+    it('is true just below a fractional minStock threshold', () => {
+        expect((0, low_stock_1.isLowStock)({ currentStock: '5.499', minStock: '5.500' })).toBe(true);
+    });
 });
 describe('derivePartStockStatus', () => {
     it('is out_of_stock at zero, even if minStock is also zero — a distinct bucket from low_stock, unlike isLowStock', () => {

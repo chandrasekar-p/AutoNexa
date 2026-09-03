@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { STOCK_ADJUSTMENT_REASONS, type StockAdjustmentReason, type Part } from '@/lib/api-types';
+import { formatQuantity } from '@/lib/format';
 
 const REASON_LABEL: Record<StockAdjustmentReason, string> = {
   PURCHASE_RECEIVED: 'Purchase Received',
@@ -20,7 +21,7 @@ const REASON_LABEL: Record<StockAdjustmentReason, string> = {
 };
 
 interface StockAdjustmentModalProps {
-  part: Pick<Part, 'id' | 'name' | 'currentStock'>;
+  part: Pick<Part, 'id' | 'name' | 'currentStock' | 'unit'>;
   onClose: () => void;
   onAdjusted: () => void;
 }
@@ -42,12 +43,13 @@ export function StockAdjustmentModal({ part, onClose, onAdjusted }: StockAdjustm
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const parsedQuantity = Number(quantity);
-  const isValidQuantity = quantity !== '' && Number.isInteger(parsedQuantity) && parsedQuantity > 0;
-  const newStock = isValidQuantity ? part.currentStock + (direction === 'IN' ? parsedQuantity : -parsedQuantity) : null;
+  // Up to 3 decimal places, matching the backend's @IsNumber({maxDecimalPlaces: 3}).
+  const isValidQuantity = quantity !== '' && parsedQuantity > 0 && /^\d+(\.\d{1,3})?$/.test(quantity.trim());
+  const newStock = isValidQuantity ? Number(part.currentStock) + (direction === 'IN' ? parsedQuantity : -parsedQuantity) : null;
 
   async function handleConfirm() {
     if (!isValidQuantity) {
-      setError('Enter a whole number quantity greater than 0.');
+      setError('Enter a quantity greater than 0 (up to 3 decimal places).');
       return;
     }
     if (!reason) {
@@ -80,7 +82,7 @@ export function StockAdjustmentModal({ part, onClose, onAdjusted }: StockAdjustm
         </div>
         <div>
           <span className="text-xs font-medium text-ink-secondary">Current Stock</span>
-          <p className="num text-sm text-ink">{part.currentStock}</p>
+          <p className="num text-sm text-ink">{formatQuantity(part.currentStock, part.unit)}</p>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -95,7 +97,7 @@ export function StockAdjustmentModal({ part, onClose, onAdjusted }: StockAdjustm
           </div>
         </div>
 
-        <Input label="Quantity *" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        <Input label="Quantity *" type="number" min="0.001" step="0.001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
 
         <Select label="Reason *" value={reason} onChange={(e) => setReason(e.target.value as StockAdjustmentReason)}>
           <option value="">Select reason…</option>
@@ -111,7 +113,7 @@ export function StockAdjustmentModal({ part, onClose, onAdjusted }: StockAdjustm
         {newStock !== null ? (
           <div className="rounded border border-line bg-surface-hover px-3 py-2">
             <span className="text-xs font-medium text-ink-secondary">New Stock</span>
-            <p className={`num text-lg font-semibold ${newStock < 0 ? 'text-danger-600 dark:text-danger-400' : 'text-ink'}`}>{newStock}</p>
+            <p className={`num text-lg font-semibold ${newStock < 0 ? 'text-danger-600 dark:text-danger-400' : 'text-ink'}`}>{formatQuantity(newStock, part.unit)}</p>
           </div>
         ) : null}
 

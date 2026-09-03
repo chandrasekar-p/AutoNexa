@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { STOCK_ADJUSTMENT_REASONS, type StockAdjustmentDirection, type StockAdjustmentReason } from '../part-stock-adjustment';
 
 export class AdjustPartStockDto {
@@ -7,9 +7,10 @@ export class AdjustPartStockDto {
   @IsIn(['IN', 'OUT'])
   direction: StockAdjustmentDirection;
 
-  @ApiProperty({ minimum: 1 })
-  @IsInt()
-  @Min(1)
+  // Decimal(10,3) — fractional adjustment (e.g. 2.750 L), not just whole pieces.
+  @ApiProperty({ minimum: 0.001, example: 2.5 })
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
   quantity: number;
 
   @ApiProperty({ enum: STOCK_ADJUSTMENT_REASONS })

@@ -1,21 +1,27 @@
-import { PurchaseOrderStatus } from '@prisma/client';
+import { Prisma, PurchaseOrderStatus } from '@prisma/client';
+
+type DecimalInput = number | string | Prisma.Decimal;
 
 export interface PurchaseOrderItemReceiptState {
-  quantityOrdered: number;
-  quantityReceived: number;
+  quantityOrdered: DecimalInput;
+  quantityReceived: DecimalInput;
 }
 
 /**
  * True when `quantityReceivingNow` exceeds what's still outstanding on a
  * PurchaseOrderItem line (ordered minus already received). Pure so the
  * over-receiving rejection is unit-testable without a DB.
+ *
+ * Decimal-safe (all three quantities are Decimal(10,3)) — never native
+ * `-`/`>` on the raw values.
  */
 export function isOverReceiving(
-  quantityOrdered: number,
-  quantityReceived: number,
-  quantityReceivingNow: number,
+  quantityOrdered: DecimalInput,
+  quantityReceived: DecimalInput,
+  quantityReceivingNow: DecimalInput,
 ): boolean {
-  return quantityReceivingNow > quantityOrdered - quantityReceived;
+  const outstanding = new Prisma.Decimal(quantityOrdered).sub(quantityReceived);
+  return new Prisma.Decimal(quantityReceivingNow).gt(outstanding);
 }
 
 /**
@@ -27,6 +33,6 @@ export function isOverReceiving(
  * manual transitions the caller controls elsewhere.
  */
 export function rollupPurchaseOrderStatus(items: PurchaseOrderItemReceiptState[]): PurchaseOrderStatus {
-  const fullyReceived = items.every((item) => item.quantityReceived >= item.quantityOrdered);
+  const fullyReceived = items.every((item) => new Prisma.Decimal(item.quantityReceived).gte(item.quantityOrdered));
   return fullyReceived ? PurchaseOrderStatus.RECEIVED : PurchaseOrderStatus.PARTIALLY_RECEIVED;
 }

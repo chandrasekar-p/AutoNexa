@@ -4,6 +4,10 @@ import {
   formatAdjustmentNotes,
 } from '../src/modules/parts/part-stock-adjustment';
 
+function decimalString(value: { toString(): string }): string {
+  return value.toString();
+}
+
 describe('mapAdjustmentReasonToTxnType', () => {
   it('maps DAMAGED and RETURNED to their own dedicated enum values', () => {
     expect(mapAdjustmentReasonToTxnType('DAMAGED')).toBe('DAMAGED');
@@ -21,11 +25,19 @@ describe('mapAdjustmentReasonToTxnType', () => {
 
 describe('computeAdjustmentDelta', () => {
   it('is positive for Stock In', () => {
-    expect(computeAdjustmentDelta('IN', 10)).toBe(10);
+    expect(decimalString(computeAdjustmentDelta('IN', 10))).toBe('10');
   });
 
   it('is negative for Stock Out', () => {
-    expect(computeAdjustmentDelta('OUT', 10)).toBe(-10);
+    expect(decimalString(computeAdjustmentDelta('OUT', 10))).toBe('-10');
+  });
+
+  it('is positive and precise for a fractional Stock In', () => {
+    expect(decimalString(computeAdjustmentDelta('IN', '2.750'))).toBe('2.75');
+  });
+
+  it('is negative and precise for a fractional Stock Out', () => {
+    expect(decimalString(computeAdjustmentDelta('OUT', '2.750'))).toBe('-2.75');
   });
 });
 

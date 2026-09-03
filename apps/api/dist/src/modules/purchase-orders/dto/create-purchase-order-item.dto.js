@@ -21,9 +21,9 @@ __decorate([
     __metadata("design:type", String)
 ], CreatePurchaseOrderItemDto.prototype, "partId", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)(),
-    (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.Min)(1),
+    (0, swagger_1.ApiProperty)({ example: 50.5 }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 3 }),
+    (0, class_validator_1.Min)(0.001),
     __metadata("design:type", Number)
 ], CreatePurchaseOrderItemDto.prototype, "quantityOrdered", void 0);
 __decorate([

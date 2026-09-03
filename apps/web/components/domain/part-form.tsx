@@ -4,13 +4,21 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPost, ApiError } from '@/lib/api-client';
 import { useApiQuery } from '@/lib/hooks/use-api-query';
-import { validatePartForm, type PartFormErrors, type PartFormValues } from '@/lib/validation/part';
-import type { Part, PartCategory, PaginatedResult, Supplier } from '@/lib/api-types';
-import { formatMoney } from '@/lib/format';
+import { validatePartForm, PART_UNITS, type PartFormErrors, type PartFormValues } from '@/lib/validation/part';
+import type { Part, PartCategory, PaginatedResult, Supplier, PartUnit } from '@/lib/api-types';
+import { formatMoney, formatQuantity } from '@/lib/format';
 import { SectionHeading } from './section-heading';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+
+const UNIT_LABEL: Record<(typeof PART_UNITS)[number], string> = {
+  PIECE: 'Piece',
+  LITRE: 'Litre',
+  ML: 'Millilitre (mL)',
+  KG: 'Kilogram (kg)',
+  GRAM: 'Gram (g)',
+};
 
 interface PartFormProps {
   initial?: Part;
@@ -35,6 +43,7 @@ export function PartForm({ initial, submitLabel, onSubmit, onCancel }: PartFormP
     sellingPrice: initial?.sellingPrice ?? '',
     gstRate: initial?.gstRate ?? '18',
     hsnCode: initial?.hsnCode ?? '',
+    unit: initial?.unit ?? 'PIECE',
     minStock: initial?.minStock ?? '',
     maxStock: initial?.maxStock ?? '',
     binLocation: initial?.binLocation ?? '',
@@ -192,9 +201,16 @@ export function PartForm({ initial, submitLabel, onSubmit, onCancel }: PartFormP
 
         <div className="flex flex-col gap-4">
           <SectionHeading number={4} title="Inventory" />
+          <Select label="Unit *" value={values.unit} onChange={(e) => set('unit', e.target.value as PartUnit)} error={errors.unit}>
+            {PART_UNITS.map((u) => (
+              <option key={u} value={u}>
+                {UNIT_LABEL[u]}
+              </option>
+            ))}
+          </Select>
           {initial ? (
             <div className="flex flex-col gap-1">
-              <Input label="Current Stock" value={initial.currentStock} disabled />
+              <Input label="Current Stock" value={formatQuantity(initial.currentStock, initial.unit)} disabled />
               <p className="text-xs text-ink-muted">
                 Stock changes should normally be recorded through{' '}
                 <Link href={`/parts-inventory/${initial.id}`} className="text-accent-600 hover:underline">
@@ -206,8 +222,8 @@ export function PartForm({ initial, submitLabel, onSubmit, onCancel }: PartFormP
           ) : (
             <Input label="Current Stock" value="0" disabled />
           )}
-          <Input label="Minimum Stock *" type="number" min={0} value={values.minStock} onChange={(e) => set('minStock', e.target.value)} error={errors.minStock} />
-          <Input label="Maximum Stock" type="number" min={0} value={values.maxStock} onChange={(e) => set('maxStock', e.target.value)} error={errors.maxStock} />
+          <Input label="Minimum Stock *" type="number" step="0.001" min={0} value={values.minStock} onChange={(e) => set('minStock', e.target.value)} error={errors.minStock} />
+          <Input label="Maximum Stock" type="number" step="0.001" min={0} value={values.maxStock} onChange={(e) => set('maxStock', e.target.value)} error={errors.maxStock} />
           <Input label="Bin Location" value={values.binLocation} onChange={(e) => set('binLocation', e.target.value)} placeholder="e.g. A-01-03" error={errors.binLocation} />
           <Input
             label="Warranty (months)"

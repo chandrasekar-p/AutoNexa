@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreatePartDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const client_1 = require("@prisma/client");
 class CreatePartDto {
 }
 exports.CreatePartDto = CreatePartDto;
@@ -83,16 +84,22 @@ __decorate([
     __metadata("design:type", String)
 ], CreatePartDto.prototype, "hsnCode", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.PartUnit, default: client_1.PartUnit.PIECE, description: 'How this part is measured/stocked — PIECE for countable parts, LITRE/ML/KG/GRAM for anything measured by volume/weight' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.PartUnit),
+    __metadata("design:type", String)
+], CreatePartDto.prototype, "unit", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ default: 0 }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 3 }),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreatePartDto.prototype, "minStock", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)(),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 3 }),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreatePartDto.prototype, "maxStock", void 0);

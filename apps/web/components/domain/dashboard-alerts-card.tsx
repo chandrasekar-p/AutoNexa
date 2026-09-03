@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { Badge } from '@/components/ui/badge';
 import { JobCardStatusBadge } from '@/components/domain/job-card-status-badge';
-import { formatDate, daysUntil } from '@/lib/format';
+import { formatDate, daysUntil, formatQuantity } from '@/lib/format';
 import type { NotificationAlerts } from '@/lib/api-types';
 
 interface Props {
@@ -44,7 +44,7 @@ export function DashboardAlertsCard({ alerts, isLoading, error, onRetry }: Props
                   {part.name} <span className="text-ink-muted">({part.partNumber})</span>
                 </span>
                 <span className="num shrink-0 text-xs font-medium text-warning-600 dark:text-warning-400">
-                  {part.currentStock} / {part.minStock} left
+                  {formatQuantity(part.currentStock, part.unit)} / {formatQuantity(part.minStock, part.unit)} left
                 </span>
               </li>
             ))}

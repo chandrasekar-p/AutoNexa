@@ -57,7 +57,7 @@ export default function NewPurchaseOrderPage() {
         {
           key: part.id,
           part,
-          quantityOrdered: Math.max(part.minStock - part.currentStock, 1),
+          quantityOrdered: Math.max(Number(part.minStock) - Number(part.currentStock), 1),
           unitCost: Number(part.purchasePrice),
           gstRate: Number(part.gstRate),
         },

@@ -34,7 +34,8 @@ function mapAdjustmentReasonToTxnType(reason) {
     }
 }
 function computeAdjustmentDelta(direction, quantity) {
-    return direction === 'IN' ? quantity : -quantity;
+    const value = new client_1.Prisma.Decimal(quantity);
+    return direction === 'IN' ? value : value.negated();
 }
 function formatAdjustmentNotes(reason, notes) {
     return notes ? `${REASON_LABEL[reason]} — ${notes}` : REASON_LABEL[reason];

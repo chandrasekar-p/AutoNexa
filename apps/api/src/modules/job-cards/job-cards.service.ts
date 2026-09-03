@@ -11,6 +11,7 @@ import { computeJobCardPipelineProgress } from './job-card-progress';
 import { computeJobCardDelayStatus, computeJobCardDelayDays } from './job-card-delay';
 import { resolveConvertedLabourLine } from './resolve-converted-labour-line';
 import { hasSufficientStock } from './stock-guard';
+import { isLowStock } from '../parts/low-stock';
 import { CreateJobCardDto } from './dto/create-job-card.dto';
 import { UpdateJobCardDto } from './dto/update-job-card.dto';
 import { UpdateJobCardStatusDto } from './dto/update-job-card-status.dto';
@@ -277,7 +278,12 @@ export class JobCardsService {
     const estimatedHours = labourItems
       .reduce((sum, l) => sum.add(l.hours), new Prisma.Decimal(0))
       .toNumber();
-    const partsPending = parts.filter((p) => p.part.currentStock <= p.part.minStock).length;
+    // Was a native `<=` on two Prisma.Decimal values — silently wrong once
+    // currentStock/minStock became fractional (decimal.js's valueOf() is a
+    // string, so `<=` did lexicographic string comparison, not numeric —
+    // confirmed empirically: "5.5" <= "10.25" is false). Reuses the same
+    // isLowStock predicate low-stock.ts already uses everywhere else.
+    const partsPending = parts.filter((p) => isLowStock(p.part)).length;
 
     return {
       ...rest,

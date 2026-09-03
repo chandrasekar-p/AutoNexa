@@ -11,7 +11,7 @@ import { ListPurchaseOrdersQueryDto } from './dto/list-purchase-orders-query.dto
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 
 const SUPPLIER_SUMMARY_SELECT = { id: true, name: true, mobile: true, email: true } as const;
-const PART_SUMMARY_SELECT = { id: true, partNumber: true, sku: true, name: true } as const;
+const PART_SUMMARY_SELECT = { id: true, partNumber: true, sku: true, name: true, unit: true } as const;
 const PURCHASE_ORDER_INCLUDE = {
   supplier: { select: SUPPLIER_SUMMARY_SELECT },
   items: { include: { part: { select: PART_SUMMARY_SELECT } } },
@@ -272,7 +272,7 @@ export class PurchaseOrdersService {
           throw new NotFoundException(`Purchase order item ${line.purchaseOrderItemId} not found on this order`);
         }
         if (isOverReceiving(item.quantityOrdered, item.quantityReceived, line.quantityReceived)) {
-          const outstanding = item.quantityOrdered - item.quantityReceived;
+          const outstanding = new Prisma.Decimal(item.quantityOrdered).sub(item.quantityReceived);
           throw new BadRequestException(
             `Cannot receive ${line.quantityReceived} of item ${line.purchaseOrderItemId} — only ${outstanding} outstanding`,
           );
